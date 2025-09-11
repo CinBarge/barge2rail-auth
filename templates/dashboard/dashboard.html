@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Barge2Rail SSO{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 2rem;">SSO Dashboard</h2>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <h3>{{ user_count }}</h3>
+        <p>Total Users</p>
+    </div>
+    <div class="stat-card">
+        <h3>{{ app_count }}</h3>
+        <p>Applications</p>
+    </div>
+    <div class="stat-card">
+        <h3>{{ role_count }}</h3>
+        <p>User Roles</p>
+    </div>
+</div>
+
+<div class="card">
+    <h3 style="margin-bottom: 1rem;">Recent Users</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Name</th>
+                <th>SSO Admin</th>
+                <th>Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in recent_users %}
+            <tr>
+                <td>{{ user.email }}</td>
+                <td>{{ user.get_full_name|default:user.username }}</td>
+                <td>{{ user.is_sso_admin|yesno:"Yes,No" }}</td>
+                <td>{{ user.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" style="text-align: center; color: #666;">No users yet</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h3 style="margin-bottom: 1rem;">Recent Applications</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Client ID</th>
+                <th>Active</th>
+                <th>Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for app in recent_apps %}
+            <tr>
+                <td>{{ app.name }}</td>
+                <td style="font-family: monospace; font-size: 0.9rem;">{{ app.client_id }}</td>
+                <td>{{ app.is_active|yesno:"Yes,No" }}</td>
+                <td>{{ app.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" style="text-align: center; color: #666;">No applications yet</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div style="margin-top: 2rem;">
+    <a href="{% url 'admin:index' %}" class="btn">Go to Django Admin</a>
+</div>
+{% endblock %}
