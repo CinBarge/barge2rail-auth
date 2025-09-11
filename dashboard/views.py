@@ -34,6 +34,28 @@ def login_view(request):
     return render(request, 'dashboard/login.html')
 
 
+def enhanced_login_view(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard:dashboard')
+    return render(request, 'dashboard/enhanced_login.html')
+
+
+def google_test_view(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard:dashboard')
+    return render(request, 'dashboard/google_login.html')
+
+
+def google_onetap_view(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard:dashboard')
+    return render(request, 'dashboard/google_onetap.html')
+
+
+def simple_test_view(request):
+    return render(request, 'dashboard/simple_test.html')
+
+
 @login_required
 def logout_view(request):
     logout(request)

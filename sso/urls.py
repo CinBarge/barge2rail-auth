@@ -1,10 +1,16 @@
 from django.urls import path
-from . import views
+from . import views, auth_views
 
 app_name = 'sso'
 
 urlpatterns = [
-    # Authentication endpoints
+    # Enhanced authentication endpoints
+    path('login/email/', auth_views.login_email, name='login_email'),
+    path('login/google/', auth_views.login_google, name='login_google'),
+    path('login/anonymous/', auth_views.login_anonymous, name='login_anonymous'),
+    path('register/email/', auth_views.register_email, name='register_email'),
+    
+    # Legacy authentication endpoints (keep for backward compatibility)
     path('register/', views.register, name='register'),
     path('login/', views.login, name='login'),
     path('logout/', views.logout, name='logout'),

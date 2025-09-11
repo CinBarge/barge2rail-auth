@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign In - Barge2Rail SSO</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #005500 0%, #007700 100%);
+            min-height: 100vh;
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            padding: 1rem;
+        }
+        
+        .login-container { 
+            background: white; 
+            border-radius: 12px; 
+            padding: 2.5rem; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15); 
+            width: 100%; 
+            max-width: 450px;
+        }
+        
+        .logo { 
+            text-align: center; 
+            margin-bottom: 2rem; 
+        }
+        
+        .logo h1 { 
+            color: #005500; 
+            margin: 0 0 0.5rem 0; 
+            font-size: 2rem; 
+        }
+        
+        .btn { 
+            width: 100%; 
+            padding: 0.875rem; 
+            background: #005500; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 1rem; 
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s; 
+            margin: 0.5rem 0;
+        }
+        
+        .btn:hover { 
+            background: #007700; 
+        }
+        
+        .alert { 
+            padding: 1rem; 
+            border-radius: 8px; 
+            margin: 1rem 0; 
+            border: 1px solid transparent;
+        }
+        
+        .alert-info {
+            background: #e6f7ff;
+            color: #0050b3;
+            border-color: #91d5ff;
+        }
+        
+        .alert-error { 
+            background: #fee; 
+            color: #c53030; 
+            border-color: #feb2b2; 
+        }
+        
+        .alert-success { 
+            background: #f0fff4; 
+            color: #22543d; 
+            border-color: #9ae6b4; 
+        }
+        
+        .divider {
+            text-align: center;
+            margin: 2rem 0;
+            position: relative;
+        }
+        
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #e1e5e9;
+        }
+        
+        .divider span {
+            background: white;
+            padding: 0 1rem;
+            position: relative;
+            color: #6c757d;
+            font-size: 0.875rem;
+        }
+        
+        pre {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>Barge2Rail</h1>
+            <p>Alternative Google Sign-In Methods</p>
+        </div>
+        
+        <div class="alert alert-info">
+            Testing different Google authentication approaches
+        </div>
+        
+        <!-- Method 1: One Tap -->
+        <div id="oneTapDiv"></div>
+        
+        <!-- Method 2: Manual button with different config -->
+        <button onclick="triggerGoogleSignIn()" class="btn">
+            Trigger Manual Google Sign-In
+        </button>
+        
+        <div class="divider">
+            <span>or</span>
+        </div>
+        
+        <!-- Method 3: Direct OAuth URL -->
+        <a href="#" onclick="directOAuth(); return false;" class="btn" style="text-align: center; text-decoration: none; display: block;">
+            Direct OAuth Flow (Redirect)
+        </a>
+        
+        <div id="alert" class="alert" style="display: none; margin-top: 2rem;"></div>
+        
+        <div id="tokenDisplay" style="display: none; margin-top: 2rem;">
+            <h4>Received Token:</h4>
+            <pre id="tokenContent"></pre>
+        </div>
+    </div>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+        const CLIENT_ID = '<GOOGLE_CLIENT_ID>';
+        
+        function showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.style.display = 'block';
+        }
+        
+        window.onload = function () {
+            console.log('Initializing Google Sign-In...');
+            
+            // Initialize One Tap
+            google.accounts.id.initialize({
+                client_id: CLIENT_ID,
+                callback: handleCredentialResponse,
+                auto_select: false,
+                cancel_on_tap_outside: false,
+                use_fedcm_for_prompt: false  // Disable FedCM
+            });
+            
+            // Show One Tap prompt
+            google.accounts.id.prompt((notification) => {
+                console.log('One Tap notification:', notification);
+                if (notification.isNotDisplayed()) {
+                    showAlert('One Tap not displayed: ' + notification.getNotDisplayedReason(), 'info');
+                } else if (notification.isSkippedMoment()) {
+                    showAlert('One Tap skipped: ' + notification.getSkippedReason(), 'info');
+                } else if (notification.isDismissedMoment()) {
+                    showAlert('One Tap dismissed: ' + notification.getDismissedReason(), 'info');
+                }
+            });
+            
+            // Also render a button as backup
+            google.accounts.id.renderButton(
+                document.getElementById("oneTapDiv"),
+                { 
+                    theme: "filled_blue", 
+                    size: "large",
+                    width: "100%",
+                    text: "signin_with"
+                }
+            );
+        }
+        
+        function handleCredentialResponse(response) {
+            console.log("Received credential response");
+            console.log("Token length:", response.credential ? response.credential.length : 0);
+            
+            showAlert('Received Google token! Length: ' + response.credential.length, 'success');
+            
+            // Display token preview
+            const tokenDisplay = document.getElementById('tokenDisplay');
+            const tokenContent = document.getElementById('tokenContent');
+            tokenDisplay.style.display = 'block';
+            tokenContent.textContent = response.credential.substring(0, 100) + '...';
+            
+            // Parse and display JWT payload
+            try {
+                const parts = response.credential.split('.');
+                const payload = JSON.parse(atob(parts[1]));
+                console.log('Token payload:', payload);
+                showAlert('Signed in as: ' + payload.email, 'success');
+                
+                // Send to backend
+                sendTokenToBackend(response.credential);
+            } catch (e) {
+                console.error('Error parsing token:', e);
+            }
+        }
+        
+        function sendTokenToBackend(token) {
+            showAlert('Sending token to backend...', 'info');
+            
+            fetch('http://127.0.0.1:8000/api/auth/login/google/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ token: token })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Backend response:', data);
+                if (data.access_token) {
+                    showAlert('✓ Authentication successful! Redirecting...', 'success');
+                    localStorage.setItem('barge2rail_access_token', data.access_token);
+                    localStorage.setItem('barge2rail_refresh_token', data.refresh_token);
+                    localStorage.setItem('barge2rail_user', JSON.stringify(data.user));
+                    
+                    setTimeout(() => {
+                        window.location.href = '/dashboard/';
+                    }, 2000);
+                } else {
+                    showAlert('Backend error: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Network error:', error);
+                showAlert('Network error: ' + error.message, 'error');
+            });
+        }
+        
+        function triggerGoogleSignIn() {
+            console.log('Triggering manual sign-in...');
+            google.accounts.id.prompt();
+        }
+        
+        function directOAuth() {
+            // Direct OAuth2 flow (redirect-based)
+            const redirectUri = encodeURIComponent('http://127.0.0.1:8000/login/google-callback/');
+            const scope = encodeURIComponent('openid email profile');
+            const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${redirectUri}&response_type=id_token&scope=${scope}&nonce=${Date.now()}`;
+            
+            showAlert('Redirecting to Google...', 'info');
+            console.log('OAuth URL:', authUrl);
+            
+            // For testing, just show the URL
+            alert('Would redirect to:\n' + authUrl + '\n\n(Not implemented yet - would need backend callback handler)');
+        }
+    </script>
+</body>
+</html>

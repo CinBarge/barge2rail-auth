@@ -1,28 +1,81 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 import uuid
+import random
+import string
 
 
 class User(AbstractUser):
+    AUTH_TYPES = [
+        ('email', 'Email/Password'),
+        ('google', 'Google Sign-In'),
+        ('anonymous', 'Anonymous PIN'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True, null=True, blank=True)  # Allow null for anonymous
     phone = models.CharField(max_length=20, blank=True)
+    display_name = models.CharField(max_length=100, blank=True)
     is_active = models.BooleanField(default=True)
     is_sso_admin = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    # New fields for enhanced auth
+    auth_type = models.CharField(max_length=20, choices=AUTH_TYPES, default='email')
+    google_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    
+    # Anonymous user fields
+    anonymous_username = models.CharField(max_length=50, blank=True, null=True, unique=True)
+    pin_code = models.CharField(max_length=6, blank=True, null=True)
+    is_anonymous = models.BooleanField(default=False)
+    
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username']
+    REQUIRED_FIELDS = []  # Remove required fields to allow anonymous users
     
     class Meta:
         db_table = 'sso_users'
         ordering = ['-created_at']
+    
+    def save(self, *args, **kwargs):
+        # Auto-generate anonymous username if needed
+        if self.is_anonymous and not self.anonymous_username:
+            self.anonymous_username = self.generate_anonymous_username()
+        
+        # Auto-generate PIN if needed
+        if self.is_anonymous and not self.pin_code:
+            self.pin_code = self.generate_pin()
+        
+        # Set username for anonymous users
+        if self.is_anonymous and not self.username:
+            self.username = self.anonymous_username
+            
+        super().save(*args, **kwargs)
+    
+    def generate_anonymous_username(self):
+        """Generate unique anonymous username like 'Guest-ABC123'"""
+        while True:
+            suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            username = f"Guest-{suffix}"
+            if not User.objects.filter(anonymous_username=username).exists():
+                return username
+    
+    def generate_pin(self):
+        """Generate 6-digit PIN code"""
+        return ''.join(random.choices(string.digits, k=6))
+    
+    @property
+    def display_identifier(self):
+        """Return appropriate identifier for display"""
+        if self.is_anonymous:
+            return self.anonymous_username
+        return self.email or self.username
 
 
 class Application(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=50, unique=True, default='')
     client_id = models.CharField(max_length=100, unique=True)
     client_secret = models.CharField(max_length=255)
     redirect_uris = models.TextField(help_text="Comma-separated list of allowed redirect URIs")

@@ -6,3 +6,6 @@ python-decouple
 gunicorn
 whitenoise
 dj-database-url
+google-auth==2.23.0
+google-auth-oauthlib==1.0.0
+google-auth-httplib2==0.1.0

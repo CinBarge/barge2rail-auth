@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign In - Barge2Rail SSO</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #005500 0%, #007700 100%);
+            min-height: 100vh;
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            padding: 1rem;
+        }
+        
+        .login-container { 
+            background: white; 
+            border-radius: 12px; 
+            padding: 2.5rem; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15); 
+            width: 100%; 
+            max-width: 450px;
+        }
+        
+        .logo { 
+            text-align: center; 
+            margin-bottom: 2rem; 
+        }
+        
+        .logo h1 { 
+            color: #005500; 
+            margin: 0 0 0.5rem 0; 
+            font-size: 2rem; 
+        }
+        
+        .logo p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .auth-tabs {
+            display: flex; 
+            margin-bottom: 2rem; 
+            border-bottom: 2px solid #eee;
+            gap: 0.5rem;
+        }
+        
+        .auth-tab {
+            flex: 1; 
+            padding: 1rem 0.5rem; 
+            text-align: center; 
+            cursor: pointer;
+            border-bottom: 3px solid transparent; 
+            transition: all 0.2s;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .auth-tab:hover {
+            color: #005500;
+        }
+        
+        .auth-tab.active { 
+            border-bottom-color: #005500; 
+            color: #005500; 
+        }
+        
+        .auth-form { 
+            display: none; 
+        }
+        
+        .auth-form.active { 
+            display: block; 
+        }
+        
+        .form-group { 
+            margin: 1.25rem 0; 
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        
+        .form-group input { 
+            width: 100%; 
+            padding: 0.875rem; 
+            border: 2px solid #e1e5e9; 
+            border-radius: 8px; 
+            font-size: 1rem; 
+            transition: all 0.2s;
+        }
+        
+        .form-group input:focus { 
+            outline: none; 
+            border-color: #005500; 
+            box-shadow: 0 0 0 3px rgba(0, 85, 0, 0.1);
+        }
+        
+        .btn { 
+            width: 100%; 
+            padding: 0.875rem; 
+            background: #005500; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 1rem; 
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s; 
+            margin: 0.5rem 0;
+        }
+        
+        .btn:hover { 
+            background: #007700; 
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 85, 0, 0.2);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .btn-google { 
+            background: white;
+            color: #3c4043;
+            border: 2px solid #dadce0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+        
+        .btn-google:hover { 
+            background: #f8f9fa;
+            border-color: #d2d3d3;
+            box-shadow: 0 1px 2px 0 rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15);
+        }
+        
+        .btn-anonymous { 
+            background: #28a745; 
+        }
+        
+        .btn-anonymous:hover { 
+            background: #218838; 
+        }
+        
+        .divider {
+            text-align: center;
+            margin: 1.5rem 0;
+            position: relative;
+        }
+        
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #e1e5e9;
+        }
+        
+        .divider span {
+            background: white;
+            padding: 0 1rem;
+            position: relative;
+            color: #6c757d;
+            font-size: 0.875rem;
+        }
+        
+        .alert { 
+            padding: 1rem; 
+            border-radius: 8px; 
+            margin: 1rem 0; 
+            border: 1px solid transparent;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .alert-error { 
+            background: #fee; 
+            color: #c53030; 
+            border-color: #feb2b2; 
+        }
+        
+        .alert-success { 
+            background: #f0fff4; 
+            color: #22543d; 
+            border-color: #9ae6b4; 
+        }
+        
+        .alert-info {
+            background: #e6f7ff;
+            color: #0050b3;
+            border-color: #91d5ff;
+        }
+        
+        .credentials-display {
+            background: #f8f9fa; 
+            padding: 1.25rem; 
+            border-radius: 8px; 
+            margin: 1rem 0;
+            border: 2px solid #28a745;
+        }
+        
+        .credentials-display h4 {
+            color: #28a745;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .credentials-display .credential-item {
+            margin: 0.5rem 0;
+            font-family: monospace;
+            font-size: 1.1rem;
+            padding: 0.5rem;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .credentials-display small {
+            color: #6c757d;
+            display: block;
+            margin-top: 0.75rem;
+        }
+        
+        .form-footer {
+            margin-top: 1.5rem;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.875rem;
+        }
+        
+        .form-footer a {
+            color: #005500;
+            text-decoration: none;
+        }
+        
+        .form-footer a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Google Sign-In Button custom styling */
+        #g_id_onload {
+            display: flex;
+            justify-content: center;
+        }
+        
+        .g_id_signin {
+            width: 100%;
+        }
+    </style>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>Barge2Rail</h1>
+            <p>Secure Single Sign-On</p>
+        </div>
+        
+        <div class="auth-tabs">
+            <div class="auth-tab active" data-tab="email">Email</div>
+            <div class="auth-tab" data-tab="google">Google</div>
+            <div class="auth-tab" data-tab="anonymous">Quick Access</div>
+        </div>
+        
+        <!-- Email/Password Form -->
+        <div id="email-form" class="auth-form active">
+            <form id="emailLoginForm">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" placeholder="your@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter your password" required>
+                </div>
+                <button type="submit" class="btn">Sign In</button>
+            </form>
+            
+            <div class="divider">
+                <span>or</span>
+            </div>
+            
+            <button id="showRegister" class="btn btn-secondary">Create New Account</button>
+        </div>
+        
+        <!-- Google Sign-In Form -->
+        <div id="google-form" class="auth-form">
+            <div style="padding: 2rem 0;">
+                <p style="text-align: center; color: #666; margin-bottom: 1.5rem;">
+                    Sign in with your Google account for quick access
+                </p>
+                <div id="g_id_onload"
+                     data-client_id="<GOOGLE_CLIENT_ID>"
+                     data-callback="handleGoogleSignIn"
+                     data-auto_prompt="false">
+                </div>
+                <div class="g_id_signin" 
+                     data-type="standard"
+                     data-size="large"
+                     data-theme="outline"
+                     data-text="sign_in_with"
+                     data-shape="rectangular"
+                     data-logo_alignment="left"
+                     data-width="400">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Anonymous Form -->
+        <div id="anonymous-form" class="auth-form">
+            <div id="anonymousExisting" style="display: block;">
+                <p style="color: #666; margin-bottom: 1.5rem; text-align: center;">
+                    Sign in with your existing Quick Access credentials
+                </p>
+                <div class="form-group">
+                    <label for="anonymousUsername">Username</label>
+                    <input type="text" id="anonymousUsername" placeholder="e.g., Guest-ABC123">
+                </div>
+                <div class="form-group">
+                    <label for="anonymousPin">PIN Code</label>
+                    <input type="text" id="anonymousPin" placeholder="6-digit PIN" maxlength="6" pattern="[0-9]{6}">
+                </div>
+                <button id="anonymousLoginBtn" class="btn btn-anonymous">Sign In</button>
+                
+                <div class="divider">
+                    <span>or</span>
+                </div>
+            </div>
+            
+            <button id="createAnonymousBtn" class="btn btn-anonymous">
+                Create New Quick Access Account
+            </button>
+        </div>
+        
+        <!-- Registration Form (hidden by default) -->
+        <div id="register-form" class="auth-form">
+            <form id="emailRegisterForm">
+                <div class="form-group">
+                    <label for="regEmail">Email Address</label>
+                    <input type="email" id="regEmail" placeholder="your@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="regPassword">Password</label>
+                    <input type="password" id="regPassword" placeholder="Choose a strong password" required>
+                </div>
+                <div class="form-group">
+                    <label for="regDisplayName">Display Name (optional)</label>
+                    <input type="text" id="regDisplayName" placeholder="How should we address you?">
+                </div>
+                <button type="submit" class="btn">Create Account</button>
+            </form>
+            <button id="backToLogin" class="btn btn-secondary">Back to Sign In</button>
+        </div>
+        
+        <div id="alert" class="alert" style="display: none;"></div>
+        <div id="anonymousCredentials" class="credentials-display" style="display: none;"></div>
+    </div>
+
+    <script src="/static/js/barge2rail-sso-v2.js"></script>
+    <script>
+        const sso = new Barge2RailSSO('http://127.0.0.1:8000', 'dashboard');
+        
+        // Check if already logged in
+        if (sso.isAuthenticated()) {
+            window.location.href = '/dashboard/';
+        }
+        
+        // Tab switching
+        document.querySelectorAll('.auth-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Hide registration form if visible
+                document.getElementById('register-form').classList.remove('active');
+                
+                // Remove active from all tabs and forms
+                document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+                
+                // Add active to clicked tab and corresponding form
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab + '-form').classList.add('active');
+                hideAlert();
+            });
+        });
+        
+        // Show registration form
+        document.getElementById('showRegister').addEventListener('click', () => {
+            document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+            document.getElementById('register-form').classList.add('active');
+            hideAlert();
+        });
+        
+        // Back to login
+        document.getElementById('backToLogin').addEventListener('click', () => {
+            document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+            document.getElementById('email-form').classList.add('active');
+            hideAlert();
+        });
+        
+        // Email login
+        document.getElementById('emailLoginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            showAlert('Signing in...', 'info');
+            const result = await sso.loginEmail(email, password);
+            handleAuthResult(result);
+        });
+        
+        // Email registration
+        document.getElementById('emailRegisterForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            const displayName = document.getElementById('regDisplayName').value;
+            
+            showAlert('Creating account...', 'info');
+            const result = await sso.registerEmail(email, password, displayName);
+            handleAuthResult(result);
+        });
+        
+        // Anonymous login
+        document.getElementById('anonymousLoginBtn').addEventListener('click', async () => {
+            const username = document.getElementById('anonymousUsername').value;
+            const pin = document.getElementById('anonymousPin').value;
+            
+            if (!username || !pin) {
+                showAlert('Please enter both username and PIN', 'error');
+                return;
+            }
+            
+            showAlert('Signing in...', 'info');
+            const result = await sso.loginAnonymous(username, pin);
+            handleAuthResult(result);
+        });
+        
+        // Create anonymous account
+        document.getElementById('createAnonymousBtn').addEventListener('click', async () => {
+            showAlert('Creating Quick Access account...', 'info');
+            const result = await sso.createAnonymousAccount();
+            handleAuthResult(result);
+            
+            if (result.success && result.anonymous_credentials) {
+                showAnonymousCredentials(result.anonymous_credentials);
+            }
+        });
+        
+        // Google Sign-In callback - must be global
+        window.handleGoogleSignIn = function(response) {
+            console.log('Google Sign-In response received');
+            showAlert('Signing in with Google...', 'info');
+            sso.loginGoogle(response.credential).then(handleAuthResult).catch(function(error) {
+                console.error('Google login error:', error);
+                showAlert('Google sign-in failed: ' + error.message, 'error');
+            });
+        }
+        
+        function handleAuthResult(result) {
+            if (result.success) {
+                showAlert(result.message || 'Login successful! Redirecting...', 'success');
+                setTimeout(() => {
+                    window.location.href = '/dashboard/';
+                }, 1500);
+            } else {
+                showAlert(result.error || 'Authentication failed', 'error');
+            }
+        }
+        
+        function showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.style.display = 'block';
+        }
+        
+        function hideAlert() {
+            document.getElementById('alert').style.display = 'none';
+        }
+        
+        function showAnonymousCredentials(credentials) {
+            const div = document.getElementById('anonymousCredentials');
+            div.innerHTML = `
+                <h4>⚠️ Save Your Quick Access Credentials!</h4>
+                <div class="credential-item">
+                    <strong>Username:</strong> ${credentials.username}
+                </div>
+                <div class="credential-item">
+                    <strong>PIN:</strong> ${credentials.pin}
+                </div>
+                <small>Write these down now! You'll need them to sign in again. These credentials cannot be recovered if lost.</small>
+            `;
+            div.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
