@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google OAuth Success - Barge2Rail SSO</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        .success-icon {
+            text-align: center;
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #2c5530;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .token-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #e9ecef;
+        }
+        
+        .token-label {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 5px;
+        }
+        
+        .token-value {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            background: white;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            word-break: break-all;
+            line-height: 1.4;
+        }
+        
+        .copy-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+        
+        .copy-btn:hover {
+            background: #0056b3;
+        }
+        
+        .actions {
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            margin: 5px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn:hover {
+            opacity: 0.8;
+        }
+        
+        .instructions {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .instructions h3 {
+            color: #0066cc;
+            margin-top: 0;
+        }
+        
+        .instructions code {
+            background: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% if success %}
+            <div class="success-icon">✅</div>
+            <h1>Google OAuth Success!</h1>
+            
+            <div class="success-message">
+                <strong>Authentication successful!</strong> Your Google OAuth tokens have been generated successfully.
+            </div>
+            
+            <div class="token-section">
+                <div class="token-label">Access Token:</div>
+                <div class="token-value" id="access-token">{{ access_token }}</div>
+                <button class="copy-btn" onclick="copyToClipboard('access-token')">Copy</button>
+            </div>
+            
+            <div class="token-section">
+                <div class="token-label">Refresh Token:</div>
+                <div class="token-value" id="refresh-token">{{ refresh_token }}</div>
+                <button class="copy-btn" onclick="copyToClipboard('refresh-token')">Copy</button>
+            </div>
+            
+            <div class="instructions">
+                <h3>Next Steps:</h3>
+                <p>Use these tokens to authenticate API requests:</p>
+                <ul>
+                    <li>Store the tokens securely (e.g., in localStorage or session storage)</li>
+                    <li>Include the access token in API requests: <code>Authorization: Bearer {access_token}</code></li>
+                    <li>Use the refresh token to get new access tokens when they expire</li>
+                </ul>
+            </div>
+            
+            <div class="actions">
+                <a href="/login/google-diagnostic/" class="btn btn-secondary">Back to Diagnostic</a>
+                <a href="/dashboard/" class="btn btn-primary">Go to Dashboard</a>
+            </div>
+            
+        {% else %}
+            <div class="error-message">
+                <strong>Authentication Failed!</strong> No tokens were received from the OAuth callback.
+            </div>
+            
+            <div class="actions">
+                <a href="/login/google-diagnostic/" class="btn btn-primary">Try Again</a>
+            </div>
+        {% endif %}
+    </div>
+    
+    <script>
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            navigator.clipboard.writeText(text).then(function() {
+                // Change button text temporarily
+                const btn = element.nextElementSibling;
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            }).catch(function(err) {
+                console.error('Failed to copy: ', err);
+                alert('Failed to copy to clipboard');
+            });
+        }
+        
+        // Store tokens in localStorage for testing
+        {% if success %}
+        localStorage.setItem('barge2rail_access_token', '{{ access_token }}');
+        localStorage.setItem('barge2rail_refresh_token', '{{ refresh_token }}');
+        console.log('Tokens stored in localStorage for testing');
+        {% endif %}
+    </script>
+</body>
+</html>
