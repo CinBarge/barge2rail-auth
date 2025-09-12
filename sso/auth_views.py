@@ -4,6 +4,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
+from django.shortcuts import redirect
+import requests
+import json
 try:
     from google.oauth2 import id_token
     from google.auth.transport import requests as google_requests
@@ -208,3 +211,105 @@ def generate_token_response(user, created=False, anonymous_credentials=None):
         response_data['message'] = 'Account created successfully'
     
     return Response(response_data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def debug_google_config(request):
+    """Debug endpoint to verify Google OAuth configuration"""
+    from django.conf import settings
+    
+    return Response({
+        'client_id_from_decouple': GOOGLE_CLIENT_ID,
+        'client_id_from_settings': getattr(settings, 'GOOGLE_CLIENT_ID', 'NOT SET'),
+        'google_auth_available': GOOGLE_AUTH_AVAILABLE,
+        'current_origin': f"{request.scheme}://{request.get_host()}",
+        'request_meta_host': request.META.get('HTTP_HOST'),
+        'debug_info': {
+            'scheme': request.scheme,
+            'host': request.get_host(),
+            'path': request.path,
+            'full_url': request.build_absolute_uri(),
+        }
+    })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def google_auth_callback(request):
+    """Handle Google OAuth redirect callback"""
+    
+    # Get the authorization code from the callback
+    code = request.GET.get('code')
+    if not code:
+        return Response({'error': 'Authorization code not provided'}, 
+                      status=status.HTTP_400_BAD_REQUEST)
+    
+    # Exchange the code for tokens
+    redirect_uri = f"{request.scheme}://{request.get_host()}"
+    token_url = 'https://oauth2.googleapis.com/token'
+    
+    payload = {
+        'code': code,
+        'client_id': GOOGLE_CLIENT_ID,
+        'client_secret': config('GOOGLE_CLIENT_SECRET', default=''),
+        'redirect_uri': redirect_uri,
+        'grant_type': 'authorization_code'
+    }
+    
+    response = requests.post(token_url, data=payload)
+    if response.status_code != 200:
+        return Response({'error': 'Failed to exchange authorization code for tokens',
+                        'details': response.text}, 
+                      status=status.HTTP_400_BAD_REQUEST)
+    
+    # Extract tokens from response
+    token_data = response.json()
+    id_token_value = token_data.get('id_token')
+    
+    if not id_token_value:
+        return Response({'error': 'No ID token in response'}, 
+                      status=status.HTTP_400_BAD_REQUEST)
+    
+    # Verify the ID token
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            id_token_value, google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+        
+        google_id = idinfo['sub']
+        email = idinfo['email']
+        name = idinfo.get('name', '')
+        
+        # Find or create user
+        user, created = User.objects.get_or_create(
+            google_id=google_id,
+            defaults={
+                'email': email,
+                'username': email,  # Use email as username for Google users
+                'display_name': name,
+                'first_name': idinfo.get('given_name', ''),
+                'last_name': idinfo.get('family_name', ''),
+                'auth_type': 'google',
+                'is_active': True,
+            }
+        )
+        
+        # Update user info if existing
+        if not created:
+            user.email = email
+            user.display_name = name
+            user.first_name = idinfo.get('given_name', '')
+            user.last_name = idinfo.get('family_name', '')
+            user.save()
+        
+        # Generate tokens for the user
+        refresh = RefreshToken.for_user(user)
+        
+        # Redirect to success page with tokens
+        success_url = f"/login/google-success/?access_token={str(refresh.access_token)}&refresh_token={str(refresh)}"
+        return redirect(success_url)
+        
+    except ValueError as e:
+        return Response({'error': 'Invalid Google token', 'details': str(e)}, 
+                      status=status.HTTP_400_BAD_REQUEST)
