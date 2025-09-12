@@ -80,3 +80,19 @@ Thumbs.db
 # Project specific
 static/collected/
 *.sqlite3
+# Temporary debugging and test files
+debug_*.sh
+debug_*.html
+debug_*.py
+fix_*.sh
+test_*.sh
+test_*.html
+setup_*.sh
+start_*.sh
+verify_*.sh
+diagnose_*.py
+*_STATUS.md
+WARP.md
+test_popup.html
+test_callback.sh
+
