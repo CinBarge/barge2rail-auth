@@ -18,12 +18,13 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from sso.views import google_auth_callback
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('sso.urls')),
-    # Add auth/google/callback path for Google OAuth redirect
-    path('auth/', include('sso.urls')),
+    # Direct Google OAuth callback path
+    path('auth/google/callback/', google_auth_callback, name='google_oauth_callback'),
     path('', include('dashboard.urls')),
 ]
 
