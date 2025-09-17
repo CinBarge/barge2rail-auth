@@ -1,3 +1,4 @@
 # (paste content above)
 .env
 .env.*
+.secrets.baseline
