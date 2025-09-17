@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Google Client ID</title>
+</head>
+<body>
+    <h1>Google Client ID Debug</h1>
+    <p><strong>Current URL:</strong> <span id="current-url"></span></p>
+    <p><strong>Client ID from Django:</strong> Loading...</p>
+    <div id="client-id-display"></div>
+    
+    <script>
+        document.getElementById('current-url').textContent = window.location.href;
+        
+        // Try to fetch the client ID from Django
+        fetch('/api/auth/debug-client-id/')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('client-id-display').innerHTML = 
+                    '<p><strong>Client ID:</strong> ' + data.client_id + '</p>' +
+                    '<p><strong>Debug Info:</strong> ' + JSON.stringify(data, null, 2) + '</p>';
+            })
+            .catch(error => {
+                document.getElementById('client-id-display').innerHTML = 
+                    '<p style="color: red;">Error fetching client ID: ' + error + '</p>';
+            });
+    </script>
+</body>
+</html>

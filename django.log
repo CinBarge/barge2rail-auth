@@ -1,0 +1,7 @@
+INFO 2025-09-15 20:57:19,814 autoreload 55325 8429805760 Watching for file changes with StatReloader
+INFO 2025-09-15 20:57:22,461 basehttp 55325 6165999616 "GET /auth/google/callback/ HTTP/1.1" 302 0
+INFO 2025-09-15 21:00:08,446 basehttp 55325 6165999616 "GET /api/auth/oauth/google/url/ HTTP/1.1" 200 446
+INFO 2025-09-15 22:25:50,525 basehttp 55325 6165999616 "HEAD /login/google-diagnostic/ HTTP/1.1" 200 0
+INFO 2025-09-15 22:26:17,539 basehttp 55325 6165999616 "GET /login/google-diagnostic/ HTTP/1.1" 200 18258
+WARNING 2025-09-15 22:26:17,548 log 55325 6182825984 Not Found: /login/google-diagnostic/**
+WARNING 2025-09-15 22:26:17,548 basehttp 55325 6182825984 "GET /login/google-diagnostic/** HTTP/1.1" 404 4529

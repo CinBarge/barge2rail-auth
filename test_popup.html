@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Popup Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 600px; 
+            margin: 50px auto; 
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 5px; 
+        }
+        button { 
+            padding: 10px 20px; 
+            margin: 5px; 
+            cursor: pointer; 
+            background: #007cba; 
+            color: white; 
+            border: none; 
+            border-radius: 3px; 
+        }
+        button:hover { background: #005a8b; }
+        .result { 
+            margin: 10px 0; 
+            padding: 10px; 
+            border-radius: 3px; 
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>Popup Blocking Test</h1>
+    <p>This page will help determine if popup blocking is actually preventing Google Sign-In from working.</p>
+
+    <div class="test-section">
+        <h3>Test 1: Basic Popup Detection</h3>
+        <button onclick="testBasicPopup()">Test Basic Popup</button>
+        <div id="basic-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 2: Delayed Popup (Mimics Google Auth)</h3>
+        <button onclick="testDelayedPopup()">Test Delayed Popup</button>
+        <div id="delayed-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 3: User-Initiated Popup</h3>
+        <p>This should work even with popup blockers since it's directly triggered by user interaction:</p>
+        <button onclick="testUserInitiatedPopup()">Test User-Initiated Popup</button>
+        <div id="user-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 4: Google Auth Method Test</h3>
+        <p>This simulates how Google Sign-In actually works:</p>
+        <button onclick="testGoogleAuthMethod()">Test Google Auth Method</button>
+        <div id="google-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Browser Information</h3>
+        <div id="browser-info"></div>
+    </div>
+
+    <script>
+        function showResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="result ${type}">${message}</div>`;
+        }
+
+        function testBasicPopup() {
+            try {
+                const popup = window.open('', '_blank', 'width=300,height=200,left=100,top=100');
+                if (popup && !popup.closed) {
+                    popup.close();
+                    showResult('basic-result', '✅ Basic popup allowed - popup blocking is NOT active', 'success');
+                } else {
+                    showResult('basic-result', '❌ Basic popup blocked - popup blocker is active', 'error');
+                }
+            } catch (e) {
+                showResult('basic-result', '❌ Exception thrown: ' + e.message, 'error');
+            }
+        }
+
+        function testDelayedPopup() {
+            showResult('delayed-result', '⏳ Testing delayed popup in 1 second...', 'warning');
+            setTimeout(() => {
+                try {
+                    const popup = window.open('', '_blank', 'width=300,height=200');
+                    if (popup && !popup.closed) {
+                        popup.close();
+                        showResult('delayed-result', '✅ Delayed popup worked - this is unusual if popup blocker is active', 'success');
+                    } else {
+                        showResult('delayed-result', '❌ Delayed popup blocked - this is expected with popup blockers', 'error');
+                    }
+                } catch (e) {
+                    showResult('delayed-result', '❌ Delayed popup exception: ' + e.message, 'error');
+                }
+            }, 1000);
+        }
+
+        function testUserInitiatedPopup() {
+            // This should work even with popup blockers since it's directly triggered by user click
+            try {
+                const popup = window.open('data:text/html,<html><body><h1>Success!</h1><p>This popup opened successfully.</p><scr' + 'ipt>setTimeout(() => window.close(), 3000);</scr' + 'ipt></body></html>', '_blank', 'width=400,height=300');
+                if (popup && !popup.closed) {
+                    showResult('user-result', '✅ User-initiated popup worked! Popup blocker allows user-triggered popups.', 'success');
+                } else {
+                    showResult('user-result', '❌ Even user-initiated popup was blocked - very strict popup blocker', 'error');
+                }
+            } catch (e) {
+                showResult('user-result', '❌ User-initiated popup exception: ' + e.message, 'error');
+            }
+        }
+
+        function testGoogleAuthMethod() {
+            // This simulates what Google Sign-In does
+            showResult('google-result', '⏳ Testing Google Auth-style popup...', 'warning');
+            
+            try {
+                const width = 500;
+                const height = 600;
+                const left = (screen.width - width) / 2;
+                const top = (screen.height - height) / 2;
+                
+                const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`;
+                const popup = window.open('data:text/html,<html><body><h1>Google Auth Simulation</h1><p>This simulates a Google Sign-In popup.</p><p>If you can see this, popup blocking is NOT the issue.</p><button onclick="window.close()">Close</button></body></html>', '_blank', features);
+                
+                if (popup && !popup.closed) {
+                    showResult('google-result', '✅ Google Auth-style popup worked! Popup blocking is likely NOT your issue.', 'success');
+                    
+                    // Check if popup gets closed immediately (some blockers do this)
+                    setTimeout(() => {
+                        if (popup.closed) {
+                            showResult('google-result', '⚠️ Popup was closed automatically - possible popup interference', 'warning');
+                        }
+                    }, 100);
+                } else {
+                    showResult('google-result', '❌ Google Auth-style popup blocked - popup blocking IS likely the issue', 'error');
+                }
+            } catch (e) {
+                showResult('google-result', '❌ Google Auth popup exception: ' + e.message, 'error');
+            }
+        }
+
+        function displayBrowserInfo() {
+            const info = {
+                userAgent: navigator.userAgent,
+                cookiesEnabled: navigator.cookieEnabled,
+                doNotTrack: navigator.doNotTrack,
+                language: navigator.language,
+                platform: navigator.platform,
+                vendor: navigator.vendor,
+                onLine: navigator.onLine
+            };
+
+            let html = '<ul>';
+            for (const [key, value] of Object.entries(info)) {
+                html += `<li><strong>${key}:</strong> ${value}</li>`;
+            }
+            html += '</ul>';
+
+            document.getElementById('browser-info').innerHTML = html;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            displayBrowserInfo();
+        });
+    </script>
+</body>
+</html>

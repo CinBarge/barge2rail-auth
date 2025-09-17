@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Simple Google OAuth Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover { background: #0056b3; }
+        #googleButton { margin: 20px 0; }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Simple Google OAuth Test</h1>
+        <p>This page tests Google Sign-In with minimal complexity.</p>
+        
+        <div id="status" class="status info">
+            <strong>Status:</strong> Initializing Google Sign-In...
+        </div>
+        
+        <div id="googleButton"></div>
+        
+        <button onclick="testManualClick()">🔄 Manual Test</button>
+        <button onclick="clearResults()">🗑️ Clear Results</button>
+        
+        <h3>Results:</h3>
+        <pre id="results">Waiting for Google Sign-In test...</pre>
+    </div>
+
+    <!-- Google Sign-In Library -->
+    <script src="https://accounts.google.com/gsi/client" 
+            onload="initializeGoogleSignIn()" 
+            onerror="handleGoogleLibraryError()"></script>
+    
+    <script>
+        const CLIENT_ID = '<GOOGLE_CLIENT_ID>';
+        const API_BASE = 'http://127.0.0.1:8000';
+        let results = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            results.push(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
+            updateResults();
+            console.log(`${type.toUpperCase()}: ${message}`);
+        }
+        
+        function updateResults() {
+            document.getElementById('results').textContent = results.join('\n');
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = `<strong>Status:</strong> ${message}`;
+        }
+        
+        function clearResults() {
+            results = [];
+            updateResults();
+            updateStatus('Results cleared', 'info');
+        }
+        
+        function handleGoogleLibraryError() {
+            log('Google Sign-In library failed to load', 'error');
+            updateStatus('Google library failed to load', 'error');
+        }
+        
+        function initializeGoogleSignIn() {
+            log('Google Sign-In library loaded successfully');
+            updateStatus('Google library loaded', 'success');
+            
+            try {
+                // Initialize Google Sign-In
+                google.accounts.id.initialize({
+                    client_id: CLIENT_ID,
+                    callback: handleCredentialResponse,
+                    auto_select: false,
+                    cancel_on_tap_outside: true
+                });
+                
+                log('Google Sign-In initialized');
+                
+                // Render the sign-in button
+                google.accounts.id.renderButton(
+                    document.getElementById('googleButton'),
+                    {
+                        theme: 'outline',
+                        size: 'large',
+                        text: 'signin_with',
+                        width: '300'
+                    }
+                );
+                
+                log('Google Sign-In button rendered');
+                updateStatus('Ready to test Google Sign-In', 'success');
+                
+            } catch (error) {
+                log(`Error initializing Google Sign-In: ${error.message}`, 'error');
+                updateStatus('Initialization failed', 'error');
+            }
+        }
+        
+        function handleCredentialResponse(response) {
+            log('🎉 Google credential received!');
+            log(`Token length: ${response.credential.length} characters`);
+            
+            try {
+                // Decode the JWT token to show user info
+                const payload = JSON.parse(atob(response.credential.split('.')[1]));
+                log(`User email: ${payload.email}`);
+                log(`User name: ${payload.name}`);
+                
+                updateStatus(`Signed in as ${payload.email}`, 'success');
+                
+                // Send token to our Django backend
+                sendTokenToBackend(response.credential);
+                
+            } catch (error) {
+                log(`Error parsing Google token: ${error.message}`, 'error');
+                updateStatus('Token parsing failed', 'error');
+            }
+        }
+        
+        function sendTokenToBackend(token) {
+            log('Sending token to Django backend...');
+            
+            fetch(`${API_BASE}/api/auth/login/google/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ token: token })
+            })
+            .then(response => {
+                log(`Backend response status: ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                if (data.access_token) {
+                    log('✅ Backend authentication successful!');
+                    log(`JWT Access Token: ${data.access_token.substring(0, 30)}...`);
+                    log(`User ID: ${data.user.id}`);
+                    log(`User email: ${data.user.email}`);
+                    
+                    updateStatus('🎉 Google OAuth working perfectly!', 'success');
+                    
+                    // Store tokens (optional)
+                    localStorage.setItem('barge2rail_access_token', data.access_token);
+                    localStorage.setItem('barge2rail_refresh_token', data.refresh_token);
+                    
+                } else {
+                    log(`❌ Backend error: ${data.error}`, 'error');
+                    updateStatus(`Backend error: ${data.error}`, 'error');
+                }
+            })
+            .catch(error => {
+                log(`❌ Network error: ${error.message}`, 'error');
+                updateStatus('Network error - check Django server', 'error');
+            });
+        }
+        
+        function testManualClick() {
+            log('Manual test triggered');
+            updateStatus('Manual test - waiting for user action', 'info');
+            
+            if (typeof google !== 'undefined' && google.accounts) {
+                // Try to trigger One Tap
+                google.accounts.id.prompt((notification) => {
+                    if (notification.isNotDisplayed()) {
+                        log(`One Tap not displayed: ${notification.getNotDisplayedReason()}`);
+                    }
+                    if (notification.isSkippedMoment()) {
+                        log(`One Tap skipped: ${notification.getSkippedReason()}`);
+                    }
+                });
+            } else {
+                log('Google Sign-In not available for manual test', 'error');
+            }
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            log('Page loaded - waiting for Google library...');
+        });
+    </script>
+</body>
+</html>

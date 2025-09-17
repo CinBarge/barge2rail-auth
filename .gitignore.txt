@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+*.pyo
+*.pyd
+
+# Virtualenv
+.venv/
+env/
+venv/
+ENV/
+
+# Django
+*.log
+*.pot
+*.pyc
+db.sqlite3
+media/
+staticfiles/
+django.pid
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.secret
+*.key
+
+# Node / frontend
+node_modules/
+package-lock.json
+yarn.lock
+package.json.tmp
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Project specific
+.claude-context/session/
+.ai-prompts/generated/
+INDEX.md
