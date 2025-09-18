@@ -2,3 +2,5 @@
 .env
 .env.*
 .secrets.baseline
+.env*
+*.env
