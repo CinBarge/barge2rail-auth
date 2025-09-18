@@ -2,17 +2,21 @@ from django.urls import path
 from . import views, auth_views
 
 urlpatterns = [
-    # New enhanced endpoints following the plan
+    # Primary OAuth API endpoints matching frontend expectations
+    path('google/oauth-url/', views.google_oauth_url, name='google_oauth_url'),
+    path('google/callback/', views.login_google_oauth, name='google_oauth_api_callback'),
+    path('status/', views.auth_status, name='auth_status'),
+    path('logout/', views.logout, name='logout'),
+    
+    # Enhanced authentication endpoints
     path('login/email/', views.login_email, name='login_email'),
     path('login/anonymous/', views.login_anonymous, name='login_anonymous'),
     path('register/email/', views.register_email, name='register_email'),
     
-    # Google OAuth endpoints
+    # Additional OAuth endpoints
     path('login/google/', auth_views.login_google, name='login_google'),  # For ID token (popup)
     path('login/google/oauth/', views.login_google_oauth, name='login_google_oauth'),  # For OAuth code (redirect)
-    path('oauth/google/url/', views.google_oauth_url, name='google_oauth_url'),
     path('config/google/', views.google_config_check, name='google_config_check'),
-    path('google/callback/', views.google_auth_callback, name='google_auth_callback'),
     
     # Other endpoints
     path('logout/', views.logout, name='logout'),

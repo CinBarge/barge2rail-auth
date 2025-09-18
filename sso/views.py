@@ -410,6 +410,28 @@ def verify_access(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+def auth_status(request):
+    """Check user authentication status"""
+    if request.user.is_authenticated:
+        return Response({
+            'authenticated': True,
+            'user': {
+                'id': str(request.user.id),
+                'email': request.user.email,
+                'display_name': request.user.display_name,
+                'auth_type': request.user.auth_type,
+                'is_anonymous': request.user.is_anonymous,
+                'is_sso_admin': request.user.is_sso_admin
+            }
+        })
+    else:
+        return Response({
+            'authenticated': False,
+            'user': None
+        })
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def health_check(request):
     """Health check endpoint"""
     return Response({'status': 'healthy'})
@@ -492,15 +514,15 @@ class UserRoleDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UserRoleSerializer
     permission_classes = [IsAuthenticated]
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def google_auth_callback(request):
     """Handle Google OAuth redirect callback"""
     from django.shortcuts import redirect
     
-    # Get the authorization code from the callback
-    code = request.GET.get('code')
-    error = request.GET.get('error')
+    # Get the authorization code from the callback (GET) or request data (POST)
+    code = request.GET.get('code') or request.data.get('code')
+    error = request.GET.get('error') or request.data.get('error')
     
     if error:
         # User cancelled or error occurred
