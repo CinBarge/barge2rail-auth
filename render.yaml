@@ -2,28 +2,21 @@ services:
   - type: web
     name: barge2rail-sso
     runtime: docker
-    region: oregon
+    region: ohio  # Columbus region
     plan: starter
-    healthCheckPath: /health/
+    healthCheckPath: /api/auth/health/  # Fixed: matches your Django endpoint
+    # CRITICAL FIX: Add the correct Django WSGI start command
+    startCommand: gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: DEBUG
-        value: False
-      - key: ALLOWED_HOSTS
-        fromService:
-          type: web
-          name: barge2rail-sso
-          property: hostnames
-      - key: CSRF_TRUSTED_ORIGINS
-        fromService:
-          type: web
-          name: barge2rail-sso
-          property: hostnames
+        value: "False"  # String format for environment variables
       - key: BASE_URL
-        fromService:
-          type: web
-          name: barge2rail-sso
-          property: hostnames
+        value: "https://sso.barge2rail.com"  # Fixed: explicit value instead of dynamic
+      - key: ALLOWED_HOSTS
+        value: "sso.barge2rail.com"  # Fixed: explicit hostname
+      - key: CSRF_TRUSTED_ORIGINS
+        value: "https://sso.barge2rail.com"  # Fixed: include https:// prefix
       - key: GOOGLE_CLIENT_ID
-        sync: false
+        sync: false  # You'll set these manually in Render dashboard
       - key: GOOGLE_CLIENT_SECRET
         sync: false
