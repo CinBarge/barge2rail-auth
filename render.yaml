@@ -5,7 +5,7 @@ services:
     region: ohio  # Columbus region
     plan: starter
     healthCheckPath: /api/auth/health/  # Fixed: matches your Django endpoint
-    # CRITICAL FIX: Add the correct Django WSGI start command
+    # CRITICAL: Django WSGI start command
     startCommand: gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: DEBUG
@@ -13,7 +13,7 @@ services:
       - key: BASE_URL
         value: "https://sso.barge2rail.com"  # Fixed: explicit value instead of dynamic
       - key: ALLOWED_HOSTS
-        value: "sso.barge2rail.com"  # Fixed: explicit hostname
+        value: "sso.barge2rail.com,barge2rail-sso.onrender.com"  # Include both custom domain and Render URL
       - key: CSRF_TRUSTED_ORIGINS
         value: "https://sso.barge2rail.com"  # Fixed: include https:// prefix
       - key: GOOGLE_CLIENT_ID
