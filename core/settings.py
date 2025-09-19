@@ -164,7 +164,7 @@ BASE_URL = config('BASE_URL', default='http://127.0.0.1:8000')
 # CORS - Allow both development and production origins
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000,https://sso.barge2rail.com',
+    default='http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000,https://sso.barge2rail.com,https://barge2rail-sso.onrender.com',
 ).split(',')
 CORS_ALLOW_CREDENTIALS = True
 
