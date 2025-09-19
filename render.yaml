@@ -20,3 +20,5 @@ services:
         sync: false  # You'll set these manually in Render dashboard
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://sso.barge2rail.com,http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000"
