@@ -3,7 +3,8 @@ from . import views, auth_views
 
 urlpatterns = [
     # Primary OAuth API endpoints matching frontend expectations
-    path('google/oauth-url/', views.google_oauth_url, name='google_oauth_url'),
+    path('oauth/google/url/', views.google_oauth_url, name='google_oauth_url'),  # Match frontend: /api/auth/oauth/google/url/
+    path('google/oauth-url/', views.google_oauth_url, name='google_oauth_url_alt'),  # Keep existing for compatibility
     path('google/callback/', views.login_google_oauth, name='google_oauth_api_callback'),
     path('status/', views.auth_status, name='auth_status'),
     path('logout/', views.logout, name='logout'),
