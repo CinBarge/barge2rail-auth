@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Django SSO Google Login Verification Test</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <h1>Django SSO Google Login Verification Test</h1>
+    <p><strong>Purpose:</strong> Test what Django SSO actually returns when we send it Google tokens</p>
+    
+    <div id="g_id_onload"
+         data-client_id="930712511884-uaodug30nbbjif7qje1gjb48ahm3n2nj.apps.googleusercontent.com"
+         data-callback="handleCredentialResponse">
+    </div>
+    <div class="g_id_signin" data-type="standard"></div>
+    
+    <div id="step1" class="result">
+        <h3>Step 1: Click Google Sign-In above</h3>
+        <p>We'll capture the Google credential and test Django SSO integration</p>
+    </div>
+    
+    <div id="step2" class="result" style="display:none;">
+        <h3>Step 2: Google Credential Received</h3>
+        <div id="google-results"></div>
+    </div>
+    
+    <div id="step3" class="result" style="display:none;">
+        <h3>Step 3: Django SSO Response</h3>
+        <div id="django-results"></div>
+    </div>
+    
+    <div id="step4" class="result" style="display:none;">
+        <h3>Step 4: Token Validation Tests</h3>
+        <div id="validation-results"></div>
+    </div>
+    
+    <script>
+        function handleCredentialResponse(response) {
+            console.log("=== GOOGLE CREDENTIAL RECEIVED ===");
+            console.log("Credential JWT:", response.credential);
+            
+            // Show Step 2
+            document.getElementById('step2').style.display = 'block';
+            document.getElementById('google-results').innerHTML = `
+                <p><strong>✅ Google Sign-In Successful</strong></p>
+                <p><strong>Credential Length:</strong> ${response.credential.length} characters</p>
+                <p><strong>Credential Preview:</strong> ${response.credential.substring(0, 50)}...</p>
+            `;
+            
+            // Test Django SSO login
+            testDjangoSSOLogin(response.credential);
+        }
+        
+        async function testDjangoSSOLogin(googleToken) {
+            console.log("=== TESTING DJANGO SSO LOGIN ===");
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/auth/login/google/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        token: googleToken
+                    })
+                });
+                
+                const data = await response.json();
+                console.log('Django SSO Response Status:', response.status);
+                console.log('Django SSO Response Data:', data);
+                
+                // Show Step 3
+                document.getElementById('step3').style.display = 'block';
+                
+                if (response.ok) {
+                    document.getElementById('django-results').innerHTML = `
+                        <div class="success">
+                            <p><strong>✅ Django SSO Login Successful</strong></p>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                    
+                    // Test token validation if we got tokens
+                    if (data.access_token) {
+                        await testTokenValidation(data.access_token);
+                    }
+                } else {
+                    document.getElementById('django-results').innerHTML = `
+                        <div class="error">
+                            <p><strong>❌ Django SSO Login Failed</strong></p>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('Django SSO Error:', error);
+                document.getElementById('step3').style.display = 'block';
+                document.getElementById('django-results').innerHTML = `
+                    <div class="error">
+                        <p><strong>❌ Django SSO Network Error</strong></p>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+        
+        async function testTokenValidation(accessToken) {
+            console.log("=== TESTING TOKEN VALIDATION ===");
+            console.log("Testing access token:", accessToken.substring(0, 50) + "...");
+            
+            const tests = [
+                {
+                    name: "Auth Status with Bearer Token",
+                    url: "http://127.0.0.1:8000/api/auth/status/",
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                },
+                {
+                    name: "Verify Access Endpoint",
+                    url: "http://127.0.0.1:8000/api/auth/verify/",
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                },
+                {
+                    name: "User Profile Endpoint",
+                    url: "http://127.0.0.1:8000/api/auth/me/",
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                }
+            ];
+            
+            document.getElementById('step4').style.display = 'block';
+            let validationResults = '<h4>Token Validation Tests:</h4>';
+            
+            for (const test of tests) {
+                try {
+                    const response = await fetch(test.url, {
+                        headers: test.headers
+                    });
+                    
+                    const data = await response.json();
+                    console.log(`${test.name} - Status: ${response.status}`, data);
+                    
+                    if (response.ok) {
+                        validationResults += `
+                            <div class="success">
+                                <p><strong>✅ ${test.name}</strong></p>
+                                <p><strong>Status:</strong> ${response.status}</p>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>
+                            </div>
+                        `;
+                    } else {
+                        validationResults += `
+                            <div class="error">
+                                <p><strong>❌ ${test.name}</strong></p>
+                                <p><strong>Status:</strong> ${response.status}</p>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    console.error(`${test.name} error:`, error);
+                    validationResults += `
+                        <div class="error">
+                            <p><strong>❌ ${test.name} - Network Error</strong></p>
+                            <pre>${error.message}</pre>
+                        </div>
+                    `;
+                }
+            }
+            
+            document.getElementById('validation-results').innerHTML = validationResults;
+        }
+    </script>
+</body>
+</html>

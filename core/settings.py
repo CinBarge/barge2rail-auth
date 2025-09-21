@@ -122,8 +122,8 @@ SSO_VALIDATION_URL = os.getenv("SSO_VALIDATION_URL", "http://localhost:8900/mock
 # Django REST Framework (single source of truth)
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'common.auth.SSOValidationAuthentication',                       # validate via SSO API
-        'rest_framework_simplejwt.authentication.JWTAuthentication',     # fallback/local JWT
+        # 'common.auth.SSOValidationAuthentication',                       # TEMP: Disabled for testing
+        'rest_framework_simplejwt.authentication.JWTAuthentication',     # Use local JWT validation
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -164,7 +164,7 @@ BASE_URL = config('BASE_URL', default='http://127.0.0.1:8000')
 # CORS - Allow both development and production origins
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000,https://sso.barge2rail.com,https://barge2rail-sso.onrender.com',
+    default='http://localhost:3000,http://localhost:3001,http://localhost:8000,http://127.0.0.1:8000,http://127.0.0.1:3001,https://sso.barge2rail.com,https://admin.barge2rail.com,https://barge2rail-sso.onrender.com',
 ).split(',')
 CORS_ALLOW_CREDENTIALS = True
 

@@ -114,6 +114,40 @@ class UserRole(models.Model):
         ordering = ['application', 'user']
 
 
+class ApplicationRole(models.Model):
+    """User roles for different business applications"""
+    APPLICATION_CHOICES = [
+        ('primetrade', 'PrimeTrade'),
+        ('database', 'Customer Database'),
+        ('repair', 'Repair Ticketing'),
+        ('barge', 'Barge Tracking'),
+        ('admin', 'Admin Dashboard'),
+    ]
+    
+    ROLE_CHOICES = [
+        ('admin', 'Administrator'),
+        ('user', 'Standard User'),
+        ('viewer', 'Read Only'),
+        ('operator', 'Operator'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='application_roles')
+    application = models.CharField(max_length=50, choices=APPLICATION_CHOICES)
+    role = models.CharField(max_length=50, choices=ROLE_CHOICES)
+    permissions = models.JSONField(default=list, blank=True)
+    assigned_date = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        unique_together = ['user', 'application']
+        verbose_name = 'Application Role'
+        verbose_name_plural = 'Application Roles'
+        db_table = 'sso_application_roles'
+    
+    def __str__(self):
+        return f"{self.user.email or self.user.anonymous_username} - {self.get_application_display()}: {self.get_role_display()}"
+
+
 class RefreshToken(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='refresh_tokens')
