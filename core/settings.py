@@ -20,15 +20,27 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # M1.1: Secret key validation - must be set and at least 50 characters
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-dev-key-only' if DEBUG else None)
-if not SECRET_KEY or len(SECRET_KEY) < 50:
+
+# Load SECRET_KEY from environment
+SECRET_KEY = config('SECRET_KEY', default=None)
+
+# Validate SECRET_KEY
+if not SECRET_KEY:
     if DEBUG:
+        # Development fallback - insecure but clearly marked
         SECRET_KEY = 'django-insecure-dev-key-only-not-for-production-' + 'x' * 20
     else:
+        # Production: Must be explicitly set
         raise ImproperlyConfigured(
-            "SECRET_KEY must be set in environment variables and be at least 50 characters long. "
+            "SECRET_KEY must be set in environment variables. "
             "Generate one with: python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'"
         )
+elif len(SECRET_KEY) < 50:
+    # SECRET_KEY exists but is too short
+    raise ImproperlyConfigured(
+        f"SECRET_KEY must be at least 50 characters long (current: {len(SECRET_KEY)} characters). "
+        "Generate a new one with: python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'"
+    )
 
 # M1.2: ALLOWED_HOSTS validation - must be set when DEBUG=False
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1' if DEBUG else '').split(',')
