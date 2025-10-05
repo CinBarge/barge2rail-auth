@@ -1,8 +1,11 @@
 import requests
 import logging
+import secrets
+import time
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from django.conf import settings
+from django.db import transaction
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -14,46 +17,132 @@ from .serializers import (
     UserSerializer, UserRegistrationSerializer, LoginSerializer,
     ApplicationSerializer, UserRoleSerializer
 )
-import secrets
 
 logger = logging.getLogger(__name__)
+security_logger = logging.getLogger('django.security')
+
+# ============================================================================
+# OAuth State Parameter Helpers (Gate 5: CSRF Protection)
+# ============================================================================
+
+def generate_oauth_state():
+    """
+    Generate secure OAuth state parameter for CSRF protection.
+    Format: {random_token}:{timestamp}
+
+    Returns:
+        str: Secure state token with embedded timestamp
+    """
+    token = secrets.token_urlsafe(32)
+    timestamp = str(int(time.time()))
+    return f"{token}:{timestamp}"
+
+
+def validate_oauth_state(state_from_callback, state_from_session, timeout=300):
+    """
+    Validate OAuth state parameter for CSRF protection.
+
+    Args:
+        state_from_callback (str): State parameter from OAuth callback
+        state_from_session (str): State stored in session during initiation
+        timeout (int): Maximum age in seconds (default 5 minutes)
+
+    Returns:
+        bool: True if valid, False otherwise
+    """
+    if not state_from_callback or not state_from_session:
+        security_logger.warning("OAuth state validation failed: Missing state parameter")
+        return False
+
+    if state_from_callback != state_from_session:
+        security_logger.warning(
+            f"OAuth state validation failed: State mismatch "
+            f"(callback: {state_from_callback[:10]}..., session: {state_from_session[:10]}...)"
+        )
+        return False
+
+    # Check timestamp to prevent replay attacks
+    try:
+        _, timestamp_str = state_from_session.split(':')
+        timestamp = int(timestamp_str)
+        age = int(time.time()) - timestamp
+        if age > timeout:
+            security_logger.warning(f"OAuth state validation failed: State expired (age: {age}s)")
+            return False
+    except (ValueError, AttributeError) as e:
+        security_logger.warning(f"OAuth state validation failed: Invalid format - {e}")
+        return False
+
+    return True
+
+# ============================================================================
+# OAuth Error Messages
+# ============================================================================
+
+OAUTH_ERROR_MESSAGES = {
+    'invalid_state': "Authentication failed: Invalid or expired request. Please try again.",
+    'missing_code': "Authentication failed: No authorization code received.",
+    'token_error': "Authentication failed: Could not obtain access token.",
+    'user_info_error': "Authentication failed: Could not retrieve user information.",
+}
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_google_oauth(request):
-    """Handle Google OAuth code exchange"""
+    """
+    Handle Google OAuth code exchange with state validation.
+    Gate 5: OAuth State Parameter CSRF Protection
+    """
     code = request.data.get('code')
-    
+    state_from_callback = request.data.get('state')
+
+    # Gate 5: Validate state parameter
+    state_from_session = request.session.get('oauth_state')
+
+    if not validate_oauth_state(state_from_callback, state_from_session):
+        security_logger.warning(
+            f"OAuth state validation failed - "
+            f"IP: {request.META.get('REMOTE_ADDR')}, "
+            f"User-Agent: {request.META.get('HTTP_USER_AGENT')}"
+        )
+        return Response({'error': OAUTH_ERROR_MESSAGES['invalid_state']}, status=403)
+
+    # Gate 5: Clear state from session (one-time use)
+    if 'oauth_state' in request.session:
+        del request.session['oauth_state']
+        request.session.modified = True
+
+    # Validate authorization code
     if not code:
-        return Response({'error': 'No authorization code provided'}, status=400)
-    
+        return Response({'error': OAUTH_ERROR_MESSAGES['missing_code']}, status=400)
+
     try:
         # Exchange code for tokens
         token_data = exchange_google_code_for_tokens(code)
-        
+
         if 'error' in token_data:
             logger.error(f'Google token exchange error: {token_data}')
-            return Response({'error': token_data.get('error_description', 'Token exchange failed')}, status=400)
-        
+            return Response({'error': token_data.get('error_description', OAUTH_ERROR_MESSAGES['token_error'])}, status=400)
+
         # Verify ID token and get user info
         user_info = verify_google_id_token(token_data['id_token'])
-        
+
         # Create or get user
         user, created = get_or_create_google_user(user_info)
-        
+
         # Generate JWT tokens
         response_data = generate_token_response(user, created=created)
-        
+
         if created:
             logger.info(f'New Google user created: {user.email}')
         else:
             logger.info(f'Existing Google user signed in: {user.email}')
-            
+
         return Response(response_data)
-        
+
     except Exception as e:
         logger.error(f'Google OAuth error: {str(e)}')
-        return Response({'error': 'Google authentication failed'}, status=400)
+        return Response({'error': OAUTH_ERROR_MESSAGES['user_info_error']}, status=400)
 
 def exchange_google_code_for_tokens(code):
     """Exchange authorization code for access/ID tokens"""
@@ -108,8 +197,14 @@ def verify_google_id_token(id_token_str):
         logger.error(f'Invalid Google ID token: {e}')
         raise Exception(f'Invalid token: {e}')
 
+@transaction.atomic
 def get_or_create_google_user(user_info):
-    """Get or create user from Google info"""
+    """Get or create user from Google info.
+    
+    DATA SAFETY: All database operations wrapped in transaction.
+    If any operation fails, entire transaction rolls back.
+    Prevents partial user records and data corruption.
+    """
     try:
         # Try to find existing user by Google ID
         user = User.objects.get(google_id=user_info['google_id'])
@@ -168,8 +263,12 @@ def login_email(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@transaction.atomic
 def login_anonymous(request):
-    """Anonymous login with username and PIN"""
+    """Anonymous login with username and PIN.
+    
+    DATA SAFETY: User creation wrapped in transaction.
+    """
     username = request.data.get('username')
     pin = request.data.get('pin')
     
@@ -203,8 +302,12 @@ def login_anonymous(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@transaction.atomic
 def register_email(request):
-    """Register new email/password user"""
+    """Register new email/password user.
+    
+    DATA SAFETY: User creation wrapped in transaction.
+    """
     email = request.data.get('email')
     password = request.data.get('password')
     display_name = request.data.get('display_name', '')
@@ -234,21 +337,32 @@ def register_email(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def google_oauth_url(request):
-    """Generate Google OAuth URL for manual testing"""
+    """
+    Generate Google OAuth URL with state parameter for CSRF protection.
+    Gate 5: OAuth State Parameter Implementation
+    """
     redirect_uri = f'{settings.BASE_URL}/auth/google/callback'
-    
+
+    # Gate 5: Generate and store state parameter
+    state = generate_oauth_state()
+    request.session['oauth_state'] = state
+    request.session.modified = True
+
     params = {
         'client_id': settings.GOOGLE_CLIENT_ID,
         'redirect_uri': redirect_uri,
         'scope': 'openid email profile',
         'response_type': 'code',
         'access_type': 'offline',
-        'prompt': 'select_account'
+        'prompt': 'select_account',
+        'state': state  # Gate 5: Include state in OAuth URL
     }
-    
+
     from urllib.parse import urlencode
     auth_url = f'https://accounts.google.com/oauth/authorize?{urlencode(params)}'
-    
+
+    logger.info(f"Generated OAuth URL with state parameter (length: {len(state)})")
+
     return Response({
         'auth_url': auth_url,
         'redirect_uri': redirect_uri,
@@ -514,11 +628,99 @@ class UserRoleDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UserRoleSerializer
     permission_classes = [IsAuthenticated]
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def exchange_session_for_tokens(request):
+    """Exchange temporary session ID for actual OAuth tokens.
+    
+    SECURITY: This completes the two-step token exchange pattern.
+    - Session ID is single-use only
+    - 60-second expiry window
+    - Returns tokens only once
+    - Session marked as 'used' after successful exchange
+    
+    Request body:
+        {"session_id": "<uuid>"}
+    
+    Response:
+        {"access_token": "...", "refresh_token": "...", "user": {...}}
+    """
+    from django.utils import timezone
+    from .models import TokenExchangeSession
+    
+    session_id = request.data.get('session_id')
+    
+    if not session_id:
+        return Response(
+            {'error': 'session_id required'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        # Get the session and validate it
+        exchange_session = TokenExchangeSession.objects.get(
+            session_id=session_id
+        )
+        
+        # Check if already used
+        if exchange_session.used:
+            logger.warning(f'Attempt to reuse token exchange session {session_id}')
+            return Response(
+                {'error': 'Session already used'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if expired
+        if exchange_session.expires_at <= timezone.now():
+            logger.warning(f'Token exchange session {session_id} expired')
+            return Response(
+                {'error': 'Session expired'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Mark as used (single-use security)
+        exchange_session.used = True
+        exchange_session.save()
+        
+        logger.info(f'Successfully exchanged session {session_id} for tokens for user {exchange_session.user_email}')
+        
+        # Return the tokens
+        return Response({
+            'access_token': exchange_session.access_token,
+            'refresh_token': exchange_session.refresh_token,
+            'user': {
+                'email': exchange_session.user_email
+            },
+            'message': 'Authentication successful'
+        })
+        
+    except TokenExchangeSession.DoesNotExist:
+        logger.warning(f'Invalid token exchange session ID: {session_id}')
+        return Response(
+            {'error': 'Invalid or expired session'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        logger.error(f'Token exchange error: {str(e)}')
+        return Response(
+            {'error': 'Token exchange failed'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def google_auth_callback(request):
-    """Handle Google OAuth redirect callback"""
+    """Handle Google OAuth redirect callback.
+    
+    SECURITY: Uses secure two-step token exchange pattern.
+    Tokens are NEVER exposed in URL - only session ID is passed.
+    Frontend must exchange session_id for tokens via API call.
+    """
     from django.shortcuts import redirect
+    from django.utils import timezone
+    from datetime import timedelta
+    from .models import TokenExchangeSession
     
     # Get the authorization code from the callback (GET) or request data (POST)
     code = request.GET.get('code') or request.data.get('code')
@@ -556,9 +758,19 @@ def google_auth_callback(request):
         else:
             logger.info(f'Existing Google user signed in: {user.email}')
         
-        # Redirect to success page with tokens as URL parameters
-        # In production, you'd want to use a more secure method
-        return redirect(f'/login/google-success/?access_token={access_token}&refresh_token={refresh_token}&email={user.email}')
+        # SECURITY FIX: Create secure exchange session instead of URL params
+        # Tokens stored temporarily, frontend exchanges session_id for tokens
+        exchange_session = TokenExchangeSession.objects.create(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user_email=user.email,
+            expires_at=timezone.now() + timedelta(seconds=60)  # 60 second expiry
+        )
+        
+        logger.info(f'Created token exchange session {exchange_session.session_id} for {user.email}')
+        
+        # Redirect with session ID only - NO TOKENS in URL
+        return redirect(f'/login/google-success/?session={exchange_session.session_id}')
         
     except Exception as e:
         logger.error(f'Google OAuth callback error: {str(e)}')
