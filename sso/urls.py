@@ -6,6 +6,7 @@ urlpatterns = [
     path('oauth/google/url/', views.google_oauth_url, name='google_oauth_url'),  # Match frontend: /api/auth/oauth/google/url/
     path('google/oauth-url/', views.google_oauth_url, name='google_oauth_url_alt'),  # Keep existing for compatibility
     path('google/callback/', views.login_google_oauth, name='google_oauth_api_callback'),
+    # path('exchange-session/', views.exchange_session_for_tokens, name='exchange_session_for_tokens'),  # TODO: Function not implemented
     path('status/', views.auth_status, name='auth_status'),
     path('logout/', views.logout, name='logout'),
     
