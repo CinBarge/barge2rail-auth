@@ -359,7 +359,7 @@ def google_oauth_url(request):
     }
 
     from urllib.parse import urlencode
-    auth_url = f'https://accounts.google.com/oauth/authorize?{urlencode(params)}'
+    auth_url = f'https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}'
 
     logger.info(f"Generated OAuth URL with state parameter (length: {len(state)})")
 
