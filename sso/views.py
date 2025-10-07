@@ -388,8 +388,85 @@ def google_config_check(request):
     ])
     
     config_status['fully_configured'] = all_configured
-    
+
     return Response(config_status)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def exchange_session_for_tokens(request, session_id):
+    """
+    Exchange a TokenExchangeSession ID for access/refresh tokens.
+
+    This endpoint provides secure token retrieval after OAuth callback.
+    Tokens are never exposed in URLs - only the session ID is passed.
+
+    Security features:
+    - Single-use sessions (marked as used after first retrieval)
+    - 60-second expiry window
+    - Returns 404 for used or expired sessions
+    """
+    from .models import TokenExchangeSession
+    from django.utils import timezone
+
+    try:
+        # Fetch the session
+        session = TokenExchangeSession.objects.get(session_id=session_id)
+
+        # Check if already used
+        if session.used:
+            logger.warning(f"Attempt to reuse token exchange session: {session_id}")
+            return Response(
+                {'error': 'Session already used'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if expired
+        if timezone.now() > session.expires_at:
+            logger.warning(f"Attempt to use expired token exchange session: {session_id}")
+            session.delete()  # Cleanup expired session
+            return Response(
+                {'error': 'Session expired'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Mark session as used
+        session.used = True
+        session.save()
+
+        # Get user for additional info
+        try:
+            user = User.objects.get(email=session.user_email)
+            user_data = {
+                'id': str(user.id),
+                'email': user.email,
+                'display_name': user.display_name,
+                'auth_type': user.auth_type,
+                'is_sso_admin': user.is_sso_admin,
+            }
+        except User.DoesNotExist:
+            user_data = {'email': session.user_email}
+
+        logger.info(f"Token exchange successful for session {session_id} - user: {session.user_email}")
+
+        # Return tokens
+        return Response({
+            'access_token': session.access_token,
+            'refresh_token': session.refresh_token,
+            'user': user_data
+        })
+
+    except TokenExchangeSession.DoesNotExist:
+        logger.warning(f"Invalid token exchange session requested: {session_id}")
+        return Response(
+            {'error': 'Invalid session'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error exchanging session {session_id} for tokens: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 def generate_token_response(user, created=False, anonymous_credentials=None):
     """Generate JWT token response"""

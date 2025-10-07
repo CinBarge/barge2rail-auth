@@ -147,27 +147,42 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        {% if success %}
+    <div class="container" id="main-container">
+        <!-- Loading state -->
+        <div id="loading-state">
+            <div class="success-icon">⏳</div>
+            <h1>Completing Authentication...</h1>
+            <div class="success-message">
+                <p>Please wait while we securely retrieve your authentication tokens.</p>
+            </div>
+        </div>
+
+        <!-- Success state (populated by JavaScript) -->
+        <div id="success-state" style="display:none;">
             <div class="success-icon">✅</div>
             <h1>Google OAuth Success!</h1>
-            
+
             <div class="success-message">
                 <strong>Authentication successful!</strong> Your Google OAuth tokens have been generated successfully.
             </div>
-            
+
             <div class="token-section">
                 <div class="token-label">Access Token:</div>
-                <div class="token-value" id="access-token">{{ access_token }}</div>
+                <div class="token-value" id="access-token"></div>
                 <button class="copy-btn" onclick="copyToClipboard('access-token')">Copy</button>
             </div>
-            
+
             <div class="token-section">
                 <div class="token-label">Refresh Token:</div>
-                <div class="token-value" id="refresh-token">{{ refresh_token }}</div>
+                <div class="token-value" id="refresh-token"></div>
                 <button class="copy-btn" onclick="copyToClipboard('refresh-token')">Copy</button>
             </div>
-            
+
+            <div class="token-section">
+                <div class="token-label">User:</div>
+                <div class="token-value" id="user-info"></div>
+            </div>
+
             <div class="instructions">
                 <h3>Next Steps:</h3>
                 <p>Use these tokens to authenticate API requests:</p>
@@ -177,28 +192,96 @@
                     <li>Use the refresh token to get new access tokens when they expire</li>
                 </ul>
             </div>
-            
+
             <div class="actions">
                 <a href="/login/google-diagnostic/" class="btn btn-secondary">Back to Diagnostic</a>
                 <a href="/dashboard/" class="btn btn-primary">Go to Dashboard</a>
             </div>
-            
-        {% else %}
+        </div>
+
+        <!-- Error state (populated by JavaScript) -->
+        <div id="error-state" style="display:none;">
             <div class="error-message">
-                <strong>Authentication Failed!</strong> No tokens were received from the OAuth callback.
+                <strong>Authentication Failed!</strong>
+                <p id="error-message">An error occurred during authentication.</p>
             </div>
-            
+
             <div class="actions">
                 <a href="/login/google-diagnostic/" class="btn btn-primary">Try Again</a>
             </div>
-        {% endif %}
+        </div>
     </div>
     
     <script>
+        // Fetch tokens on page load using session ID
+        window.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('session');
+
+            if (!sessionId) {
+                showError('No session ID provided in URL');
+                return;
+            }
+
+            console.log('Exchanging session for tokens:', sessionId);
+
+            try {
+                const response = await fetch(`/api/auth/session/${sessionId}/tokens/`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('Token exchange successful');
+
+                // Store tokens
+                localStorage.setItem('barge2rail_access_token', data.access_token);
+                localStorage.setItem('barge2rail_refresh_token', data.refresh_token);
+
+                // Display success
+                showSuccess(data);
+
+            } catch (error) {
+                console.error('Token exchange error:', error);
+                showError(error.message || 'Failed to retrieve authentication tokens');
+            }
+        });
+
+        function showSuccess(data) {
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('success-state').style.display = 'block';
+
+            // Populate token fields
+            document.getElementById('access-token').textContent = data.access_token;
+            document.getElementById('refresh-token').textContent = data.refresh_token;
+
+            // Populate user info
+            if (data.user) {
+                const userInfo = `${data.user.email || 'Unknown'} (${data.user.display_name || 'No name'})`;
+                document.getElementById('user-info').textContent = userInfo;
+            }
+
+            console.log('Tokens stored in localStorage');
+        }
+
+        function showError(message) {
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('error-state').style.display = 'block';
+            document.getElementById('error-message').textContent = message;
+        }
+
         function copyToClipboard(elementId) {
             const element = document.getElementById(elementId);
             const text = element.textContent;
-            
+
             navigator.clipboard.writeText(text).then(function() {
                 // Change button text temporarily
                 const btn = element.nextElementSibling;
@@ -212,13 +295,6 @@
                 alert('Failed to copy to clipboard');
             });
         }
-        
-        // Store tokens in localStorage for testing
-        {% if success %}
-        localStorage.setItem('barge2rail_access_token', '{{ access_token }}');
-        localStorage.setItem('barge2rail_refresh_token', '{{ refresh_token }}');
-        console.log('Tokens stored in localStorage for testing');
-        {% endif %}
     </script>
 </body>
 </html>
