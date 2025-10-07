@@ -200,6 +200,18 @@ SIMPLE_JWT = {
     'JTI_CLAIM': 'jti',
 }
 
+# Rate limiting configuration
+RATELIMIT_ENABLE = not DEBUG  # Disable in development
+RATELIMIT_USE_CACHE = 'default'
+
+# Configure cache for rate limiting
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'ratelimit-cache',
+    }
+}
+
 # Google OAuth Settings
 GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID', default=None)
 GOOGLE_CLIENT_SECRET = config('GOOGLE_CLIENT_SECRET', default=None)

@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
+from django_ratelimit.decorators import ratelimit
 from .models import User, Application, UserRole
 from .serializers import (
     UserSerializer, UserRegistrationSerializer, LoginSerializer,
@@ -38,14 +39,14 @@ def generate_oauth_state():
     return f"{token}:{timestamp}"
 
 
-def validate_oauth_state(state_from_callback, state_from_session, timeout=300):
+def validate_oauth_state(state_from_callback, state_from_session, timeout=60):
     """
     Validate OAuth state parameter for CSRF protection.
 
     Args:
         state_from_callback (str): State parameter from OAuth callback
         state_from_session (str): State stored in session during initiation
-        timeout (int): Maximum age in seconds (default 5 minutes)
+        timeout (int): Maximum age in seconds (default 60 seconds)
 
     Returns:
         bool: True if valid, False otherwise
@@ -75,6 +76,75 @@ def validate_oauth_state(state_from_callback, state_from_session, timeout=300):
 
     return True
 
+
+# ============================================================================
+# Account Lockout Helpers (HIGH-2)
+# ============================================================================
+
+def check_account_lockout(identifier, request):
+    """
+    Check if account is locked out due to failed login attempts.
+
+    Args:
+        identifier (str): Email or anonymous_username
+        request: Django request object
+
+    Returns:
+        tuple: (is_locked, Response or None)
+            - is_locked (bool): True if account is locked
+            - Response: Error response if locked, None otherwise
+    """
+    from .models import LoginAttempt
+    from django.utils import timezone
+    from datetime import timedelta
+
+    # Check failed attempts in last 15 minutes
+    lockout_window = timezone.now() - timedelta(minutes=15)
+    recent_failures = LoginAttempt.objects.filter(
+        identifier=identifier,
+        success=False,
+        attempted_at__gte=lockout_window
+    ).count()
+
+    if recent_failures >= 5:
+        security_logger.warning(
+            f"Account lockout triggered for {identifier} from {request.META.get('REMOTE_ADDR')} "
+            f"({recent_failures} failed attempts)"
+        )
+        return True, Response(
+            {
+                'error': 'Account temporarily locked due to multiple failed login attempts. '
+                        'Please try again in 15 minutes.'
+            },
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+
+    return False, None
+
+
+def log_login_attempt(identifier, ip_address, success):
+    """
+    Log a login attempt for security tracking.
+
+    Args:
+        identifier (str): Email or anonymous_username
+        ip_address (str): IP address of attempt
+        success (bool): True if login succeeded
+    """
+    from .models import LoginAttempt
+
+    LoginAttempt.objects.create(
+        identifier=identifier,
+        ip_address=ip_address,
+        success=success
+    )
+
+    if success:
+        logger.info(f"Successful login for {identifier} from {ip_address}")
+    else:
+        security_logger.warning(f"Failed login attempt for {identifier} from {ip_address}")
+
+
 # ============================================================================
 # OAuth Error Messages
 # ============================================================================
@@ -86,6 +156,7 @@ OAUTH_ERROR_MESSAGES = {
     'user_info_error': "Authentication failed: Could not retrieve user information.",
 }
 
+@ratelimit(key='ip', rate='20/h', method='POST')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_google_oauth(request):
@@ -93,6 +164,17 @@ def login_google_oauth(request):
     Handle Google OAuth code exchange with state validation.
     Gate 5: OAuth State Parameter CSRF Protection
     """
+    # Check if rate limited
+    was_limited = getattr(request, 'limited', False)
+    if was_limited:
+        security_logger.warning(
+            f"Rate limit exceeded for OAuth login from {request.META.get('REMOTE_ADDR')}"
+        )
+        return Response(
+            {'error': 'Too many login attempts. Please try again later.'},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+
     code = request.data.get('code')
     state_from_callback = request.data.get('state')
 
@@ -243,46 +325,92 @@ def get_or_create_google_user(user_info):
         logger.info(f'Created new Google user: {user.email}')
         return user, True
 
+@ratelimit(key='ip', rate='5/h', method='POST')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_email(request):
-    """Traditional email/password login"""
+    """Traditional email/password login with account lockout protection"""
+    # Check if rate limited
+    was_limited = getattr(request, 'limited', False)
+    if was_limited:
+        security_logger.warning(
+            f"Rate limit exceeded for email login from {request.META.get('REMOTE_ADDR')}"
+        )
+        return Response(
+            {'error': 'Too many login attempts. Please try again later.'},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+
     email = request.data.get('email')
     password = request.data.get('password')
-    
+
     if not email or not password:
-        return Response({'error': 'Email and password required'}, 
+        return Response({'error': 'Email and password required'},
                        status=status.HTTP_400_BAD_REQUEST)
-    
+
+    # HIGH-2: Check for account lockout
+    is_locked, lockout_response = check_account_lockout(email, request)
+    if is_locked:
+        return lockout_response
+
+    # Attempt authentication
     user = authenticate(username=email, password=password)
+    ip_address = request.META.get('REMOTE_ADDR', 'unknown')
+
     if not user:
+        # HIGH-2: Log failed attempt
+        log_login_attempt(email, ip_address, success=False)
         return Response({'error': 'Invalid credentials'},
                        status=status.HTTP_401_UNAUTHORIZED)
 
+    # HIGH-2: Log successful attempt
+    log_login_attempt(email, ip_address, success=True)
     return Response(generate_token_response(user))
 
+@ratelimit(key='ip', rate='10/h', method='POST')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @transaction.atomic
 def login_anonymous(request):
-    """Anonymous login with username and PIN.
-    
+    """Anonymous login with username and PIN with account lockout protection.
+
     DATA SAFETY: User creation wrapped in transaction.
     """
+    # Check if rate limited
+    was_limited = getattr(request, 'limited', False)
+    if was_limited:
+        security_logger.warning(
+            f"Rate limit exceeded for anonymous login from {request.META.get('REMOTE_ADDR')}"
+        )
+        return Response(
+            {'error': 'Too many login attempts. Please try again later.'},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+
     username = request.data.get('username')
     pin = request.data.get('pin')
-    
+    ip_address = request.META.get('REMOTE_ADDR', 'unknown')
+
     if username and pin:
         # Existing anonymous user login
+        # HIGH-2: Check for account lockout
+        is_locked, lockout_response = check_account_lockout(username, request)
+        if is_locked:
+            return lockout_response
+
         try:
             user = User.objects.get(
                 anonymous_username=username,
                 pin_code=pin,
                 is_anonymous=True
             )
+            # HIGH-2: Log successful attempt
+            log_login_attempt(username, ip_address, success=True)
             return Response(generate_token_response(user))
         except User.DoesNotExist:
-            return Response({'error': 'Invalid username or PIN'}, 
+            # HIGH-2: Log failed attempt
+            log_login_attempt(username, ip_address, success=False)
+            return Response({'error': 'Invalid username or PIN'},
                            status=status.HTTP_401_UNAUTHORIZED)
     else:
         # Create new anonymous user
@@ -291,7 +419,7 @@ def login_anonymous(request):
             is_anonymous=True,
             is_active=True,
         )
-        
+
         # Save to generate username and PIN
         user.save()
 
@@ -404,9 +532,17 @@ def exchange_session_for_tokens(request, session_id):
     - Single-use sessions (marked as used after first retrieval)
     - 60-second expiry window
     - Returns 404 for used or expired sessions
+    - Automatic cleanup of expired sessions
     """
     from .models import TokenExchangeSession
     from django.utils import timezone
+
+    # CRITICAL-3: Delete ALL expired sessions on every exchange attempt
+    expired_count = TokenExchangeSession.objects.filter(
+        expires_at__lt=timezone.now()
+    ).delete()[0]
+    if expired_count > 0:
+        logger.info(f"Cleaned up {expired_count} expired token exchange sessions")
 
     try:
         # Fetch the session
@@ -574,14 +710,26 @@ def refresh_token(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def logout(request):
+    """
+    Logout user by blacklisting refresh token and flushing session.
+
+    HIGH-3: Properly invalidates both JWT tokens and session data.
+    """
     try:
+        # Blacklist the refresh token
         refresh_token = request.data.get('refresh')
         if refresh_token:
             token = RefreshToken(refresh_token)
             token.blacklist()
+
+        # HIGH-3: Flush the session to prevent session fixation
+        request.session.flush()
+
+        logger.info(f"User logged out from {request.META.get('REMOTE_ADDR')}")
         return Response({'message': 'Successfully logged out'})
     except Exception as e:
-        return Response({'error': str(e)}, 
+        security_logger.warning(f"Logout error: {str(e)}")
+        return Response({'error': str(e)},
                       status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
@@ -635,16 +783,28 @@ def applications(request):
     serializer = ApplicationSerializer(apps, many=True)
     return Response(serializer.data)
 
+@ratelimit(key='ip', rate='100/h', method='POST')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def validate_token(request):
     """Validate and decode a JWT token"""
     from rest_framework_simplejwt.tokens import AccessToken
     from rest_framework_simplejwt.exceptions import TokenError
-    
+
+    # Check if rate limited
+    was_limited = getattr(request, 'limited', False)
+    if was_limited:
+        security_logger.warning(
+            f"Rate limit exceeded for token validation from {request.META.get('REMOTE_ADDR')}"
+        )
+        return Response(
+            {'error': 'Too many requests. Please try again later.'},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+
     token = request.data.get('token')
     if not token:
-        return Response({'valid': False, 'error': 'Token required'}, 
+        return Response({'valid': False, 'error': 'Token required'},
                       status=status.HTTP_400_BAD_REQUEST)
     
     try:

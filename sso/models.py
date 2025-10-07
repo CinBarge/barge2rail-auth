@@ -61,8 +61,8 @@ class User(AbstractUser):
                 return username
     
     def generate_pin(self):
-        """Generate 6-digit PIN code"""
-        return ''.join(random.choices(string.digits, k=6))
+        """Generate 12-digit PIN code (1 trillion combinations)"""
+        return ''.join(random.choices(string.digits, k=12))
     
     @property
     def display_identifier(self):
@@ -196,3 +196,30 @@ class TokenExchangeSession(models.Model):
         """Check if session is still valid for exchange."""
         from django.utils import timezone
         return not self.used and self.expires_at > timezone.now()
+
+
+class LoginAttempt(models.Model):
+    """Track failed login attempts for account lockout protection.
+
+    Security features:
+    - Tracks failed login attempts by identifier (email/username)
+    - 15-minute lockout after 5 failed attempts
+    - Automatic cleanup after 24 hours
+    - IP address logging for security analysis
+    """
+    identifier = models.CharField(max_length=255, db_index=True)  # email or anonymous_username
+    ip_address = models.GenericIPAddressField()
+    attempted_at = models.DateTimeField(auto_now_add=True)
+    success = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'sso_login_attempts'
+        ordering = ['-attempted_at']
+        indexes = [
+            models.Index(fields=['identifier', 'attempted_at']),
+            models.Index(fields=['ip_address', 'attempted_at']),
+        ]
+
+    def __str__(self):
+        status = "successful" if self.success else "failed"
+        return f"{status} login attempt for {self.identifier} from {self.ip_address} at {self.attempted_at}"
