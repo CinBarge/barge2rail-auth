@@ -1,0 +1,81 @@
+========================================
+Django SSO Security Assessment
+Date: Sun Oct  5 14:29:49 EDT 2025
+========================================
+
+### GATE 0: SECRETS MANAGEMENT ###
+✅ PASS: .env not tracked
+✅ PASS: .env in .gitignore
+✅ .env.example exists
+
+### GATE 1: DEPENDENCY SECURITY ###
+zsh: command not found: safety
+⚠️  Vulnerabilities detected
+
+### GATE 2: CODE SECURITY BASELINE ###
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.8.6/plugins/b101_assert_used.html
+   Location: ./venv/lib/python3.13/site-packages/urllib3/util/ssltransport.py:142:12
+141	        else:
+142	            assert writing
+143	            buffer = io.BufferedWriter(raw, buffering)
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 1303847
+	Total lines skipped (#nosec): 3
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 13
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 8103
+		Medium: 675
+		High: 89
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 53
+		Medium: 357
+		High: 8457
+Files skipped (1):
+	./barge2rail-auth/core/settings.py (syntax error while parsing AST from file)
+
+Traceback (most recent call last):
+  File "/Users/cerion/Projects/barge2rail-auth/manage.py", line 11, in main
+    from django.core.management import execute_from_command_line
+ModuleNotFoundError: No module named 'django'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/cerion/Projects/barge2rail-auth/manage.py", line 22, in <module>
+    main()
+    ~~~~^^
+  File "/Users/cerion/Projects/barge2rail-auth/manage.py", line 13, in main
+    raise ImportError(
+    ...<3 lines>...
+    ) from exc
+ImportError: Couldn't import Django. Are you sure it's installed and available on your PYTHONPATH environment variable? Did you forget to activate a virtual environment?
+
+### GATE 3: CONFIGURATION SECURITY ###
+DEBUG:
+DEBUG = config('DEBUG', default=True, cast=bool)
+ALLOWED_HOSTS:
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
+SECURE_SSL_REDIRECT:
+    SECURE_SSL_REDIRECT = True
+
+### GATE 4: ACCESS CONTROL ###
+Protected endpoints:
+./dashboard/views.py:76:@login_required
+./dashboard/views.py:83:@login_required
+./barge2rail-auth/dashboard/views.py:76:@login_required
+./barge2rail-auth/dashboard/views.py:83:@login_required
+
+========================================
+Assessment Complete
+========================================

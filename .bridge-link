@@ -1,0 +1,30 @@
+# Bridge Framework Location
+
+**Framework Path:** `/Users/cerion/Projects/the-bridge/`
+
+## What This Means
+
+This Django SSO project uses **The Bridge** framework for:
+- Risk assessment (RISK_ASSESSMENT_CALCULATOR.md)
+- Quality gates (SUSTAINABLE_CTO_SYSTEM.md)
+- Deployment protocols (protocols/DEPLOYMENT_PROTOCOLS.md)
+- Post-mortem templates (templates/POST_MORTEM_TEMPLATE.md)
+- Conversation continuity (CONVERSATION_CONTINUITY.md)
+
+## Framework Entry Point
+
+Start here: `/Users/cerion/Projects/the-bridge/THE_BRIDGE_INDEX.md`
+
+## Project-Specific Documents
+
+- `technical-handoff.md` - Django SSO current status
+- `deployment-checklist.md` - Django-specific deployment steps (if exists)
+- All other .md files in this directory are Django-specific
+
+## Using The Bridge
+
+When working on this project:
+1. Reference framework docs from `/the-bridge/`
+2. Keep project status in `technical-handoff.md`
+3. Follow protocols from `/the-bridge/protocols/`
+4. Update case studies in `/the-bridge/case-studies/` after completion

@@ -1,0 +1,71 @@
+{
+  "version": "1.0",
+  "project": "Django SSO Authentication System",
+  "context": {
+    "required_files": [
+      "claude.md",
+      "README.md",
+      "CLAUDE_MD_MAINTENANCE.md",
+      ".env.example",
+      "requirements.txt"
+    ],
+    "key_directories": [
+      "sso/",
+      "core/",
+      "dashboard/",
+      "templates/",
+      "tests/"
+    ],
+    "documentation": [
+      "claude.md - PRIMARY: Read this first for all project context",
+      "README.md - Setup and deployment instructions",
+      "CLAUDE_MD_MAINTENANCE.md - How to update project documentation"
+    ]
+  },
+  "rules": [
+    "ALWAYS read claude.md before making any changes",
+    "NEVER commit secrets - use environment variables",
+    "Run tests before opening PR",
+    "Follow patterns documented in claude.md",
+    "For MEDIUM+ risk changes: Flag for three-perspective review",
+    "Update requirements.txt when adding dependencies",
+    "Update .env.example when adding configuration",
+    "Provide: numbered diffs + exact commands + 1-line test plan",
+    "When uncertain: Check claude.md first, then ask The Bridge"
+  ],
+  "standards": {
+    "code_style": "PEP 8 for Python",
+    "testing": "70% coverage minimum, 100% for auth code",
+    "security": "See claude.md Security Requirements section",
+    "commits": "Descriptive messages, reference issues when applicable"
+  },
+  "working_with_bridge": {
+    "the_bridge_provides": [
+      "Strategic direction and architecture decisions",
+      "Independent code review for MEDIUM+ risk",
+      "Risk assessment and deployment protocols",
+      "Functional test generation"
+    ],
+    "you_provide": [
+      "Tactical implementation within guidelines",
+      "Multi-file refactoring and repository operations",
+      "Evidence-based claims (cite files/lines)",
+      "Adherence to documented patterns"
+    ],
+    "when_uncertain": [
+      "Check claude.md first",
+      "Reference The Bridge if architectural decision needed",
+      "Never assume - ask for clarification"
+    ]
+  },
+  "risk_levels": {
+    "note": "This project is HIGH RISK (authentication system)",
+    "requirements": [
+      "Three-perspective review required",
+      "100% test coverage for auth code",
+      "Functional tests that humans can execute",
+      "Rollback plan for all deployments",
+      "The Bridge approval before merging"
+    ]
+  }
+}
