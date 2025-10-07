@@ -11,6 +11,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework_simplejwt.tokens import RefreshToken
+from sso.tokens import CustomRefreshToken
 from django.contrib.auth import authenticate
 from django_ratelimit.decorators import ratelimit
 from .models import User, Application, UserRole
@@ -97,6 +98,11 @@ def check_account_lockout(identifier, request):
     from .models import LoginAttempt
     from django.utils import timezone
     from datetime import timedelta
+    from django.conf import settings
+
+    # Skip lockout check if rate limiting is disabled (e.g., in DEBUG mode)
+    if not getattr(settings, 'RATELIMIT_ENABLE', True):
+        return False, None
 
     # Check failed attempts in last 15 minutes
     lockout_window = timezone.now() - timedelta(minutes=15)
@@ -156,7 +162,7 @@ OAUTH_ERROR_MESSAGES = {
     'user_info_error': "Authentication failed: Could not retrieve user information.",
 }
 
-@ratelimit(key='ip', rate='20/h', method='POST')
+@ratelimit(key='ip', rate='20/h', method='POST', block=False)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_google_oauth(request):
@@ -325,7 +331,7 @@ def get_or_create_google_user(user_info):
         logger.info(f'Created new Google user: {user.email}')
         return user, True
 
-@ratelimit(key='ip', rate='5/h', method='POST')
+@ratelimit(key='ip', rate='5/h', method='POST', block=False)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_email(request):
@@ -367,7 +373,7 @@ def login_email(request):
     log_login_attempt(email, ip_address, success=True)
     return Response(generate_token_response(user))
 
-@ratelimit(key='ip', rate='10/h', method='POST')
+@ratelimit(key='ip', rate='10/h', method='POST', block=False)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @transaction.atomic
@@ -606,14 +612,7 @@ def exchange_session_for_tokens(request, session_id):
 
 def generate_token_response(user, created=False, anonymous_credentials=None):
     """Generate JWT token response"""
-    refresh = RefreshToken.for_user(user)
-    
-    # Add custom claims
-    refresh['email'] = user.email if user.email else ''
-    refresh['is_sso_admin'] = user.is_sso_admin
-    refresh['auth_type'] = user.auth_type
-    refresh['is_anonymous'] = user.is_anonymous
-    refresh['display_name'] = user.display_name
+    refresh = CustomRefreshToken.for_user(user)
     
     # Get user roles
     roles = {}
@@ -640,10 +639,10 @@ def generate_token_response(user, created=False, anonymous_credentials=None):
             'roles': roles
         }
     }
-    
+
     # Include anonymous credentials for new anonymous users
     if anonymous_credentials:
-        response_data['anonymous_credentials'] = anonymous_credentials
+        response_data['user']['anonymous_credentials'] = anonymous_credentials
         response_data['message'] = 'Anonymous account created. Save your username and PIN!'
 
     if created and not anonymous_credentials:
@@ -783,7 +782,7 @@ def applications(request):
     serializer = ApplicationSerializer(apps, many=True)
     return Response(serializer.data)
 
-@ratelimit(key='ip', rate='100/h', method='POST')
+@ratelimit(key='ip', rate='100/h', method='POST', block=False)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def validate_token(request):
