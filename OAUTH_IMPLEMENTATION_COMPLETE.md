@@ -88,9 +88,9 @@ def google_auth_callback(request):
 ```json
 GET /api/auth/google/oauth-url/
 {
-    "auth_url": "https://accounts.google.com/oauth/authorize?client_id=930712511884-uaodug30nbbjif7qje1gjb48ahm3n2nj.apps.googleusercontent.com&redirect_uri=http%3A//127.0.0.1%3A8000/auth/google/callback&scope=openid+email+profile&response_type=code&access_type=offline&prompt=select_account",
+    "auth_url": "https://accounts.google.com/oauth/authorize?client_id=<YOUR_CLIENT_ID>.apps.googleusercontent.com&redirect_uri=http%3A//127.0.0.1%3A8000/auth/google/callback&scope=openid+email+profile&response_type=code&access_type=offline&prompt=select_account",
     "redirect_uri": "http://127.0.0.1:8000/auth/google/callback",
-    "client_id": "930712511884-uaodug30nbbjif7qje1gjb48ahm3n2nj.apps.googleusercontent.com"
+    "client_id": "<YOUR_CLIENT_ID>.apps.googleusercontent.com"
 }
 ```
 
