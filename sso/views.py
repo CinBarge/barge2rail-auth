@@ -147,8 +147,8 @@ def login_google_oauth(request):
 def exchange_google_code_for_tokens(code):
     """Exchange authorization code for access/ID tokens"""
     token_url = 'https://oauth2.googleapis.com/token'
-    
-    redirect_uri = f'{settings.BASE_URL}/auth/google/callback'
+
+    redirect_uri = f'{settings.BASE_URL}/auth/google/callback/'
     
     data = {
         'client_id': settings.GOOGLE_CLIENT_ID,
@@ -341,7 +341,7 @@ def google_oauth_url(request):
     Generate Google OAuth URL with state parameter for CSRF protection.
     Gate 5: OAuth State Parameter Implementation
     """
-    redirect_uri = f'{settings.BASE_URL}/auth/google/callback'
+    redirect_uri = f'{settings.BASE_URL}/auth/google/callback/'
 
     # Gate 5: Generate and store state parameter
     state = generate_oauth_state()
@@ -377,7 +377,7 @@ def google_config_check(request):
         'google_client_id': bool(settings.GOOGLE_CLIENT_ID),
         'google_client_secret': bool(settings.GOOGLE_CLIENT_SECRET),
         'base_url': settings.BASE_URL,
-        'redirect_uri': f'{settings.BASE_URL}/auth/google/callback'
+        'redirect_uri': f'{settings.BASE_URL}/auth/google/callback/'
     }
     
     # Check if all required settings are present
