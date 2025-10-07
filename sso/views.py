@@ -256,10 +256,10 @@ def login_email(request):
     
     user = authenticate(username=email, password=password)
     if not user:
-        return Response({'error': 'Invalid credentials'}, 
+        return Response({'error': 'Invalid credentials'},
                        status=status.HTTP_401_UNAUTHORIZED)
-    
-    return generate_token_response(user)
+
+    return Response(generate_token_response(user))
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -280,7 +280,7 @@ def login_anonymous(request):
                 pin_code=pin,
                 is_anonymous=True
             )
-            return generate_token_response(user)
+            return Response(generate_token_response(user))
         except User.DoesNotExist:
             return Response({'error': 'Invalid username or PIN'}, 
                            status=status.HTTP_401_UNAUTHORIZED)
@@ -294,11 +294,11 @@ def login_anonymous(request):
         
         # Save to generate username and PIN
         user.save()
-        
-        return generate_token_response(user, anonymous_credentials={
+
+        return Response(generate_token_response(user, anonymous_credentials={
             'username': user.anonymous_username,
             'pin': user.pin_code
-        })
+        }))
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -331,8 +331,8 @@ def register_email(request):
         last_name=last_name,
         auth_type='email'
     )
-    
-    return generate_token_response(user, created=True)
+
+    return Response(generate_token_response(user, created=True))
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -432,11 +432,11 @@ def generate_token_response(user, created=False, anonymous_credentials=None):
     if anonymous_credentials:
         response_data['anonymous_credentials'] = anonymous_credentials
         response_data['message'] = 'Anonymous account created. Save your username and PIN!'
-    
+
     if created and not anonymous_credentials:
         response_data['message'] = 'Account created successfully'
-    
-    return Response(response_data)
+
+    return response_data
 
 # Legacy endpoints for backward compatibility
 @api_view(['POST'])
