@@ -1,30 +1,40 @@
+# Dockerfile
 FROM python:3.11-slim
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PORT=8000
-
-# Set work directory
+# Set working directory
 WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    gcc \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project
+# Copy project files
 COPY . .
 
-# Collect static files
-RUN python manage.py collectstatic --noinput
+# Create logs directory
+RUN mkdir -p logs
 
-# Run migrations
-RUN python manage.py migrate --noinput || true
+# REMOVED: collectstatic (will run at startup instead)
+# REMOVED: migrate (will run at startup instead)
 
-# Run server
-CMD gunicorn core.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --worker-tmp-dir /dev/shm
+# Expose port
+EXPOSE 8000
+
+# Create startup script that runs migrations, collectstatic, then starts server
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Running migrations..."\n\
+python manage.py migrate --noinput\n\
+echo "Collecting static files..."\n\
+python manage.py collectstatic --noinput\n\
+echo "Starting server..."\n\
+gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 4 --timeout 60\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Use startup script as entrypoint
+CMD ["/app/start.sh"]
