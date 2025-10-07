@@ -159,3 +159,40 @@ class RefreshToken(models.Model):
     class Meta:
         db_table = 'sso_refresh_tokens'
         ordering = ['-created_at']
+
+
+class TokenExchangeSession(models.Model):
+    """Temporary secure storage for OAuth tokens during exchange.
+    
+    This model prevents token exposure in URLs by using a two-step exchange:
+    1. OAuth callback creates session with tokens
+    2. Frontend exchanges session_id for tokens via API
+    
+    Security features:
+    - Single-use sessions (used flag)
+    - 60-second expiry
+    - Session ID is UUID (non-guessable)
+    - Automatic cleanup of expired sessions
+    """
+    session_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    access_token = models.TextField()
+    refresh_token = models.TextField()
+    user_email = models.EmailField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    
+    class Meta:
+        db_table = 'sso_token_exchange_sessions'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['expires_at', 'used']),
+        ]
+    
+    def __str__(self):
+        return f"Exchange session for {self.user_email} (used: {self.used})"
+    
+    def is_valid(self):
+        """Check if session is still valid for exchange."""
+        from django.utils import timezone
+        return not self.used and self.expires_at > timezone.now()
