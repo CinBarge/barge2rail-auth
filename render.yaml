@@ -6,7 +6,6 @@ services:
     plan: starter
     healthCheckPath: /api/auth/health/  # Fixed: matches your Django endpoint
     # CRITICAL: Django WSGI start command
-    startCommand: gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: DEBUG
         value: "False"  # String format for environment variables
