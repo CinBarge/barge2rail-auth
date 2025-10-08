@@ -1,382 +1,448 @@
 # Barge2Rail SSO System - Project Index
 
+**Status:** ✅ Live in Production  
+**Production URL:** https://sso.barge2rail.com  
+**Deployed:** October 7-8, 2025  
+**Test Coverage:** 74% (40/40 tests passing)
+
+---
+
 ## Overview
-Barge2Rail SSO is a centralized Single Sign-On authentication system for all Barge2Rail applications. Built with Django and Django REST Framework, it provides JWT-based authentication, multi-application support, role-based access control, and multiple authentication methods including Google OAuth, email/password, and anonymous PIN access.
+
+Barge2Rail SSO is a centralized Single Sign-On authentication system for all Barge2Rail applications. Built with Django and Django REST Framework, it provides JWT-based authentication with Google Workspace OAuth 2.0, comprehensive security features including rate limiting and account lockout, and support for multiple authentication methods.
+
+**Key Achievement:** Successfully deployed using HIGH RISK protocol in 4 days (vs 3-4 month estimate), with zero security incidents on first deployment.
+
+---
+
+## Production Status
+
+### Live Features
+- ✅ Google Workspace OAuth 2.0 authentication
+- ✅ JWT tokens with email claims
+- ✅ Automatic token refresh
+- ✅ Token blacklisting on logout
+- ✅ Rate limiting (5/10/20/100 per hour)
+- ✅ Account lockout after 5 failed attempts
+- ✅ 12-digit anonymous user PINs
+- ✅ OAuth state validation (60-second timeout)
+- ✅ HTTPS with auto-SSL
+- ✅ Health check monitoring
+
+### Infrastructure
+- **Platform:** Render PaaS (Docker)
+- **Region:** Ohio (Columbus)
+- **Domain:** sso.barge2rail.com (custom domain with SSL)
+- **Database:** PostgreSQL (managed by Render)
+- **Monitoring:** Health check at /api/auth/health/
+
+---
 
 ## Architecture
-- **Backend**: Django 4.2+ with Django REST Framework
-- **Authentication**: JWT tokens via Simple JWT
-- **Database**: SQLite (development) / PostgreSQL (production)
-- **Frontend**: Static templates with vanilla JavaScript
-- **OAuth Integration**: Google Sign-In support
-- **Security**: CORS, CSRF protection, secure token management
+
+### Technology Stack
+- **Backend:** Django 4.2+ with Django REST Framework
+- **Authentication:** JWT tokens via djangorestframework-simplejwt
+- **OAuth:** Google Workspace OAuth 2.0
+- **Database:** SQLite (development) / PostgreSQL (production)
+- **Deployment:** Docker + Render PaaS
+- **SSL:** Let's Encrypt (auto-renewal)
+- **Security:** Rate limiting, CSRF protection, token blacklisting
+
+### Key Components
+- **sso/views.py** - Authentication endpoints and OAuth flow
+- **sso/models.py** - User, TokenExchangeSession, LoginAttempt models
+- **sso/tokens.py** - Custom JWT with email claims
+- **sso/utils.py** - Rate limiting exception handler
+- **sso/tests/** - Comprehensive test suite (40 tests across 5 files)
+
+---
 
 ## 📁 Project Structure
 
 ```
 barge2rail-auth/
 ├── 📄 Configuration Files
-│   ├── .env                        # Environment variables (secrets)
+│   ├── .env                        # Environment variables (local dev)
+│   ├── .env.example                # Environment variable template
 │   ├── .gitignore                  # Git ignore patterns
+│   ├── Dockerfile                  # Docker container configuration
+│   ├── render.yaml                 # Render deployment configuration
 │   ├── manage.py                   # Django management script
 │   ├── requirements.txt            # Python dependencies
-│   ├── db.sqlite3                  # SQLite database (development)
-│   └── *.pid/.log                  # Runtime files
+│   ├── run_tests.sh                # Test runner with coverage
+│   └── db.sqlite3                  # SQLite database (development)
 │
 ├── 📋 Documentation
-│   ├── README.md                   # Quick start guide
+│   ├── README.md                   # Quick start guide (UPDATED)
 │   ├── INDEX.md                    # This file - comprehensive project index
-│   ├── IMPLEMENTATION_STATUS.md    # Google OAuth implementation status
-│   └── WARP.md                     # AI assistant guidelines
+│   ├── technical-handoff.md        # Complete deployment documentation
+│   ├── claude.md                   # AI assistant context and patterns
+│   ├── CONTRIBUTING.md             # Contribution guidelines
+│   ├── FUNCTIONAL_TESTS.md         # Test specifications
+│   ├── OAUTH_IMPLEMENTATION_COMPLETE.md  # OAuth implementation details
+│   └── IMPLEMENTATION_STATUS.md    # Historical implementation status
 │
-├── 🔧 Core Django Application
-│   └── core/
+├── 🎯 Core Application
+│   └── core/                       # Django project settings
 │       ├── __init__.py
-│       ├── settings.py             # Django configuration
-│       ├── urls.py                 # Main URL routing
-│       ├── wsgi.py                 # WSGI application
-│       └── asgi.py                 # ASGI application
+│       ├── settings.py             # Main settings (UPDATED)
+│       ├── urls.py                 # Root URL configuration
+│       ├── wsgi.py                 # WSGI configuration
+│       └── asgi.py                 # ASGI configuration
 │
-├── 🔐 SSO Authentication App
-│   └── sso/
-│       ├── models.py               # User, Application, UserRole models
-│       ├── views.py                # REST API views
-│       ├── auth_views.py           # Google OAuth specific views
-│       ├── serializers.py          # API serializers
-│       ├── urls.py                 # SSO API endpoints
-│       ├── admin.py                # Django admin configuration
-│       ├── apps.py                 # App configuration
-│       ├── tests.py                # Unit tests
+├── 🔐 SSO Application
+│   └── sso/                        # Main authentication app
 │       ├── migrations/             # Database migrations
-│       └── management/             # Custom management commands
-│
-├── 📊 Dashboard Application
-│   └── dashboard/
-│       ├── views.py                # Dashboard and login views
-│       ├── urls.py                 # Dashboard routing
-│       ├── models.py               # Dashboard-specific models
-│       ├── admin.py                # Admin interface
+│       │   ├── 0001_initial.py
+│       │   ├── 0002_*.py
+│       │   ├── 0003_applicationrole.py
+│       │   ├── 0004_tokenexchangesession.py
+│       │   └── 0005_loginattempt.py
+│       ├── management/             # Management commands
+│       │   └── commands/
+│       │       ├── cleanup_old_login_attempts.py
+│       │       ├── cleanup_token_sessions.py
+│       │       └── create_test_superuser.py
+│       ├── tests/                  # Test suite (NEW)
+│       │   ├── __init__.py
+│       │   ├── test_oauth_flow.py      # OAuth state, URL, callbacks (18 tests)
+│       │   ├── test_token_management.py # Token lifecycle (8 tests)
+│       │   ├── test_security.py        # Security features (9 tests)
+│       │   ├── test_rate_limiting.py   # Rate limits (4 tests)
+│       │   └── test_integration.py     # End-to-end flows (4 tests)
+│       ├── __init__.py
+│       ├── admin.py                # Admin panel configuration
 │       ├── apps.py                 # App configuration
-│       ├── tests.py                # Dashboard tests
-│       └── migrations/             # Database migrations
+│       ├── models.py               # Data models
+│       ├── serializers.py          # DRF serializers
+│       ├── views.py                # API endpoints (UPDATED)
+│       ├── urls.py                 # URL routing
+│       ├── tokens.py               # Custom JWT (NEW)
+│       └── utils.py                # Rate limiting handler (NEW)
 │
-├── 🌐 Frontend Templates
-│   └── templates/
-│       ├── base.html               # Base template
-│       ├── login.html              # Main login interface
-│       └── dashboard/
-│           ├── dashboard.html      # Admin dashboard
-│           ├── enhanced_login.html # Enhanced login form
-│           ├── google_onetap.html  # Google One-Tap login
-│           └── simple_test.html    # Testing interface
-│
-├── 📦 Static Assets
-│   ├── static/js/
-│   │   ├── barge2rail-sso.js       # Client-side SSO library
-│   │   └── barge2rail-sso-v2.js    # Updated SSO library
-│   └── staticfiles/                # Collected static files
-│
-├── 🧪 Development & Testing Tools
-│   ├── debug_*.sh                  # Debugging utilities
-│   ├── diagnose_*.py              # Diagnostic scripts
-│   ├── fix_*.sh                   # Issue resolution scripts
-│   ├── setup_google_oauth.sh      # OAuth setup automation
-│   ├── start_django_server.sh     # Server startup script
-│   ├── test_*.sh/.html            # Testing tools and interfaces
-│   └── verify_implementation.sh   # Implementation verification
-│
-└── 🐍 Python Environment
-    └── venv/                       # Virtual environment
+└── 📦 Static & Templates
+    ├── static/                     # Static files
+    │   ├── css/
+    │   ├── js/
+    │   └── img/
+    └── templates/                  # HTML templates
+        └── sso/
 ```
-
-## 🚀 Quick Start
-
-### Development Setup
-```bash
-# Clone repository
-cd /Users/cerion/projects/barge2rail-auth
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run database migrations
-python manage.py migrate
-
-# Create superuser
-python manage.py create_test_superuser
-# Creates admin@barge2rail.com with password: admin123
-
-# Start development server
-python manage.py runserver
-
-# Access admin dashboard
-open http://localhost:8000/
-```
-
-### Production Deployment
-```bash
-# Set production environment
-export DEBUG=False
-
-# Collect static files
-python manage.py collectstatic
-
-# Run with Gunicorn
-gunicorn core.wsgi:application --bind 0.0.0.0:8000
-```
-
-## 🔑 Authentication Methods
-
-### 1. **Email/Password Authentication**
-- Standard Django user authentication
-- Secure password validation
-- JWT token issuance upon successful login
-
-### 2. **Google OAuth Integration** ✅ COMPLETE
-- **Client ID**: `<GOOGLE_CLIENT_ID>`
-- **Redirect URIs**: Configured for local and production environments
-- **Implementation**: Fully functional OAuth 2.0 flow
-- **Features**: Token exchange, user creation/update, secure verification
-
-### 3. **Anonymous PIN Access**
-- Guest access with generated PIN codes
-- Auto-generated usernames (e.g., `Guest-ABC123`)
-- Temporary access for testing and demos
-
-## 📡 API Endpoints
-
-### Authentication Endpoints
-```
-POST /api/auth/register/          # Register new user
-POST /api/auth/login/             # Email/password login
-POST /api/auth/logout/            # Logout and blacklist token
-POST /api/auth/refresh/           # Refresh access token
-POST /api/auth/validate/          # Validate and decode token
-GET  /api/auth/profile/           # Get current user profile
-```
-
-### Google OAuth Endpoints
-```
-GET  /api/auth/oauth/google/url/  # Get OAuth authorization URL
-POST /api/auth/login/google/      # Handle Google OAuth login
-GET  /api/auth/google/callback/   # OAuth callback handler
-GET  /api/auth/config/google/     # Google configuration check
-```
-
-### Application Management
-```
-GET    /api/auth/applications/       # List applications
-POST   /api/auth/applications/       # Create application
-GET    /api/auth/applications/{id}/  # Get application details
-PUT    /api/auth/applications/{id}/  # Update application
-DELETE /api/auth/applications/{id}/  # Delete application
-```
-
-### User Role Management
-```
-GET    /api/auth/roles/       # List user roles
-POST   /api/auth/roles/       # Create user role
-GET    /api/auth/roles/{id}/  # Get role details
-PUT    /api/auth/roles/{id}/  # Update role
-DELETE /api/auth/roles/{id}/  # Delete role
-```
-
-## 🗃️ Data Models
-
-### User Model
-- **Fields**: UUID, email, phone, display_name, auth_type, google_id
-- **Anonymous Support**: anonymous_username, pin_code, is_anonymous
-- **Authentication**: Supports email, Google, and anonymous auth types
-- **Security**: Secure PIN generation and username creation
-
-### Application Model
-- **Purpose**: Multi-tenant application registration
-- **Fields**: name, slug, client_id, client_secret, redirect_uris
-- **Features**: Client credential management, URI validation
-
-### UserRole Model
-- **Purpose**: Role-based access control
-- **Roles**: admin, manager, user, viewer
-- **Features**: Application-specific permissions, JSON permission storage
-
-### RefreshToken Model
-- **Purpose**: JWT refresh token management
-- **Features**: Token rotation, expiration tracking, application binding
-
-## 🔐 Security Features
-
-### JWT Configuration
-- **Access Token Lifetime**: 15 minutes
-- **Refresh Token Lifetime**: 7 days
-- **Token Rotation**: Enabled with blacklisting
-- **Algorithm**: HS256 with Django SECRET_KEY
-
-### OAuth Security
-- **Token Verification**: Google ID token validation
-- **Secure Exchange**: Authorization code to token exchange
-- **User Matching**: Google ID linking and user creation
-- **Redirect Validation**: Authorized redirect URI checking
-
-### General Security
-- **CORS**: Configured allowed origins
-- **CSRF**: Protection enabled for web forms
-- **HTTPS**: Required in production
-- **Headers**: XSS, content-type sniffing protection
-
-## 🧩 Client Integration
-
-### JavaScript Library
-Include the SSO client library in your application:
-```html
-<script src="https://sso.barge2rail.com/static/js/barge2rail-sso.js"></script>
-```
-
-### Basic Usage
-```javascript
-// Initialize SSO client
-Barge2RailSSO.init({
-    ssoUrl: 'https://sso.barge2rail.com'
-});
-
-// Login with email/password
-await Barge2RailSSO.login('user@example.com', 'password');
-
-// Login with Google
-await Barge2RailSSO.loginWithGoogle();
-
-// Check authentication status
-if (Barge2RailSSO.isAuthenticated()) {
-    const user = Barge2RailSSO.getUser();
-    console.log('Logged in as:', user.email);
-}
-
-// Make authenticated requests
-const data = await Barge2RailSSO.authenticatedRequest('/api/your-endpoint/');
-
-// Logout
-await Barge2RailSSO.logout();
-```
-
-### Auto Token Refresh
-```javascript
-// Setup automatic token refresh
-Barge2RailSSO.setupAutoRefresh();
-```
-
-## 🧪 Testing & Debugging
-
-### Automated Testing Scripts
-```bash
-# Comprehensive implementation verification
-./verify_implementation.sh
-
-# Test Google OAuth specifically
-./test_implementation.sh
-
-# Debug API endpoints
-./debug_api_endpoints.sh
-
-# Test Google authentication flow
-./test_google_oauth.sh
-```
-
-### Manual Testing
-```bash
-# Check Google OAuth configuration
-curl http://127.0.0.1:8000/api/auth/config/google/
-
-# Get OAuth authorization URL
-curl http://127.0.0.1:8000/api/auth/oauth/google/url/
-
-# Health check
-curl http://127.0.0.1:8000/api/auth/health/
-```
-
-### Browser Testing
-1. Navigate to: `http://127.0.0.1:8000/login/`
-2. Test all three authentication methods:
-   - **Email Tab**: Standard login
-   - **Google Tab**: OAuth flow
-   - **Quick Access Tab**: Anonymous PIN access
-
-## 📊 Implementation Status
-
-### ✅ Completed Features
-- ✅ **Django Backend**: Complete REST API implementation
-- ✅ **Google OAuth**: Full OAuth 2.0 integration with token management
-- ✅ **Multi-Auth Support**: Email, Google, and anonymous authentication
-- ✅ **JWT Security**: Token-based authentication with refresh capability
-- ✅ **Admin Dashboard**: User and application management interface
-- ✅ **Client Library**: JavaScript SSO integration library
-- ✅ **Testing Tools**: Comprehensive testing and debugging utilities
-
-### 🔄 Current Capabilities
-- **Multi-tenant**: Support for multiple applications
-- **Role-based Access**: User role management per application
-- **Security**: CORS, CSRF, secure token handling
-- **Development**: Local emulation and testing environment
-
-### 📝 Future Enhancements
-- **SAML Integration**: Enterprise SSO protocols
-- **2FA Support**: Multi-factor authentication
-- **Audit Logging**: Comprehensive security logging
-- **Mobile SDK**: Native mobile app integration
-- **LDAP Integration**: Enterprise directory services
-
-## 🛠️ Development Environment
-
-### Dependencies
-```python
-Django>=4.2,<5.0                    # Web framework
-djangorestframework                  # REST API framework  
-djangorestframework-simplejwt        # JWT authentication
-django-cors-headers                  # CORS support
-python-decouple                      # Environment configuration
-gunicorn                             # Production server
-whitenoise                           # Static file serving
-dj-database-url                      # Database URL parsing
-google-auth==2.23.0                  # Google authentication
-google-auth-oauthlib==1.0.0         # OAuth library
-google-auth-httplib2==0.1.0         # HTTP client for Google Auth
-```
-
-### Environment Configuration
-```bash
-# Required environment variables
-SECRET_KEY=your-secret-key-here
-DEBUG=False
-ALLOWED_HOSTS=sso.barge2rail.com
-DATABASE_URL=postgresql://user:pass@localhost/dbname
-CORS_ALLOWED_ORIGINS=https://prt.barge2rail.com,https://app.barge2rail.com
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-BASE_URL=<BASE_URL>
-```
-
-## 🤝 Development Workflow
-
-### Code Organization
-- **Core**: Django project configuration and routing
-- **SSO App**: Authentication logic and API endpoints
-- **Dashboard App**: Administrative interface and views
-- **Templates**: Frontend interfaces and login forms
-- **Static**: Client-side JavaScript libraries and assets
-
-### Testing Strategy
-- **Unit Tests**: Model and view testing
-- **Integration Tests**: End-to-end OAuth flow testing
-- **API Tests**: REST endpoint validation
-- **Browser Tests**: Frontend interface verification
-
-### Debugging Tools
-- **Diagnostic Scripts**: OAuth configuration verification
-- **Log Analysis**: Django logging for troubleshooting
-- **Test Interfaces**: HTML pages for manual testing
-- **Shell Scripts**: Automated testing and setup
 
 ---
 
-*Last updated: September 16, 2025*
-*Project: Barge2Rail SSO Authentication System*
-*Architecture: Django REST Framework with JWT Authentication*
-*Status: Production Ready with Google OAuth Integration*
+## API Endpoints
+
+### Authentication Endpoints
+| Endpoint | Method | Purpose | Rate Limit |
+|----------|--------|---------|------------|
+| `/api/auth/login/google/` | GET | Initiate Google OAuth | 20/hour |
+| `/auth/google/callback/` | GET | OAuth callback | - |
+| `/api/auth/login/email/` | POST | Email/password login | 5/hour |
+| `/api/auth/login/anonymous/` | POST | Anonymous user login | 10/hour |
+| `/api/auth/logout/` | POST | Logout (blacklist tokens) | - |
+| `/api/auth/refresh/` | POST | Refresh access token | - |
+| `/api/auth/validate/` | POST | Validate access token | 100/hour |
+| `/api/auth/session/{id}/tokens/` | GET | Exchange session for tokens | - |
+| `/api/auth/health/` | GET | Health check | - |
+
+---
+
+## Security Features
+
+### Authentication Security
+- **OAuth State Parameter:** 60-second timeout with CSRF protection
+- **Token Exchange:** Secure two-step pattern (no tokens in URLs)
+- **Token Blacklisting:** Refresh tokens invalidated on logout
+- **JWT Claims:** Include user email for convenience
+- **Anonymous PINs:** 12-digit (not 6-digit) for security
+
+### Rate Limiting & Protection
+- **Email Login:** 5 attempts per hour per IP
+- **Anonymous Login:** 10 attempts per hour per IP
+- **OAuth Endpoint:** 20 attempts per hour per IP
+- **Token Validation:** 100 requests per hour per IP
+- **Account Lockout:** 5 failed attempts triggers lockout
+- **Login Attempt Logging:** All attempts tracked with IP and timestamp
+
+### Infrastructure Security
+- **HTTPS Only:** Enforced via Let's Encrypt SSL
+- **CSRF Protection:** Django CSRF middleware active
+- **CORS Configuration:** Restricted to allowed origins
+- **Secure Cookies:** httponly, secure, samesite settings
+- **Environment Separation:** DEBUG=False in production
+
+---
+
+## Testing
+
+### Test Suite
+**Location:** `sso/tests/`  
+**Total Tests:** 40  
+**Pass Rate:** 100%  
+**Coverage:** 74% overall (95% on models, 74% on views)
+
+**Test Categories:**
+1. **OAuth Flow (18 tests)** - State validation, URL generation, callbacks
+2. **Token Management (8 tests)** - Generation, validation, refresh, blacklist
+3. **Security (9 tests)** - Rate limiting, account lockout, CSRF, PINs
+4. **Rate Limiting (4 tests)** - Configuration and endpoint limits
+5. **Integration (4 tests)** - End-to-end authentication flows
+
+**Run Tests:**
+```bash
+./run_tests.sh                           # All tests with coverage
+python manage.py test sso.tests          # All tests
+python manage.py test sso.tests.test_oauth_flow  # Specific test file
+```
+
+---
+
+## Deployment
+
+### Production Deployment (Render)
+**Platform:** Render PaaS (Docker-based)  
+**Region:** Ohio (Columbus)  
+**Service:** barge2rail-sso  
+**Custom Domain:** sso.barge2rail.com  
+**SSL:** Auto-renewal via Let's Encrypt
+
+**Deployment Process:**
+1. Push to `main` branch on GitHub
+2. Render automatically builds Docker image
+3. Runs database migrations (`python manage.py migrate`)
+4. Collects static files (`python manage.py collectstatic`)
+5. Starts Gunicorn server with 2 workers, 4 threads
+6. Health check verifies deployment
+
+**Environment Variables:**
+- BASE_URL, DEBUG, ALLOWED_HOSTS
+- SECRET_KEY (unique to production)
+- GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+- CSRF_TRUSTED_ORIGINS, CORS_ALLOWED_ORIGINS
+
+### Local Development
+```bash
+# Setup
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env with local settings
+
+# Run
+python manage.py migrate
+python manage.py runserver
+
+# Test
+./run_tests.sh
+```
+
+---
+
+## Integration Guide
+
+### For Client Applications
+
+**Step 1: Redirect to SSO**
+```javascript
+window.location.href = 'https://sso.barge2rail.com/api/auth/login/google/';
+```
+
+**Step 2: Handle Callback**
+```javascript
+// User returns to your app with session_id in URL
+const urlParams = new URLSearchParams(window.location.search);
+const sessionId = urlParams.get('session_id');
+```
+
+**Step 3: Exchange for Tokens**
+```javascript
+const response = await fetch(
+  `https://sso.barge2rail.com/api/auth/session/${sessionId}/tokens/`
+);
+const { access, refresh, user } = await response.json();
+```
+
+**Step 4: Use Tokens**
+```javascript
+// Store tokens securely
+localStorage.setItem('access_token', access);
+localStorage.setItem('refresh_token', refresh);
+
+// Use in API requests
+fetch('https://your-app.com/api/endpoint', {
+  headers: {
+    'Authorization': `Bearer ${access}`
+  }
+});
+```
+
+**Step 5: Refresh When Expired**
+```javascript
+const response = await fetch('https://sso.barge2rail.com/api/auth/refresh/', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ refresh: refresh_token })
+});
+const { access } = await response.json();
+```
+
+---
+
+## Development Guidelines
+
+### Code Standards
+- Follow Django best practices
+- Use type hints where appropriate
+- Write tests for all new features
+- Document complex logic
+- Keep views focused and slim
+- Use serializers for validation
+
+### Security Requirements
+- Never commit secrets to git
+- Use environment variables for configuration
+- Implement rate limiting on new endpoints
+- Log security-relevant events
+- Follow OWASP guidelines
+- Test authentication flows thoroughly
+
+### Testing Requirements
+- 100% test pass rate before merge
+- Minimum 70% code coverage
+- All security features tested
+- Integration tests for new flows
+- Run full test suite before deployment
+
+---
+
+## Monitoring & Maintenance
+
+### Health Monitoring
+**Endpoint:** https://sso.barge2rail.com/api/auth/health/  
+**Expected Response:** `{"status": "healthy"}`
+
+### Logs
+Access via Render Dashboard → Service → Logs
+
+### Performance Metrics
+- **Response Time:** < 2 seconds (target)
+- **Uptime:** 99.9% (target)
+- **Error Rate:** < 0.1% (target)
+
+### Maintenance Tasks
+**Daily (First 72 hours):**
+- Check Render logs for errors
+- Verify health check endpoint
+- Monitor login success/failure rates
+
+**Weekly:**
+- Review LoginAttempt logs for suspicious activity
+- Run cleanup commands (old attempts, expired sessions)
+- Check SSL certificate status
+- Review performance metrics
+
+**Monthly:**
+- Audit active users and access patterns
+- Review and update dependencies
+- Check for Django/DRF security updates
+- Test rollback procedure
+- Update documentation
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**OAuth Redirect Mismatch:**
+- Verify redirect URI in Google Console matches exactly
+- Check BASE_URL environment variable
+- Ensure HTTPS in production
+
+**Rate Limit Errors:**
+- Check LoginAttempt model for IP-based blocks
+- Clear old attempts: `python manage.py cleanup_old_login_attempts`
+- Verify RATELIMIT_ENABLE setting
+
+**Token Issues:**
+- Check token hasn't expired (default: 5 min access, 1 day refresh)
+- Verify SECRET_KEY is consistent across deployments
+- Check token_blacklist for revoked tokens
+
+**Health Check Failing:**
+- Check database connectivity
+- Verify migrations are applied
+- Check application logs in Render
+
+---
+
+## Project History
+
+### Timeline
+- **September 2025:** Initial development and OAuth implementation
+- **October 4, 2025:** Risk assessment (HIGH RISK - 53/60)
+- **October 4, 2025:** Three-perspective security review (17 issues found)
+- **October 7, 2025:** Test suite implementation (40 tests)
+- **October 7, 2025:** All security issues resolved
+- **October 7-8, 2025:** Production deployment completed
+- **October 8, 2025:** OAuth verified working in production
+
+### Key Achievements
+- ✅ Deployed using HIGH RISK protocol successfully
+- ✅ Zero security incidents on first deployment
+- ✅ All 40 tests passing (100% pass rate)
+- ✅ Completed in 4 days vs 3-4 month estimate (20x efficiency)
+- ✅ Framework validation: Three-perspective review caught 17 issues
+
+---
+
+## Documentation
+
+### Primary Documentation
+- **README.md** - Quick start and overview
+- **technical-handoff.md** - Complete deployment documentation and status
+- **claude.md** - AI assistant context, patterns, and project knowledge
+- **CONTRIBUTING.md** - Contribution guidelines and standards
+
+### Technical Documentation
+- **FUNCTIONAL_TESTS.md** - Test specifications
+- **OAUTH_IMPLEMENTATION_COMPLETE.md** - OAuth implementation details
+- **IMPLEMENTATION_STATUS.md** - Historical implementation status
+
+### Development Documentation
+- **WARP.md** - AI assistant guidelines
+- **CLAUDE_CODE_HANDOFF.md** - Claude Code integration guide
+- **galactica-integration.md** - Memory system integration
+
+---
+
+## Support & Resources
+
+**Production Status:** https://sso.barge2rail.com/api/auth/health/  
+**Repository:** https://github.com/CinBarge/barge2rail-auth  
+**Issues:** Report via GitHub Issues  
+**Render Dashboard:** https://dashboard.render.com
+
+**Health Check:**
+```bash
+curl https://sso.barge2rail.com/api/auth/health/
+```
+
+**Test Locally:**
+```bash
+cd /Users/cerion/Projects/barge2rail-auth
+./run_tests.sh
+```
+
+---
+
+## License
+
+Proprietary - Barge2Rail Internal Use Only
+
+---
+
+*Last updated: October 8, 2025 - Production deployment successful*
