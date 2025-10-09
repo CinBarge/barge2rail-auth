@@ -3,6 +3,7 @@ from django.db import models
 import uuid
 import random
 import string
+import secrets
 
 
 class User(AbstractUser):
@@ -76,17 +77,50 @@ class Application(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=50, unique=True, default='')
-    client_id = models.CharField(max_length=100, unique=True)
-    client_secret = models.CharField(max_length=255)
+    client_id = models.CharField(
+        max_length=100,
+        unique=True,
+        blank=True,
+        help_text="Auto-generated if left blank. Format: app_XXXXXXXXXXXXXXXX"
+    )
+    client_secret = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Auto-generated if left blank. Cryptographically secure random string."
+    )
     redirect_uris = models.TextField(help_text="Comma-separated list of allowed redirect URIs")
     is_active = models.BooleanField(default=True)
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
+    def save(self, *args, **kwargs):
+        # Auto-generate client_id if not provided
+        if not self.client_id:
+            self.client_id = self.generate_client_id()
+
+        # Auto-generate client_secret if not provided
+        if not self.client_secret:
+            self.client_secret = self.generate_client_secret()
+
+        super().save(*args, **kwargs)
+
+    def generate_client_id(self):
+        """Generate unique client_id like 'app_1a2b3c4d5e6f7g8h'"""
+        while True:
+            # Generate 16 character random string (hex)
+            random_part = secrets.token_hex(8)  # 8 bytes = 16 hex chars
+            client_id = f"app_{random_part}"
+            if not Application.objects.filter(client_id=client_id).exists():
+                return client_id
+
+    def generate_client_secret(self):
+        """Generate cryptographically secure client secret (64 characters)"""
+        return secrets.token_urlsafe(48)  # 48 bytes = 64 URL-safe characters
+
     def __str__(self):
         return self.name
-    
+
     class Meta:
         db_table = 'sso_applications'
         ordering = ['name']
