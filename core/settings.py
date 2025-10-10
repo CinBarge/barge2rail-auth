@@ -74,6 +74,10 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Don't persist after browser close
 
 # Application definition
 INSTALLED_APPS = [
+    # Local apps (before Django apps to override templates)
+    'sso',
+    'dashboard',
+
     # Django
     'django.contrib.admin',
     'django.contrib.auth',
@@ -87,10 +91,6 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
-
-    # Local apps
-    'sso',
-    'dashboard',
 ]
 
 MIDDLEWARE = [
