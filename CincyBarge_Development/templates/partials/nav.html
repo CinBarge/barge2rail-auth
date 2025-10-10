@@ -1,0 +1,50 @@
+<nav class="navbar navbar-expand-lg navbar-info bg-info">
+    <div class="container-fluid">
+
+        <!-- Align Left: CincyBarge Name -->
+        <span class="navbar-text text-white fw-bold ps-3 h3 d-flex align-items-center mb-0">
+            CincyBarge
+        </span>
+
+        <!-- Toggle button for mobile view -->
+        <button class="navbar-toggler text-white" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <!-- Align Right: Navigation Links -->
+        <div class="collapse navbar-collapse justify-content-end" id="navbarSupportedContent">
+            <ul class="navbar-nav align-items-center">
+
+                <!-- Inventory and Dashboard -->
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="{% url 'dashboard-index' %}">Inventory</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="{% url 'dashboard-index' %}">Dashboard</a>
+                </li>
+
+                {% if user.is_authenticated %}
+                    <!-- Show Logout if logged in -->
+                    <li class="nav-item">
+                        <form method="POST" action="{% url 'user-logout' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-link nav-link text-white" style="text-decoration: none;">
+                                Logout
+                            </button>
+                        </form>
+                    </li>
+                {% else %}
+                    <!-- Show Register and Login if not logged in -->
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="{% url 'user-register' %}">Register</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="{% url 'user-login' %}">Login</a>
+                    </li>
+                {% endif %}
+
+            </ul>
+        </div>
+    </div>
+</nav>

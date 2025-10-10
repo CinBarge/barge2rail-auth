@@ -1,0 +1,116 @@
+{% extends 'partials/base.html' %}
+{% block title %}Staff Page{% endblock %}
+
+{% block content %}
+
+{% include 'partials/topnav.html' %}
+
+<div class="container-fluid">
+    <div class="row my-4">
+
+        <!-- Add New Staff Member Form -->
+        <div class="col-md-4">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="card card-body">
+                <h5>Add New Staff Member</h5>
+                <hr>
+                <form method="POST">
+                    {% csrf_token %}
+
+                    <!-- First Name -->
+                    <div class="form-group mb-2">
+                        <label for="id_first_name">First Name</label>
+                        <input type="text" name="first_name" id="id_first_name" class="form-control" placeholder="Enter first name" required>
+                    </div>
+
+                    <!-- Last Name -->
+                    <div class="form-group mb-2">
+                        <label for="id_last_name">Last Name</label>
+                        <input type="text" name="last_name" id="id_last_name" class="form-control" placeholder="Enter last name" required>
+                    </div>
+
+                    <!-- Username -->
+                    <div class="form-group mb-2">
+                        <label for="id_username">Username</label>
+                        <input type="text" name="username" id="id_username" class="form-control" placeholder="Enter username" required>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="form-group mb-2">
+                        <label for="id_email">Email</label>
+                        <input type="email" name="email" id="id_email" class="form-control" placeholder="Enter email" required>
+                    </div>
+
+                    <!-- Role Dropdown -->
+                    <div class="form-group mb-3">
+                        <label for="id_role">Role</label>
+                        <select name="role" id="id_role" class="form-control" required>
+                            <option value="" disabled selected>Select role</option>
+                            <option value="admin">Admin</option>
+                            <option value="office">Office</option>
+                            <option value="warehouse">Warehouse</option>
+                            <option value="operator">Operator</option> <!-- New role added -->
+                        </select>
+                    </div>
+
+                    <!-- Submit -->
+                    <input class="btn btn-success btn-block mt-2" type="submit" value="Add Staff">
+                </form>
+            </div>
+        </div>
+
+        <!-- Staff Members Table -->
+        <div class="col-md-8">
+            <div class="table-responsive">
+                <table class="table table-bordered bg-white">
+                    <thead class="bg-info text-white">
+                        <tr>
+                            <th>Name</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Joined</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.first_name }} {{ user.last_name }}</td>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                {% if user.is_superuser %}
+                                    <span class="badge bg-danger">Admin</span>
+                                {% elif user.groups.all.0.name == 'Office' %}
+                                    <span class="badge bg-primary">Office</span>
+                                {% elif user.groups.all.0.name == 'Warehouse' %}
+                                    <span class="badge bg-secondary">Warehouse</span>
+                                {% elif user.groups.all.0.name == 'Operator' %}
+                                    <span class="badge bg-warning text-dark">Operator</span> <!-- Operator badge -->
+                                {% else %}
+                                    <span class="badge bg-dark">Staff</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ user.date_joined|date:"M d, Y" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center">No staff members found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}

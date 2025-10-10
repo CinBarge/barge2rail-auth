@@ -1,0 +1,74 @@
+{% extends 'partials/base.html' %}
+{% block title %}Register Page{% endblock %}
+
+{% block content %}
+<style>
+  /* Compact register container */
+  .register-container {
+    max-width: 400px;          /* Smaller width */
+    margin: 40px auto;         /* Vertical spacing */
+    padding: 20px 25px;        /* Reduced padding */
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background-color: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    font-family: Arial, sans-serif;
+  }
+
+  /* Header */
+  .register-container h4 {
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 22px;
+    color: #333;
+  }
+
+  /* Form fields */
+  .register-container form input[type="text"],
+  .register-container form input[type="email"],
+  .register-container form input[type="password"],
+  .register-container form select,
+  .register-container form textarea {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+
+  /* Submit button */
+  .register-container form input[type="submit"] {
+    width: 100%;
+    padding: 12px;
+    background-color: #28a745;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+  }
+
+  .register-container form input[type="submit"]:hover {
+    background-color: #218838;
+  }
+
+  /* Hide CSRF token input visually */
+  .register-container form input[name="csrfmiddlewaretoken"] {
+    display: none;
+  }
+</style>
+
+
+<div class="register-container">
+  <h4>Register</h4>
+  <form method="POST">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit" value="Register">
+  </form>
+</div>
+{% endblock %}
