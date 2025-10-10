@@ -1,5 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
+from datetime import timedelta
 import uuid
 import random
 import string
@@ -124,6 +126,41 @@ class Application(models.Model):
     class Meta:
         db_table = 'sso_applications'
         ordering = ['name']
+
+
+class AuthorizationCode(models.Model):
+    """Temporary authorization codes for OAuth 2.0 authorization code flow"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=128, unique=True, db_index=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='authorization_codes')
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='authorization_codes')
+    redirect_uri = models.URLField()
+    scope = models.CharField(max_length=255, default='openid email profile')
+    state = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'sso_authorization_codes'
+        indexes = [
+            models.Index(fields=['code', 'used']),
+        ]
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = secrets.token_urlsafe(32)
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(minutes=10)
+        super().save(*args, **kwargs)
+
+    def is_valid(self):
+        """Check if code is still valid (not expired and not used)"""
+        return not self.used and timezone.now() < self.expires_at
+
+    def __str__(self):
+        return f"{self.code[:10]}... for {self.application.name}"
 
 
 class UserRole(models.Model):

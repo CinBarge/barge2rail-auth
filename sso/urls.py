@@ -1,7 +1,15 @@
 from django.urls import path
-from . import views, auth_views
+from . import views, auth_views, oauth_views
 
 urlpatterns = [
+    # OAuth 2.0 Authorization Server endpoints (SSO acts as OAuth provider)
+    path('authorize/', oauth_views.oauth_authorize, name='oauth_authorize'),
+    path('token/', oauth_views.oauth_token, name='oauth_token'),
+
+    # Admin Google OAuth (server-side redirect flow)
+    path('admin/google/login/', views.admin_google_login, name='admin_google_login'),
+    path('admin/google/callback/', views.admin_google_callback, name='admin_google_callback'),
+
     # Primary OAuth API endpoints matching frontend expectations
     path('oauth/google/url/', views.google_oauth_url, name='google_oauth_url'),  # Match frontend: /api/auth/oauth/google/url/
     path('google/oauth-url/', views.google_oauth_url, name='google_oauth_url_alt'),  # Keep existing for compatibility

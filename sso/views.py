@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework_simplejwt.tokens import RefreshToken
 from sso.tokens import CustomRefreshToken
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, login
 from django_ratelimit.decorators import ratelimit
 from .models import User, Application, UserRole
 from .serializers import (
@@ -162,6 +162,111 @@ OAUTH_ERROR_MESSAGES = {
     'user_info_error': "Authentication failed: Could not retrieve user information.",
 }
 
+# ============================================================================
+# Admin Google OAuth Views (Server-side redirect flow)
+# ============================================================================
+
+def admin_google_login(request):
+    """
+    Initiate Google OAuth for Django admin login (GET redirect flow)
+    """
+    from django.shortcuts import redirect
+    from urllib.parse import urlencode
+
+    # Store next parameter and generate state
+    next_url = request.GET.get('next', '/admin/')
+    state = generate_oauth_state()
+    request.session['oauth_state'] = state
+    request.session['oauth_next'] = next_url
+    request.session.modified = True
+
+    # Build Google OAuth URL
+    redirect_uri = f'{settings.BASE_URL}/auth/admin/google/callback/'
+    params = {
+        'client_id': settings.GOOGLE_CLIENT_ID,
+        'redirect_uri': redirect_uri,
+        'scope': 'openid email profile',
+        'response_type': 'code',
+        'access_type': 'offline',
+        'prompt': 'select_account',
+        'state': state
+    }
+
+    auth_url = f'https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}'
+    return redirect(auth_url)
+
+
+def admin_google_callback(request):
+    """
+    Handle Google OAuth callback for admin login (GET redirect flow)
+    """
+    from django.shortcuts import redirect
+    from django.http import HttpResponse
+
+    # Get code and state from query parameters
+    code = request.GET.get('code')
+    state_from_callback = request.GET.get('state')
+    error = request.GET.get('error')
+
+    # Handle OAuth errors (user cancelled, etc.)
+    if error:
+        logger.warning(f"Google OAuth error: {error}")
+        return HttpResponse(f"Authentication cancelled: {error}", status=400)
+
+    # Validate state
+    state_from_session = request.session.get('oauth_state')
+    if not validate_oauth_state(state_from_callback, state_from_session):
+        security_logger.warning(
+            f"OAuth state validation failed for admin login - "
+            f"IP: {request.META.get('REMOTE_ADDR')}"
+        )
+        return HttpResponse("Authentication failed: Invalid or expired request", status=403)
+
+    # Get next URL BEFORE clearing session (login() will create new session)
+    next_url = request.session.get('oauth_next', '/admin/')
+
+    if not code:
+        return HttpResponse("Authentication failed: No authorization code received", status=400)
+
+    try:
+        # Exchange code for tokens (reuse existing function but with admin callback URI)
+        token_url = 'https://oauth2.googleapis.com/token'
+        redirect_uri = f'{settings.BASE_URL}/auth/admin/google/callback/'
+
+        data = {
+            'client_id': settings.GOOGLE_CLIENT_ID,
+            'client_secret': settings.GOOGLE_CLIENT_SECRET,
+            'code': code,
+            'grant_type': 'authorization_code',
+            'redirect_uri': redirect_uri
+        }
+
+        response = requests.post(token_url, data=data, timeout=10)
+        token_data = response.json()
+
+        if response.status_code != 200:
+            logger.error(f'Admin OAuth token exchange failed: {token_data}')
+            return HttpResponse(f"Authentication failed: {token_data.get('error_description', 'Could not obtain access token')}", status=400)
+
+        # Verify ID token and get user info
+        user_info = verify_google_id_token(token_data['id_token'])
+
+        # Create or get user
+        user, created = get_or_create_google_user(user_info)
+
+        # Log user into Django session (this creates a NEW session, invalidating the old one)
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
+        logger.info(f"Admin login successful for {user.email}")
+
+        # Redirect to admin or next URL
+        return redirect(next_url)
+
+    except Exception as e:
+        logger.error(f"Admin OAuth callback error: {e}")
+        return HttpResponse(f"Authentication failed: {str(e)}", status=500)
+
+
 @ratelimit(key='ip', rate='20/h', method='POST', block=False)
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -217,6 +322,9 @@ def login_google_oauth(request):
 
         # Create or get user
         user, created = get_or_create_google_user(user_info)
+
+        # Log user into Django session (needed for OAuth authorization endpoint)
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
 
         # Generate JWT tokens
         response_data = generate_token_response(user, created=created)
@@ -296,15 +404,30 @@ def get_or_create_google_user(user_info):
     try:
         # Try to find existing user by Google ID
         user = User.objects.get(google_id=user_info['google_id'])
-        
-        # Update user info
-        user.email = user_info['email']
-        user.display_name = user_info['name']
+
+        # Update user info - ONLY save fields we're actually changing
+        # This prevents overwriting permissions set via admin/shell
+        fields_to_update = []
+
+        if user.email != user_info['email']:
+            user.email = user_info['email']
+            fields_to_update.append('email')
+
+        if user.display_name != user_info['name']:
+            user.display_name = user_info['name']
+            fields_to_update.append('display_name')
+
         if not user.is_active:
             user.is_active = True
-        user.save()
-        
-        logger.info(f'Updated existing Google user: {user.email}')
+            fields_to_update.append('is_active')
+
+        # Only save if something actually changed
+        if fields_to_update:
+            user.save(update_fields=fields_to_update)
+            logger.info(f'Updated existing Google user: {user.email} (fields: {fields_to_update})')
+        else:
+            logger.info(f'No updates needed for Google user: {user.email}')
+
         return user, False
         
     except User.DoesNotExist:
@@ -312,9 +435,10 @@ def get_or_create_google_user(user_info):
         existing_user = User.objects.filter(email=user_info['email']).first()
         if existing_user:
             # Link Google account to existing user
+            # ONLY update the fields needed for Google linking
             existing_user.google_id = user_info['google_id']
             existing_user.auth_type = 'google'
-            existing_user.save()
+            existing_user.save(update_fields=['google_id', 'auth_type'])
             logger.info(f'Linked Google account to existing user: {existing_user.email}')
             return existing_user, False
         
