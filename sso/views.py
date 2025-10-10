@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework_simplejwt.tokens import RefreshToken
 from sso.tokens import CustomRefreshToken
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, login
 from django_ratelimit.decorators import ratelimit
 from .models import User, Application, UserRole
 from .serializers import (
@@ -217,6 +217,9 @@ def login_google_oauth(request):
 
         # Create or get user
         user, created = get_or_create_google_user(user_info)
+
+        # Log user into Django session (needed for OAuth authorization endpoint)
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
 
         # Generate JWT tokens
         response_data = generate_token_response(user, created=created)

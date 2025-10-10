@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Application, UserRole, ApplicationRole, RefreshToken
+from .models import User, Application, UserRole, ApplicationRole, RefreshToken, AuthorizationCode
 
 
 @admin.register(User)
@@ -134,3 +134,34 @@ class RefreshTokenAdmin(admin.ModelAdmin):
     search_fields = ['user__email', 'user__username']
     raw_id_fields = ['user', 'application']
     readonly_fields = ['id', 'token', 'created_at']
+
+
+@admin.register(AuthorizationCode)
+class AuthorizationCodeAdmin(admin.ModelAdmin):
+    list_display = ['code_preview', 'user_email', 'application', 'used', 'expires_at', 'created_at']
+    list_filter = ['used', 'application', 'created_at']
+    search_fields = ['code', 'user__email', 'application__name']
+    readonly_fields = ['code', 'created_at', 'expires_at']
+    autocomplete_fields = ['user', 'application']
+
+    def code_preview(self, obj):
+        return f"{obj.code[:20]}..."
+    code_preview.short_description = 'Code'
+
+    def user_email(self, obj):
+        return obj.user.email or obj.user.anonymous_username
+    user_email.short_description = 'User'
+    user_email.admin_order_field = 'user__email'
+
+    fieldsets = (
+        ('Authorization Code', {
+            'fields': ('code', 'used', 'expires_at')
+        }),
+        ('OAuth Details', {
+            'fields': ('user', 'application', 'redirect_uri', 'scope', 'state')
+        }),
+        ('Metadata', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
