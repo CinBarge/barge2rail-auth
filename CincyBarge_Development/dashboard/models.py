@@ -3,12 +3,6 @@ from django.contrib.auth.models import User
 
 # Create your models here.
 
-CATEGORY = (
-    ('Supersacs', 'Supersacs'),
-    ('Metals', 'Metals'),
-    ('Misc', 'Misc'),
-)
-
 
 class Supplier(models.Model):
     name = models.CharField(max_length=100)
@@ -19,7 +13,6 @@ class Supplier(models.Model):
 
 class Product(models.Model):
     name = models.CharField(max_length=100, null=True)
-    category = models.CharField(max_length=20, choices=CATEGORY, null=True)
     quantity = models.PositiveIntegerField(null=True)
     supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)
 

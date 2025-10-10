@@ -193,7 +193,7 @@ def sync_sheet_to_database(sheet_id=None, sheet_name=None, range_name=None):
         if range_name is None:
             range_name = f"{sheet_name}!{DEFAULT_RANGE}"
 
-        from dashboard.models import Product, CATEGORY  # Import models here to avoid circular imports
+        from dashboard.models import Product  # Import models here to avoid circular imports
 
         data = get_sheet_data(sheet_id=sheet_id, range_name=range_name)
 
@@ -207,12 +207,10 @@ def sync_sheet_to_database(sheet_id=None, sheet_name=None, range_name=None):
 
         synced_count = 0
         errors = []
-        valid_categories = dict(CATEGORY)
 
         for row in data:
             try:
                 name = row.get('Name', row.get('name', '')).strip()
-                category = row.get('Category', row.get('category', '')).strip()
                 quantity_str = row.get('Quantity', row.get('quantity', '0')).strip()
 
                 if not name:
@@ -223,24 +221,9 @@ def sync_sheet_to_database(sheet_id=None, sheet_name=None, range_name=None):
                 except (ValueError, TypeError):
                     quantity = 0
 
-                if category not in valid_categories:
-                    # Case-insensitive matching
-                    category_match = None
-                    for valid_cat in valid_categories.keys():
-                        if valid_cat.lower() == category.lower():
-                            category_match = valid_cat
-                            break
-
-                    if category_match:
-                        category = category_match
-                    else:
-                        errors.append(f"Invalid category '{category}' for product '{name}'")
-                        continue
-
                 product, created = Product.objects.update_or_create(
                     name=name,
                     defaults={
-                        'category': category,
                         'quantity': quantity
                     }
                 )

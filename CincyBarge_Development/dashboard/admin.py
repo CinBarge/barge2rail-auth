@@ -5,8 +5,7 @@ from django.contrib.auth.models import Group
 admin.site.site_header = 'Cincinatti Barge 2 Rail Dashboard'
 
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'quantity', 'category')
-    list_filter = ['category']
+    list_display = ('name', 'quantity', 'supplier')
 
 # Register your models here.
 

@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
-from .models import Product, CATEGORY, Order
+from .models import Product, Order
 from utilities.googlesheet import get_sheet_data, update_sheet_row, update_sheet_cell, sync_sheet_to_database
 from urllib.parse import urlparse, parse_qs
 from django.contrib import messages 
@@ -44,26 +44,22 @@ def product(request):
     if request.method == "POST":
         name = request.POST.get('name')
         quantity = request.POST.get('quantity')
-        category_id = request.POST.get('category')
         supplier_id = request.POST.get('supplier') 
 
         # Validation (optional)
-        if name and quantity and category_id and supplier_id:
+        if name and quantity and supplier_id:
             Product.objects.create(
                 name=name,
                 quantity=quantity,
-                category_id=category_id,
                 supplier_id=supplier_id  
             )
     
     # Prepare form data for display
     products = Product.objects.all()
-    categories = [{'id': cat[0], 'name': cat[1]} for cat in CATEGORY]
     suppliers = Supplier.objects.all()
 
     context = {
         'product': products,
-        'categories': categories,
         'suppliers': suppliers,
     }
     
@@ -227,21 +223,10 @@ def import_google_sheet(request):
 
             name = row_data.get('name')
             quantity = row_data.get('quantity')
-            category_name = row_data.get('category')
             supplier_name = row_data.get('supplier')
 
-            if not all([name, quantity, category_name, supplier_name]):
+            if not all([name, quantity, supplier_name]):
                 continue  # skip incomplete rows
-
-            # Find matching category from CATEGORY choices
-            category_id = None
-            for cat_id, cat_label in CATEGORY:
-                if cat_label.lower() == category_name.lower():
-                    category_id = cat_id
-                    break
-
-            if not category_id:
-                continue  # skip unknown category
 
             # Get or create supplier
             supplier, _ = Supplier.objects.get_or_create(name=supplier_name)
@@ -250,7 +235,6 @@ def import_google_sheet(request):
             Product.objects.create(
                 name=name,
                 quantity=int(quantity),
-                category=category_id,
                 supplier=supplier,
             )
             new_products += 1

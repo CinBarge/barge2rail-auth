@@ -37,17 +37,6 @@
                         <input type="number" name="quantity" id="id_quantity" class="form-control" placeholder="Enter quantity" min="0" required>
                     </div>
 
-                    <!-- Category Dropdown -->
-                    <div class="form-group">
-                        <label for="id_category">Category</label>
-                        <select name="category" id="id_category" class="form-control" required>
-                            <option value="" disabled selected>Select a category</option>
-                            {% for category in categories %}
-                                <option value="{{ category.id }}">{{ category.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
                     <!-- Supplier Dropdown -->
                     <div class="form-group">
                         <label for="id_supplier">Supplier</label>
@@ -75,18 +64,10 @@
                 <!-- Filter Section -->
                 <div class="p-3">
                     <div class="form-row">
-                        <div class="form-group col-md-3">
+                        <div class="form-group col-md-4">
                             <input type="text" id="filterName" class="form-control" placeholder="Filter by name">
                         </div>
-                        <div class="form-group col-md-3">
-                            <select id="filterCategory" class="form-control">
-                                <option value="">All Categories</option>
-                                {% for category in categories %}
-                                    <option value="{{ category.name }}">{{ category.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="form-group col-md-3">
+                        <div class="form-group col-md-4">
                             <select id="filterSupplier" class="form-control">
                                 <option value="">All Suppliers</option>
                                 {% for supplier in suppliers %}
@@ -94,7 +75,7 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="form-group col-md-3">
+                        <div class="form-group col-md-4">
                             <select id="filterStatus" class="form-control">
                                 <option value="">All Statuses</option>
                                 <option value="Available">Available</option>
@@ -111,7 +92,6 @@
                             <thead class="bg-info text-white">
                                 <tr>
                                     <th scope="col">Name</th>
-                                    <th scope="col">Category</th>
                                     <th scope="col">Supplier</th>
                                     <th scope="col">Quantity</th>
                                     <th scope="col">Status</th>
@@ -121,7 +101,6 @@
                                 {% for product in product %}
                                 <tr>
                                     <td>{{ product.name }}</td>
-                                    <td>{{ product.category }}</td>
                                     <td>{{ product.supplier.name }}</td>
                                     <td>{{ product.quantity }}</td>
                                     <td>
@@ -134,7 +113,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="5" class="text-center">No products found.</td>
+                                    <td colspan="4" class="text-center">No products found.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -157,29 +136,25 @@
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         const filterName = document.getElementById("filterName");
-        const filterCategory = document.getElementById("filterCategory");
         const filterSupplier = document.getElementById("filterSupplier");
         const filterStatus = document.getElementById("filterStatus");
         const rows = document.querySelectorAll("#productsTableBody tr");
 
         function filterTable() {
             const nameVal = filterName.value.toLowerCase();
-            const categoryVal = filterCategory.value;
             const supplierVal = filterSupplier.value;
             const statusVal = filterStatus.value;
 
             rows.forEach(row => {
                 const name = row.cells[0]?.textContent.toLowerCase();
-                const category = row.cells[1]?.textContent;
-                const supplier = row.cells[2]?.textContent;
-                const status = row.cells[4]?.textContent;
+                const supplier = row.cells[1]?.textContent;
+                const status = row.cells[3]?.textContent;
 
                 const matchName = name.includes(nameVal);
-                const matchCategory = categoryVal === "" || category === categoryVal;
                 const matchSupplier = supplierVal === "" || supplier === supplierVal;
                 const matchStatus = statusVal === "" || status === statusVal;
 
-                if (matchName && matchCategory && matchSupplier && matchStatus) {
+                if (matchName && matchSupplier && matchStatus) {
                     row.style.display = "";
                 } else {
                     row.style.display = "none";
@@ -188,7 +163,6 @@
         }
 
         filterName.addEventListener("input", filterTable);
-        filterCategory.addEventListener("change", filterTable);
         filterSupplier.addEventListener("change", filterTable);
         filterStatus.addEventListener("change", filterTable);
     });
