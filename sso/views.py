@@ -404,15 +404,30 @@ def get_or_create_google_user(user_info):
     try:
         # Try to find existing user by Google ID
         user = User.objects.get(google_id=user_info['google_id'])
-        
-        # Update user info
-        user.email = user_info['email']
-        user.display_name = user_info['name']
+
+        # Update user info - ONLY save fields we're actually changing
+        # This prevents overwriting permissions set via admin/shell
+        fields_to_update = []
+
+        if user.email != user_info['email']:
+            user.email = user_info['email']
+            fields_to_update.append('email')
+
+        if user.display_name != user_info['name']:
+            user.display_name = user_info['name']
+            fields_to_update.append('display_name')
+
         if not user.is_active:
             user.is_active = True
-        user.save()
-        
-        logger.info(f'Updated existing Google user: {user.email}')
+            fields_to_update.append('is_active')
+
+        # Only save if something actually changed
+        if fields_to_update:
+            user.save(update_fields=fields_to_update)
+            logger.info(f'Updated existing Google user: {user.email} (fields: {fields_to_update})')
+        else:
+            logger.info(f'No updates needed for Google user: {user.email}')
+
         return user, False
         
     except User.DoesNotExist:
@@ -420,9 +435,10 @@ def get_or_create_google_user(user_info):
         existing_user = User.objects.filter(email=user_info['email']).first()
         if existing_user:
             # Link Google account to existing user
+            # ONLY update the fields needed for Google linking
             existing_user.google_id = user_info['google_id']
             existing_user.auth_type = 'google'
-            existing_user.save()
+            existing_user.save(update_fields=['google_id', 'auth_type'])
             logger.info(f'Linked Google account to existing user: {existing_user.email}')
             return existing_user, False
         
