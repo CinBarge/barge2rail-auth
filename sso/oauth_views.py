@@ -54,7 +54,13 @@ def oauth_authorize(request):
         return HttpResponseForbidden("Invalid client_id")
 
     # Validate redirect_uri matches registered URIs
-    allowed_uris = [uri.strip() for uri in application.redirect_uris.split(',')]
+    # Split on both commas and newlines to support both formats
+    allowed_uris = [
+        uri.strip()
+        for line in application.redirect_uris.split('\n')
+        for uri in line.split(',')
+        if uri.strip()
+    ]
     if redirect_uri not in allowed_uris:
         logger.error(f"Redirect URI mismatch. Got: {redirect_uri}, Allowed: {allowed_uris}")
         return HttpResponseForbidden("Invalid redirect_uri")
