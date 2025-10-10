@@ -8,7 +8,7 @@
 <div class="container-fluid">
     <div class="row my-4">
 
-        <!-- Add New Staff Member Form -->
+        <!-- Add New Member Form -->
         <div class="col-md-4">
             {% if messages %}
                 {% for message in messages %}
@@ -19,7 +19,7 @@
             {% endif %}
 
             <div class="card card-body">
-                <h5>Add New Staff Member</h5>
+                <h5>Add New User</h5>
                 <hr>
                 <form method="POST">
                     {% csrf_token %}
@@ -56,17 +56,17 @@
                             <option value="admin">Admin</option>
                             <option value="office">Office</option>
                             <option value="warehouse">Warehouse</option>
-                            <option value="operator">Operator</option> <!-- New role added -->
+                            <option value="operator">Operator</option>
                         </select>
                     </div>
 
                     <!-- Submit -->
-                    <input class="btn btn-success btn-block mt-2" type="submit" value="Add Staff">
+                    <input class="btn btn-success btn-block mt-2" type="submit" value="Add User">
                 </form>
             </div>
         </div>
 
-        <!-- Staff Members Table -->
+        <!-- Members Table -->
         <div class="col-md-8">
             <div class="table-responsive">
                 <table class="table table-bordered bg-white">
@@ -93,7 +93,7 @@
                                 {% elif user.groups.all.0.name == 'Warehouse' %}
                                     <span class="badge bg-secondary">Warehouse</span>
                                 {% elif user.groups.all.0.name == 'Operator' %}
-                                    <span class="badge bg-warning text-dark">Operator</span> <!-- Operator badge -->
+                                    <span class="badge bg-warning text-dark">Operator</span>
                                 {% else %}
                                     <span class="badge bg-dark">Staff</span>
                                 {% endif %}
@@ -102,7 +102,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" class="text-center">No staff members found.</td>
+                            <td colspan="5" class="text-center">No members found.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

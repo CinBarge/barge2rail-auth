@@ -18,20 +18,6 @@
                 {% endfor %}
             {% endif %}
 
-            <!-- Import Products from Google Sheet -->
-            <div class="card card-body mb-4">
-                <h5>Import Products from Google Sheet</h5>
-                <hr>
-                <form method="POST" action="{% url 'import_google_sheet' %}">
-                    {% csrf_token %}
-                    <div class="form-group">
-                        <label for="sheet_url">Google Sheet URL (public)</label>
-                        <input type="url" name="sheet_url" class="form-control" placeholder="Paste public Google Sheet URL" required>
-                    </div>
-                    <button type="submit" class="btn btn-success btn-block mt-2">Import Products</button>
-                </form>
-            </div>
-
             <!-- Add New Product Form -->
             <div class="card card-body mt-4">
                 <h5>Add New Product</h5>
