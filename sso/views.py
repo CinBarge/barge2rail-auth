@@ -162,6 +162,116 @@ OAUTH_ERROR_MESSAGES = {
     'user_info_error': "Authentication failed: Could not retrieve user information.",
 }
 
+# ============================================================================
+# Admin Google OAuth Views (Server-side redirect flow)
+# ============================================================================
+
+def admin_google_login(request):
+    """
+    Initiate Google OAuth for Django admin login (GET redirect flow)
+    """
+    from django.shortcuts import redirect
+    from urllib.parse import urlencode
+
+    # Store next parameter and generate state
+    next_url = request.GET.get('next', '/admin/')
+    state = generate_oauth_state()
+    request.session['oauth_state'] = state
+    request.session['oauth_next'] = next_url
+    request.session.modified = True
+
+    # Build Google OAuth URL
+    redirect_uri = f'{settings.BASE_URL}/auth/admin/google/callback/'
+    params = {
+        'client_id': settings.GOOGLE_CLIENT_ID,
+        'redirect_uri': redirect_uri,
+        'scope': 'openid email profile',
+        'response_type': 'code',
+        'access_type': 'offline',
+        'prompt': 'select_account',
+        'state': state
+    }
+
+    auth_url = f'https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}'
+    return redirect(auth_url)
+
+
+def admin_google_callback(request):
+    """
+    Handle Google OAuth callback for admin login (GET redirect flow)
+    """
+    from django.shortcuts import redirect
+    from django.http import HttpResponse
+
+    # Get code and state from query parameters
+    code = request.GET.get('code')
+    state_from_callback = request.GET.get('state')
+    error = request.GET.get('error')
+
+    # Handle OAuth errors (user cancelled, etc.)
+    if error:
+        logger.warning(f"Google OAuth error: {error}")
+        return HttpResponse(f"Authentication cancelled: {error}", status=400)
+
+    # Validate state
+    state_from_session = request.session.get('oauth_state')
+    if not validate_oauth_state(state_from_callback, state_from_session):
+        security_logger.warning(
+            f"OAuth state validation failed for admin login - "
+            f"IP: {request.META.get('REMOTE_ADDR')}"
+        )
+        return HttpResponse("Authentication failed: Invalid or expired request", status=403)
+
+    # Get next URL and clear session
+    next_url = request.session.get('oauth_next', '/admin/')
+    if 'oauth_state' in request.session:
+        del request.session['oauth_state']
+    if 'oauth_next' in request.session:
+        del request.session['oauth_next']
+    request.session.modified = True
+
+    if not code:
+        return HttpResponse("Authentication failed: No authorization code received", status=400)
+
+    try:
+        # Exchange code for tokens (reuse existing function but with admin callback URI)
+        token_url = 'https://oauth2.googleapis.com/token'
+        redirect_uri = f'{settings.BASE_URL}/auth/admin/google/callback/'
+
+        data = {
+            'client_id': settings.GOOGLE_CLIENT_ID,
+            'client_secret': settings.GOOGLE_CLIENT_SECRET,
+            'code': code,
+            'grant_type': 'authorization_code',
+            'redirect_uri': redirect_uri
+        }
+
+        response = requests.post(token_url, data=data, timeout=10)
+        token_data = response.json()
+
+        if response.status_code != 200:
+            logger.error(f'Admin OAuth token exchange failed: {token_data}')
+            return HttpResponse(f"Authentication failed: {token_data.get('error_description', 'Could not obtain access token')}", status=400)
+
+        # Verify ID token and get user info
+        user_info = verify_google_id_token(token_data['id_token'])
+
+        # Create or get user
+        user, created = get_or_create_google_user(user_info)
+
+        # Log user into Django session
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
+        logger.info(f"Admin login successful for {user.email}")
+
+        # Redirect to admin or next URL
+        return redirect(next_url)
+
+    except Exception as e:
+        logger.error(f"Admin OAuth callback error: {e}")
+        return HttpResponse(f"Authentication failed: {str(e)}", status=500)
+
+
 @ratelimit(key='ip', rate='20/h', method='POST', block=False)
 @api_view(['POST'])
 @permission_classes([AllowAny])
