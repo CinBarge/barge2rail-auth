@@ -222,13 +222,8 @@ def admin_google_callback(request):
         )
         return HttpResponse("Authentication failed: Invalid or expired request", status=403)
 
-    # Get next URL and clear session
+    # Get next URL BEFORE clearing session (login() will create new session)
     next_url = request.session.get('oauth_next', '/admin/')
-    if 'oauth_state' in request.session:
-        del request.session['oauth_state']
-    if 'oauth_next' in request.session:
-        del request.session['oauth_next']
-    request.session.modified = True
 
     if not code:
         return HttpResponse("Authentication failed: No authorization code received", status=400)
@@ -259,7 +254,7 @@ def admin_google_callback(request):
         # Create or get user
         user, created = get_or_create_google_user(user_info)
 
-        # Log user into Django session
+        # Log user into Django session (this creates a NEW session, invalidating the old one)
         login(request, user, backend='django.contrib.auth.backends.ModelBackend')
 
         logger.info(f"Admin login successful for {user.email}")
