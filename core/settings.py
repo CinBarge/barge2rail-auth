@@ -161,6 +161,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom User Model
 AUTH_USER_MODEL = 'sso.User'
 
+# Authentication URLs - Override Django defaults
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/dashboard/'
+LOGOUT_REDIRECT_URL = '/login/'
+
 # --- B2R SSO config ---
 SSO_VALIDATION_URL = os.getenv("SSO_VALIDATION_URL", "http://localhost:8900/mock/validate")
 

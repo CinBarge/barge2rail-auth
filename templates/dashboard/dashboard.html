@@ -76,7 +76,77 @@
     </table>
 </div>
 
+<div class="card" style="margin-top: 2rem;">
+    <h3 style="margin-bottom: 1rem;">Connected Applications</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+        <a href="#" onclick="openCincyBarge(event)" class="app-link" style="display: block; padding: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 8px; transition: transform 0.2s; cursor: pointer;">
+            <h4 style="margin: 0 0 0.5rem 0; font-size: 1.1rem;">CincyBarge2Rail</h4>
+            <p style="margin: 0; opacity: 0.9; font-size: 0.9rem;">Order Management System</p>
+            <p style="margin: 0.5rem 0 0 0; font-size: 0.8rem; opacity: 0.8;">http://127.0.0.1:8001</p>
+        </a>
+        <div class="app-link" style="display: flex; align-items: center; justify-content: center; padding: 1.5rem; background: #f5f5f5; border: 2px dashed #ccc; border-radius: 8px; color: #999;">
+            <span style="font-size: 0.9rem;">More applications coming soon...</span>
+        </div>
+    </div>
+</div>
+
 <div style="margin-top: 2rem;">
     <a href="{% url 'admin:index' %}" class="btn">Go to Django Admin</a>
 </div>
+
+<style>
+.app-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+</style>
+
+<script>
+function openCincyBarge(event) {
+    event.preventDefault();
+    
+    // Get user data from current session
+    const userData = {
+        email: '{{ user.email }}',
+        username: '{{ user.username }}',
+        first_name: '{{ user.first_name }}',
+        last_name: '{{ user.last_name }}',
+        is_staff: {{ user.is_staff|yesno:"true,false" }},
+        is_superuser: {{ user.is_superuser|yesno:"true,false" }}
+    };
+    
+    // Create a form to POST the SSO data
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'http://127.0.0.1:8001/sso-login/';
+    form.target = '_blank';
+    
+    // Add CSRF token (we'll need to get this from CincyBarge)
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = 'sso-bypass';  // We'll handle this in the view
+    form.appendChild(csrfInput);
+    
+    // Add user data
+    for (const [key, value] of Object.entries(userData)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+    }
+    
+    // Add SSO signature (simple verification)
+    const signatureInput = document.createElement('input');
+    signatureInput.type = 'hidden';
+    signatureInput.name = 'sso_signature';
+    signatureInput.value = btoa('{{ user.email }}:{{ user.id }}');
+    form.appendChild(signatureInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
+</script>
 {% endblock %}

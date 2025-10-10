@@ -874,6 +874,7 @@ def google_auth_callback(request):
     Frontend must exchange session_id for tokens via API call.
     """
     from django.shortcuts import redirect
+    from django.contrib.auth import login as auth_login
     from django.utils import timezone
     from datetime import timedelta
     from .models import TokenExchangeSession
@@ -903,6 +904,10 @@ def google_auth_callback(request):
         # Create or get user
         user, created = get_or_create_google_user(user_info)
         
+        # Log the user into Django session (for @login_required views)
+        auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+        logger.info(f'User {user.email} logged into Django session')
+        
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
@@ -925,8 +930,8 @@ def google_auth_callback(request):
         
         logger.info(f'Created token exchange session {exchange_session.session_id} for {user.email}')
         
-        # Redirect with session ID only - NO TOKENS in URL
-        return redirect(f'/login/google-success/?session={exchange_session.session_id}')
+        # Redirect to dashboard instead of token exchange page
+        return redirect('/dashboard/')
         
     except Exception as e:
         logger.error(f'Google OAuth callback error: {str(e)}')
