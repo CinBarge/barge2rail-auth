@@ -141,9 +141,14 @@ MEDIA_URL = ''
 
 MEDIA_ROOT = (BASE_DIR/'media')
 
+# Redirect to CincyBarge dashboard after successful login
 LOGIN_REDIRECT_URL = 'dashboard-index'
 
-LOGIN_URL = 'user-login'
+# Redirect to SSO for login (instead of local login page)
+LOGIN_URL = 'http://127.0.0.1:8000/login/'
+
+# Redirect to SSO after logout
+LOGOUT_REDIRECT_URL = 'http://127.0.0.1:8000/login/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

@@ -8,9 +8,10 @@ from core.views import Health, SecureEcho  # add
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    # Google callback MUST come before includes to take precedence
+    path("auth/google/callback/", google_auth_callback, name="google_oauth_callback"),
     path("api/auth/", include("sso.urls")),
     path("auth/", include("sso.urls")),  # Also include under /auth/ for admin OAuth
-    path("auth/google/callback/", google_auth_callback, name="google_oauth_callback"),
     path("health/", Health.as_view()),          # add
     path("secure/", SecureEcho.as_view()),      # add
     path("", include("dashboard.urls")),

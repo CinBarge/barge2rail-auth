@@ -121,11 +121,11 @@ function openCincyBarge(event) {
     form.action = 'http://127.0.0.1:8001/sso-login/';
     form.target = '_blank';
     
-    // Add CSRF token (we'll need to get this from CincyBarge)
+    // Add CSRF bypass (handled in sso_login view)
     const csrfInput = document.createElement('input');
     csrfInput.type = 'hidden';
     csrfInput.name = 'csrfmiddlewaretoken';
-    csrfInput.value = 'sso-bypass';  // We'll handle this in the view
+    csrfInput.value = 'sso-bypass';
     form.appendChild(csrfInput);
     
     // Add user data
@@ -137,7 +137,7 @@ function openCincyBarge(event) {
         form.appendChild(input);
     }
     
-    // Add SSO signature (simple verification)
+    // Add SSO signature for verification
     const signatureInput = document.createElement('input');
     signatureInput.type = 'hidden';
     signatureInput.name = 'sso_signature';
