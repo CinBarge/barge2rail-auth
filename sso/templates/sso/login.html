@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - Barge2Rail SSO</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 450px;
+            width: 90%;
+        }
+        h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            padding: 12px;
+            border-radius: 6px;
+            color: #c33;
+            margin-bottom: 20px;
+        }
+        .google-redirect {
+            background: #e3f2fd;
+            border: 1px solid #90caf9;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .google-btn {
+            display: inline-block;
+            background: #4285f4;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            margin-top: 10px;
+        }
+        .google-btn:hover {
+            background: #3367d6;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .help {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 13px;
+        }
+        .divider {
+            text-align: center;
+            margin: 20px 0;
+            position: relative;
+        }
+        .divider:before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #e0e0e0;
+        }
+        .divider span {
+            background: white;
+            padding: 0 15px;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Barge2Rail SSO</h1>
+        <p class="subtitle">Sign in to continue</p>
+
+        {% if force_google %}
+        <div class="google-redirect">
+            <strong>Barge2Rail staff must use Google Sign-In</strong><br>
+            <small>Company email addresses require Google authentication</small><br>
+            <a href="{{ google_url }}?next={{ next|urlencode }}" class="google-btn">Sign in with Google</a>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        {% if not force_google %}
+        <div class="divider">
+            <span>Office Staff</span>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 20px;">
+            <a href="/auth/admin/google/login/?next={{ next|urlencode }}" class="google-btn">Sign in with Google</a>
+        </div>
+
+        <div class="divider">
+            <span>Field Workers & External Users</span>
+        </div>
+
+        <form method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+
+            <div class="form-group">
+                <label for="identifier">Username or Email</label>
+                <input
+                    type="text"
+                    id="identifier"
+                    name="identifier"
+                    value="{{ identifier }}"
+                    placeholder="Enter username or email"
+                    required
+                    autofocus
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="Enter password"
+                    required
+                >
+            </div>
+
+            <button type="submit">Sign In</button>
+        </form>
+        {% endif %}
+
+        <div class="help">
+            <strong>Field Workers:</strong> Use your username<br>
+            <strong>External Users:</strong> Use your email address<br>
+            <strong>Office Staff:</strong> Must use Google Sign-In
+        </div>
+    </div>
+
+    <script>
+        // CRITICAL: Block @barge2rail.com users from using password login
+        const identifierInput = document.getElementById('identifier');
+        const passwordInput = document.getElementById('password');
+        const passwordGroup = passwordInput?.parentElement;
+        const submitButton = document.querySelector('button[type="submit"]');
+        const form = document.querySelector('form');
+
+        function checkBarge2RailDomain() {
+            const identifier = identifierInput.value.trim().toLowerCase();
+
+            if (identifier.endsWith('@barge2rail.com')) {
+                // Disable password field
+                if (passwordInput) {
+                    passwordInput.disabled = true;
+                    passwordInput.value = '';
+                    passwordInput.placeholder = 'Office staff must use Google Sign-In';
+                }
+
+                // Disable submit button
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    submitButton.style.opacity = '0.5';
+                    submitButton.style.cursor = 'not-allowed';
+                }
+
+                // Show warning in password field
+                if (passwordGroup) {
+                    passwordGroup.style.display = 'none';
+                }
+
+                // Change submit button text
+                if (submitButton) {
+                    submitButton.textContent = 'Use Google Sign-In Above';
+                }
+
+                return true;
+            } else {
+                // Re-enable for non-barge2rail users
+                if (passwordInput) {
+                    passwordInput.disabled = false;
+                    passwordInput.placeholder = 'Enter password';
+                }
+
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.style.opacity = '1';
+                    submitButton.style.cursor = 'pointer';
+                    submitButton.textContent = 'Sign In';
+                }
+
+                if (passwordGroup) {
+                    passwordGroup.style.display = 'block';
+                }
+
+                return false;
+            }
+        }
+
+        // Check on every keystroke
+        if (identifierInput) {
+            identifierInput.addEventListener('input', checkBarge2RailDomain);
+            identifierInput.addEventListener('blur', checkBarge2RailDomain);
+        }
+
+        // CRITICAL: Block form submission for @barge2rail.com
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                const identifier = identifierInput.value.trim().toLowerCase();
+
+                if (identifier.endsWith('@barge2rail.com')) {
+                    e.preventDefault();
+                    alert('⚠️ OFFICE STAFF MUST USE GOOGLE SIGN-IN\n\nBarge2Rail employees (@barge2rail.com) cannot use password login.\n\nClick the "Sign in with Google" button above.');
+
+                    // Auto-scroll to Google button
+                    const googleBtn = document.querySelector('.google-btn');
+                    if (googleBtn) {
+                        googleBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        googleBtn.style.animation = 'pulse 1s ease-in-out 3';
+                    }
+
+                    return false;
+                }
+            });
+        }
+
+        // Add CSS animation for Google button highlight
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes pulse {
+                0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(66, 133, 244, 0.7); }
+                50% { transform: scale(1.05); box-shadow: 0 0 20px 10px rgba(66, 133, 244, 0.3); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
