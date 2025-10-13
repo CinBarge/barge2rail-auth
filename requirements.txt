@@ -15,6 +15,7 @@ Django==4.2.24
 django-cors-headers==4.8.0
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
+psycopg2-binary==2.9.9
 dparse==0.6.4
 filelock==3.19.1
 gitdb==4.0.12
