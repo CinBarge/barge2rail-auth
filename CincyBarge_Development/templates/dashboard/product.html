@@ -69,11 +69,51 @@
             <div class="card">
                 <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Products Inventory (All Data)</h5>
-                    <span class="badge badge-light">{{ total_rows }} total items</span>
+                    <span class="badge badge-light" id="totalItemsCount">{{ total_rows }} total items</span>
+                </div>
+
+                <!-- Filter Controls -->
+                <div class="card-body pb-2">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="filterSupplier" class="small font-weight-bold">Filter by Supplier:</label>
+                                <select id="filterSupplier" class="form-control form-control-sm">
+                                    <option value="">All Suppliers</option>
+                                    {% for supplier in suppliers %}
+                                        <option value="{{ supplier.name }}">{{ supplier.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="filterOrganizedBy" class="small font-weight-bold">Organized by:</label>
+                                <select id="filterOrganizedBy" class="form-control form-control-sm">
+                                    <option value="">All Types</option>
+                                    <option value="Bill of Lading">Bill of Lading</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="filterSearch" class="small font-weight-bold">Search:</label>
+                                <input type="text" id="filterSearch" class="form-control form-control-sm" placeholder="Search in table...">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <button id="clearFilters" class="btn btn-sm btn-secondary">Clear All Filters</button>
+                            <span class="ml-3 text-muted small">
+                                Showing <strong id="visibleCount">{{ total_rows }}</strong> of <strong>{{ total_rows }}</strong> items
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Table -->
-                <div class="card-body p-0">
+                <div class="card-body p-0 pt-2">
                     <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
                         <table class="table table-bordered table-hover table-sm bg-white mb-0">
                             <thead class="bg-info text-white" style="position: sticky; top: 0; z-index: 10;">
@@ -140,38 +180,191 @@
         }
     }
 
-    // Filter table logic
+    // Dynamic table filtering
     document.addEventListener("DOMContentLoaded", function () {
-        const filterName = document.getElementById("filterName");
         const filterSupplier = document.getElementById("filterSupplier");
-        const filterStatus = document.getElementById("filterStatus");
-        const rows = document.querySelectorAll("#productsTableBody tr");
+        const filterOrganizedBy = document.getElementById("filterOrganizedBy");
+        const filterSearch = document.getElementById("filterSearch");
+        const clearFiltersBtn = document.getElementById("clearFilters");
+        const tableBody = document.querySelector(".table-responsive tbody");
+        const rows = tableBody.querySelectorAll("tr");
+        const visibleCountSpan = document.getElementById("visibleCount");
+        const totalRows = rows.length;
+
+        // BOL-specific field names for Senco (case-insensitive matching)
+        const bolFields = [
+            'tagnbr', 'ponbr', 'spec', 'coilweig', 'heatlot', 'barge', 'tag'
+        ];
+
+        function isBillOfLading(row) {
+            // Skip empty row placeholder
+            if (row.cells.length < 2) {
+                return false;
+            }
+            
+            // Get all header cells to map column positions to field names
+            const headers = document.querySelectorAll('.table-responsive thead th');
+            const headerTexts = Array.from(headers).map(h => h.textContent.toLowerCase().trim());
+            
+            // Check if this row has data in any of the BOL-specific columns
+            // Start from index 2 (skip Supplier and Source columns)
+            for (let i = 2; i < row.cells.length && i < headers.length; i++) {
+                const headerName = headerTexts[i];
+                const cellValue = row.cells[i].textContent.trim();
+                
+                // Check if this column matches a BOL field and has non-empty data
+                const isBOLField = bolFields.some(bolField => 
+                    headerName.toLowerCase().includes(bolField.toLowerCase())
+                );
+                
+                if (isBOLField && cellValue !== '' && cellValue !== '-') {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
 
         function filterTable() {
-            const nameVal = filterName.value.toLowerCase();
-            const supplierVal = filterSupplier.value;
-            const statusVal = filterStatus.value;
+            const supplierVal = filterSupplier.value.trim();
+            const organizedByVal = filterOrganizedBy.value.trim();
+            const searchVal = filterSearch.value.toLowerCase().trim();
+            let visibleCount = 0;
+
+            // Get all headers for column filtering
+            const headers = document.querySelectorAll('.table-responsive thead th');
+            const headerTexts = Array.from(headers).map(h => h.textContent.toLowerCase().trim());
+            
+            // Determine which columns to show based on BOL filter
+            const isBOLFilter = organizedByVal === "Bill of Lading";
+            
+            // Hide/show columns based on filter
+            headers.forEach((header, index) => {
+                // Always show first two columns (Supplier and Source)
+                if (index < 2) {
+                    header.style.display = "";
+                    return;
+                }
+                
+                const headerName = headerTexts[index];
+                const isBOLColumn = bolFields.some(bolField => 
+                    headerName.toLowerCase().includes(bolField.toLowerCase())
+                );
+                
+                // Show column if: not filtering by BOL, OR it's a BOL column
+                if (!isBOLFilter || isBOLColumn) {
+                    header.style.display = "";
+                } else {
+                    header.style.display = "none";
+                }
+            });
 
             rows.forEach(row => {
-                const name = row.cells[0]?.textContent.toLowerCase();
-                const supplier = row.cells[1]?.textContent;
-                const status = row.cells[3]?.textContent;
+                // Skip empty row placeholder
+                if (row.cells.length < 2) {
+                    row.style.display = "none";
+                    return;
+                }
 
-                const matchName = name.includes(nameVal);
+                // Get cell values
+                const supplierBadge = row.cells[0].querySelector('.badge');
+                const sourceBadge = row.cells[1].querySelector('.badge');
+                
+                const supplier = supplierBadge ? supplierBadge.textContent.trim() : '';
+                const source = sourceBadge ? sourceBadge.textContent.trim() : '';
+                
+                // Determine if this is a BOL item
+                const isBOL = isBillOfLading(row);
+                
+                // Get all text content for search
+                const rowText = Array.from(row.cells).map(cell => 
+                    cell.textContent.toLowerCase()
+                ).join(' ');
+
+                // Apply filters
                 const matchSupplier = supplierVal === "" || supplier === supplierVal;
-                const matchStatus = statusVal === "" || status === statusVal;
+                
+                // Organized by filter logic
+                let matchOrganizedBy = true;
+                if (organizedByVal === "Bill of Lading") {
+                    matchOrganizedBy = isBOL;
+                } else if (organizedByVal !== "") {
+                    matchOrganizedBy = source === organizedByVal;
+                }
+                
+                const matchSearch = searchVal === "" || rowText.includes(searchVal);
 
-                if (matchName && matchSupplier && matchStatus) {
+                if (matchSupplier && matchOrganizedBy && matchSearch) {
                     row.style.display = "";
+                    visibleCount++;
+                    
+                    // Hide/show cells based on column visibility
+                    Array.from(row.cells).forEach((cell, index) => {
+                        // Always show first two columns
+                        if (index < 2) {
+                            cell.style.display = "";
+                            return;
+                        }
+                        
+                        if (index < headers.length) {
+                            const headerName = headerTexts[index];
+                            const isBOLColumn = bolFields.some(bolField => 
+                                headerName.toLowerCase().includes(bolField.toLowerCase())
+                            );
+                            
+                            // Show cell if: not filtering by BOL, OR it's a BOL column
+                            if (!isBOLFilter || isBOLColumn) {
+                                cell.style.display = "";
+                            } else {
+                                cell.style.display = "none";
+                            }
+                        }
+                    });
                 } else {
                     row.style.display = "none";
                 }
             });
+
+            // Update visible count
+            visibleCountSpan.textContent = visibleCount;
+            
+            // Show/hide "no results" message if needed
+            updateNoResultsMessage(visibleCount);
         }
 
-        filterName.addEventListener("input", filterTable);
+        function updateNoResultsMessage(visibleCount) {
+            let noResultsRow = tableBody.querySelector('.no-results-row');
+            
+            if (visibleCount === 0 && totalRows > 0) {
+                // Create "no results" message if it doesn't exist
+                if (!noResultsRow) {
+                    noResultsRow = document.createElement('tr');
+                    noResultsRow.className = 'no-results-row';
+                    noResultsRow.innerHTML = '<td colspan="100" class="text-center py-4"><em>No items match the current filters.</em></td>';
+                    tableBody.appendChild(noResultsRow);
+                } else {
+                    noResultsRow.style.display = '';
+                }
+            } else if (noResultsRow) {
+                noResultsRow.style.display = 'none';
+            }
+        }
+
+        function clearFilters() {
+            filterSupplier.value = "";
+            filterOrganizedBy.value = "";
+            filterSearch.value = "";
+            filterTable();
+        }
+
+        // Attach event listeners
         filterSupplier.addEventListener("change", filterTable);
-        filterStatus.addEventListener("change", filterTable);
+        filterOrganizedBy.addEventListener("change", filterTable);
+        filterSearch.addEventListener("input", filterTable);
+        clearFiltersBtn.addEventListener("click", clearFilters);
+
+        // Initialize - show all rows
+        filterTable();
     });
 </script>
 {% endblock %}
