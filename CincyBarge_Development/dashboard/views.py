@@ -2,13 +2,16 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
-from .models import Product, Order
+from .models import Product, Order, RawProductData
 from utilities.googlesheet import get_sheet_data, update_sheet_row, update_sheet_cell, sync_sheet_to_database
 from urllib.parse import urlparse, parse_qs
 from django.contrib import messages 
 from datetime import date
 from .models import Supplier
+from .forms import FileUploadForm
 import json
+import csv
+import io
 
 # Create your views here.
 
@@ -57,10 +60,70 @@ def product(request):
     # Prepare form data for display
     products = Product.objects.all()
     suppliers = Supplier.objects.all()
+    
+    # Unified inventory data list
+    all_inventory_data = []
+    all_columns = set()
+    
+    # Add structured Product data
+    for product in products:
+        product_data = {
+            'supplier': product.supplier.name if product.supplier else 'N/A',
+            'source': 'Structured',
+            'data': {
+                'name': product.name,
+                'quantity': str(product.quantity) if product.quantity else '-',
+            }
+        }
+        all_inventory_data.append(product_data)
+        all_columns.update(product_data['data'].keys())
+    
+    # Get all raw data entries and merge them
+    raw_data_entries = RawProductData.objects.select_related('supplier').all()
+    
+    for entry in raw_data_entries:
+        data = entry.data
+        
+        # Handle CSV data (stored as {'rows': [...], 'total_rows': N})
+        if isinstance(data, dict) and 'rows' in data:
+            for row in data['rows']:
+                unified_row = {
+                    'supplier': entry.supplier.name,
+                    'source': 'Uploaded',
+                    'data': dict(row)
+                }
+                all_inventory_data.append(unified_row)
+                all_columns.update(row.keys())
+        
+        # Handle JSON data (direct object or array)
+        elif isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict):
+                    unified_row = {
+                        'supplier': entry.supplier.name,
+                        'source': 'Uploaded',
+                        'data': dict(item)
+                    }
+                    all_inventory_data.append(unified_row)
+                    all_columns.update(item.keys())
+        elif isinstance(data, dict) and not 'rows' in data:
+            # Single object
+            unified_row = {
+                'supplier': entry.supplier.name,
+                'source': 'Uploaded',
+                'data': dict(data)
+            }
+            all_inventory_data.append(unified_row)
+            all_columns.update(data.keys())
+    
+    # Sort columns for consistent display
+    sorted_columns = sorted(list(all_columns))
 
     context = {
-        'product': products,
         'suppliers': suppliers,
+        'all_inventory_data': all_inventory_data,
+        'all_columns': sorted_columns,
+        'total_rows': len(all_inventory_data),
     }
     
     return render(request, 'dashboard/product.html', context)
@@ -244,3 +307,110 @@ def import_google_sheet(request):
         messages.error(request, f"Error during import: {str(e)}")
 
     return redirect(request.META.get('HTTP_REFERER', '/'))
+
+
+@login_required
+def upload_raw_data(request):
+    """Handle file upload for unstructured inventory data (CSV/JSON)."""
+    if request.method == 'POST':
+        # Check if creating a new supplier
+        supplier_value = request.POST.get('supplier')
+        new_supplier_name = request.POST.get('new_supplier_name', '').strip()
+        
+        if supplier_value == 'new' and new_supplier_name:
+            # Create new supplier
+            supplier, created = Supplier.objects.get_or_create(name=new_supplier_name)
+            if created:
+                messages.info(request, f"Created new supplier: {new_supplier_name}")
+        elif supplier_value and supplier_value != 'new':
+            # Use existing supplier
+            try:
+                supplier = Supplier.objects.get(id=supplier_value)
+            except Supplier.DoesNotExist:
+                messages.error(request, "Selected supplier does not exist.")
+                return redirect('dashboard-product')
+        else:
+            messages.error(request, "Please select a supplier or enter a new supplier name.")
+            return redirect('dashboard-product')
+        
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            messages.error(request, "No file uploaded.")
+            return redirect('dashboard-product')
+            
+        file_name = uploaded_file.name
+        file_extension = file_name.split('.')[-1].lower()
+        
+        try:
+            if file_extension == 'csv':
+                # Parse CSV file
+                decoded_file = uploaded_file.read().decode('utf-8')
+                csv_reader = csv.DictReader(io.StringIO(decoded_file))
+                
+                # Convert CSV rows to list of dictionaries
+                data_list = []
+                for row in csv_reader:
+                    # Store each row as a dictionary, preserving all fields
+                    data_list.append(dict(row))
+                
+                # Store all rows as a single JSON object
+                RawProductData.objects.create(
+                    supplier=supplier,
+                    data={'rows': data_list, 'total_rows': len(data_list)},
+                    uploaded_by=request.user,
+                    file_name=file_name
+                )
+                messages.success(request, f"Successfully uploaded {len(data_list)} rows from CSV file: {file_name}")
+                
+            elif file_extension == 'json':
+                # Parse JSON file
+                json_data = json.loads(uploaded_file.read().decode('utf-8'))
+                
+                # Store JSON data directly
+                RawProductData.objects.create(
+                    supplier=supplier,
+                    data=json_data,
+                    uploaded_by=request.user,
+                    file_name=file_name
+                )
+                messages.success(request, f"Successfully uploaded JSON file: {file_name}")
+            
+            return redirect('dashboard-product')
+            
+        except Exception as e:
+            messages.error(request, f"Error processing file: {str(e)}")
+            return redirect('dashboard-product')
+    else:
+        return redirect('dashboard-product')
+
+
+@login_required
+def raw_data_view(request):
+    """Display all raw inventory data uploads."""
+    raw_data_entries = RawProductData.objects.select_related('supplier', 'uploaded_by').all()
+    
+    context = {
+        'raw_data_entries': raw_data_entries,
+    }
+    
+    return render(request, 'dashboard/raw_data.html', context)
+
+
+@login_required
+def raw_data_detail(request, pk):
+    """View detailed data for a specific raw data entry."""
+    try:
+        raw_data = RawProductData.objects.select_related('supplier', 'uploaded_by').get(pk=pk)
+        
+        # Format the JSON data for display
+        formatted_data = json.dumps(raw_data.data, indent=2)
+        
+        context = {
+            'raw_data': raw_data,
+            'formatted_data': formatted_data,
+        }
+        
+        return render(request, 'dashboard/raw_data_detail.html', context)
+    except RawProductData.DoesNotExist:
+        messages.error(request, "Raw data entry not found.")
+        return redirect('dashboard-raw-data')

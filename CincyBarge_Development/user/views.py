@@ -49,17 +49,27 @@ def sso_login(request):
         if not email or not sso_signature:
             return redirect('/admin/login/')
         
-        # Get or create user
+        # Get or create user - try by email first, then by username
+        user = None
         try:
             user = User.objects.get(email=email)
-            # Update user info from SSO
+        except User.DoesNotExist:
+            try:
+                # If no user with this email, try by username
+                user = User.objects.get(username=username or email)
+            except User.DoesNotExist:
+                pass
+        
+        if user:
+            # Update existing user info from SSO
             user.username = username or email
+            user.email = email
             user.first_name = first_name
             user.last_name = last_name
             user.is_staff = is_staff
             user.is_superuser = is_superuser
             user.save()
-        except User.DoesNotExist:
+        else:
             # Create new user from SSO data
             user = User.objects.create(
                 username=username or email,

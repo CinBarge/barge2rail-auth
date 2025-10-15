@@ -1,4 +1,5 @@
 {% extends 'partials/base.html' %}
+{% load dashboard_extras %}
 {% block title %}Products Page{% endblock %}
 
 {% block content %}
@@ -18,102 +19,90 @@
                 {% endfor %}
             {% endif %}
 
-            <!-- Add New Product Form -->
+            <!-- Upload Raw Inventory Data Form -->
             <div class="card card-body mt-4">
-                <h5>Add New Product</h5>
+                <h5>Upload Raw Inventory Data</h5>
                 <hr>
-                <form method="POST">
+                <p class="text-muted small">Upload unstructured inventory data from CSV or JSON files. Data will be stored per supplier.</p>
+                <form method="POST" action="{% url 'upload-raw-data' %}" enctype="multipart/form-data">
                     {% csrf_token %}
 
-                    <!-- Product Name -->
+                    <!-- Supplier Selection/Creation -->
                     <div class="form-group">
-                        <label for="id_name">Product Name</label>
-                        <input type="text" name="name" id="id_name" class="form-control" placeholder="Enter product name" required>
-                    </div>
-
-                    <!-- Quantity -->
-                    <div class="form-group">
-                        <label for="id_quantity">Quantity</label>
-                        <input type="number" name="quantity" id="id_quantity" class="form-control" placeholder="Enter quantity" min="0" required>
-                    </div>
-
-                    <!-- Supplier Dropdown -->
-                    <div class="form-group">
-                        <label for="id_supplier">Supplier</label>
-                        <select name="supplier" id="id_supplier" class="form-control" required>
+                        <label for="id_raw_supplier">Supplier</label>
+                        <select name="supplier" id="id_raw_supplier" class="form-control" onchange="toggleNewSupplier()">
                             <option value="" disabled selected>Select a supplier</option>
                             {% for supplier in suppliers %}
                                 <option value="{{ supplier.id }}">{{ supplier.name }}</option>
                             {% endfor %}
+                            <option value="new">+ Add New Supplier</option>
                         </select>
                     </div>
 
+                    <!-- New Supplier Name Input (hidden by default) -->
+                    <div class="form-group" id="newSupplierGroup" style="display: none;">
+                        <label for="id_new_supplier_name">New Supplier Name</label>
+                        <input type="text" name="new_supplier_name" id="id_new_supplier_name" class="form-control" placeholder="Enter new supplier name">
+                        <small class="form-text text-muted">This will create a new supplier in the system</small>
+                    </div>
+
+                    <!-- File Upload -->
+                    <div class="form-group">
+                        <label for="id_file">File (CSV or JSON)</label>
+                        <input type="file" name="file" id="id_file" class="form-control" accept=".csv,.json" required>
+                        <small class="form-text text-muted">Upload a CSV or JSON file with inventory data</small>
+                    </div>
+
                     <!-- Submit Button -->
-                    <input class="btn btn-success btn-block mt-3" type="submit" value="Add Product">
+                    <input class="btn btn-primary btn-block mt-3" type="submit" value="Upload File">
                 </form>
+                
+                <!-- View Raw Data Button -->
+                <a href="{% url 'raw-data-view' %}" class="btn btn-info btn-block mt-2">
+                    View Uploaded Raw Data
+                </a>
             </div>
         </div>
 
-        <!-- Right Column: Products Table -->
+        <!-- Right Column: Unified Products Table -->
         <div class="col-md-8">
             <div class="card">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">Products Inventory</h5>
-                </div>
-
-                <!-- Filter Section -->
-                <div class="p-3">
-                    <div class="form-row">
-                        <div class="form-group col-md-4">
-                            <input type="text" id="filterName" class="form-control" placeholder="Filter by name">
-                        </div>
-                        <div class="form-group col-md-4">
-                            <select id="filterSupplier" class="form-control">
-                                <option value="">All Suppliers</option>
-                                {% for supplier in suppliers %}
-                                    <option value="{{ supplier.name }}">{{ supplier.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="form-group col-md-4">
-                            <select id="filterStatus" class="form-control">
-                                <option value="">All Statuses</option>
-                                <option value="Available">Available</option>
-                                <option value="Unavailable">Unavailable</option>
-                            </select>
-                        </div>
-                    </div>
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Products Inventory (All Data)</h5>
+                    <span class="badge badge-light">{{ total_rows }} total items</span>
                 </div>
 
                 <!-- Table -->
                 <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover bg-white mb-0">
-                            <thead class="bg-info text-white">
+                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                        <table class="table table-bordered table-hover table-sm bg-white mb-0">
+                            <thead class="bg-info text-white" style="position: sticky; top: 0; z-index: 10;">
                                 <tr>
-                                    <th scope="col">Name</th>
-                                    <th scope="col">Supplier</th>
-                                    <th scope="col">Quantity</th>
-                                    <th scope="col">Status</th>
+                                    <th scope="col" class="text-nowrap">Supplier</th>
+                                    <th scope="col" class="text-nowrap">Source</th>
+                                    {% for column in all_columns %}
+                                    <th scope="col" class="text-nowrap">{{ column }}</th>
+                                    {% endfor %}
                                 </tr>
                             </thead>
-                            <tbody id="productsTableBody">
-                                {% for product in product %}
+                            <tbody>
+                                {% for row in all_inventory_data %}
                                 <tr>
-                                    <td>{{ product.name }}</td>
-                                    <td>{{ product.supplier.name }}</td>
-                                    <td>{{ product.quantity }}</td>
-                                    <td>
-                                        {% if product.quantity > 50 %}
-                                            <span class="badge badge-success">Available</span>
-                                        {% else %}
-                                            <span class="badge badge-danger">Unavailable</span>
-                                        {% endif %}
+                                    <td class="text-nowrap">
+                                        <span class="badge badge-info">{{ row.supplier }}</span>
                                     </td>
+                                    <td class="text-nowrap">
+                                        <span class="badge badge-{% if row.source == 'Structured' %}success{% else %}warning{% endif %}">
+                                            {{ row.source }}
+                                        </span>
+                                    </td>
+                                    {% for column in all_columns %}
+                                    <td>{{ row.data|get_item:column|default:"-" }}</td>
+                                    {% endfor %}
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-center">No products found.</td>
+                                    <td colspan="{{ all_columns|length|add:2 }}" class="text-center">No inventory data found.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -123,7 +112,8 @@
 
                 <div class="card-footer">
                     <small class="text-muted">
-                        <strong>Total Products:</strong> <span id="totalProducts">{{ product|length }}</span>
+                        <strong>Total Items:</strong> {{ total_rows }} | 
+                        <strong>Columns:</strong> {{ all_columns|length }}
                     </small>
                 </div>
             </div>
@@ -132,8 +122,25 @@
     </div>
 </div>
 
-<!-- Filter Logic Script -->
+<!-- Filter and Supplier Toggle Scripts -->
 <script>
+    // Toggle new supplier input field
+    function toggleNewSupplier() {
+        const supplierSelect = document.getElementById("id_raw_supplier");
+        const newSupplierGroup = document.getElementById("newSupplierGroup");
+        const newSupplierInput = document.getElementById("id_new_supplier_name");
+        
+        if (supplierSelect.value === "new") {
+            newSupplierGroup.style.display = "block";
+            newSupplierInput.required = true;
+        } else {
+            newSupplierGroup.style.display = "none";
+            newSupplierInput.required = false;
+            newSupplierInput.value = "";
+        }
+    }
+
+    // Filter table logic
     document.addEventListener("DOMContentLoaded", function () {
         const filterName = document.getElementById("filterName");
         const filterSupplier = document.getElementById("filterSupplier");

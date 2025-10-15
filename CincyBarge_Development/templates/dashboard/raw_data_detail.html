@@ -1,0 +1,93 @@
+{% extends 'partials/base.html' %}
+{% block title %}Raw Data Detail{% endblock %}
+
+{% block content %}
+{% include 'partials/topnav.html'%}
+
+<div class="container-fluid">
+    <div class="row my-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>Raw Data Detail</h2>
+                <div>
+                    <a href="{% url 'raw-data-view' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to List
+                    </a>
+                    <a href="{% url 'dashboard-product' %}" class="btn btn-info">
+                        <i class="fas fa-home"></i> Products Page
+                    </a>
+                </div>
+            </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Metadata Card -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Upload Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>ID:</strong> {{ raw_data.id }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Supplier:</strong> 
+                            <span class="badge badge-info">{{ raw_data.supplier.name }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>File Name:</strong> {{ raw_data.file_name }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Uploaded By:</strong> 
+                            {% if raw_data.uploaded_by %}
+                                {{ raw_data.uploaded_by.username }}
+                            {% else %}
+                                <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-12">
+                            <strong>Upload Date:</strong> {{ raw_data.uploaded_at|date:"F d, Y H:i:s" }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Display Card -->
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Raw Data Content</h5>
+                    <button class="btn btn-sm btn-light" onclick="copyToClipboard()">
+                        <i class="fas fa-copy"></i> Copy JSON
+                    </button>
+                </div>
+                <div class="card-body">
+                    <pre id="jsonData" class="bg-light p-3 rounded" style="max-height: 600px; overflow-y: auto;"><code>{{ formatted_data }}</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function copyToClipboard() {
+        const jsonData = document.getElementById('jsonData').innerText;
+        navigator.clipboard.writeText(jsonData).then(function() {
+            alert('JSON data copied to clipboard!');
+        }, function(err) {
+            console.error('Could not copy text: ', err);
+        });
+    }
+</script>
+{% endblock %}
