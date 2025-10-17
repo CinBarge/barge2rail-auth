@@ -169,7 +169,7 @@
         const supplierSelect = document.getElementById("id_raw_supplier");
         const newSupplierGroup = document.getElementById("newSupplierGroup");
         const newSupplierInput = document.getElementById("id_new_supplier_name");
-        
+
         if (supplierSelect.value === "new") {
             newSupplierGroup.style.display = "block";
             newSupplierInput.required = true;
@@ -180,7 +180,6 @@
         }
     }
 
-    // Dynamic table filtering
     document.addEventListener("DOMContentLoaded", function () {
         const filterSupplier = document.getElementById("filterSupplier");
         const filterOrganizedBy = document.getElementById("filterOrganizedBy");
@@ -191,37 +190,21 @@
         const visibleCountSpan = document.getElementById("visibleCount");
         const totalRows = rows.length;
 
-        // BOL-specific field names for Senco (case-insensitive matching)
-        const bolFields = [
-            'tagnbr', 'ponbr', 'spec', 'coilweig', 'heatlot', 'barge', 'tag'
-        ];
+        const bolFields = ['tagnbr', 'ponbr', 'spec', 'coilweig', 'heatlot', 'barge', 'tag'];
 
         function isBillOfLading(row) {
-            // Skip empty row placeholder
-            if (row.cells.length < 2) {
-                return false;
-            }
-            
-            // Get all header cells to map column positions to field names
+            if (row.cells.length < 2) return false;
             const headers = document.querySelectorAll('.table-responsive thead th');
             const headerTexts = Array.from(headers).map(h => h.textContent.toLowerCase().trim());
-            
-            // Check if this row has data in any of the BOL-specific columns
-            // Start from index 2 (skip Supplier and Source columns)
+
             for (let i = 2; i < row.cells.length && i < headers.length; i++) {
                 const headerName = headerTexts[i];
                 const cellValue = row.cells[i].textContent.trim();
-                
-                // Check if this column matches a BOL field and has non-empty data
-                const isBOLField = bolFields.some(bolField => 
-                    headerName.toLowerCase().includes(bolField.toLowerCase())
-                );
-                
+                const isBOLField = bolFields.some(bolField => headerName.includes(bolField.toLowerCase()));
                 if (isBOLField && cellValue !== '' && cellValue !== '-') {
                     return true;
                 }
             }
-            
             return false;
         }
 
@@ -231,27 +214,22 @@
             const searchVal = filterSearch.value.toLowerCase().trim();
             let visibleCount = 0;
 
-            // Get all headers for column filtering
             const headers = document.querySelectorAll('.table-responsive thead th');
             const headerTexts = Array.from(headers).map(h => h.textContent.toLowerCase().trim());
-            
-            // Determine which columns to show based on BOL filter
             const isBOLFilter = organizedByVal === "Bill of Lading";
-            
-            // Hide/show columns based on filter
+
+            // Always show Supplier and Source columns
             headers.forEach((header, index) => {
-                // Always show first two columns (Supplier and Source)
                 if (index < 2) {
                     header.style.display = "";
                     return;
                 }
-                
+
                 const headerName = headerTexts[index];
-                const isBOLColumn = bolFields.some(bolField => 
-                    headerName.toLowerCase().includes(bolField.toLowerCase())
+                const isBOLColumn = bolFields.some(bolField =>
+                    headerName.includes(bolField.toLowerCase())
                 );
-                
-                // Show column if: not filtering by BOL, OR it's a BOL column
+
                 if (!isBOLFilter || isBOLColumn) {
                     header.style.display = "";
                 } else {
@@ -259,84 +237,106 @@
                 }
             });
 
+            // ✅ If no supplier selected → show all rows but still apply search filter
+            if (supplierVal === "") {
+                rows.forEach(row => {
+                    const rowText = Array.from(row.cells).map(cell => cell.textContent.toLowerCase()).join(' ');
+                    const matchSearch = searchVal === "" || rowText.includes(searchVal);
+
+                    if (matchSearch) {
+                        row.style.display = "";
+
+                        Array.from(row.cells).forEach((cell, index) => {
+                            if (index < 2) {
+                                cell.style.display = "";
+                                return;
+                            }
+
+                            const headerName = headerTexts[index];
+                            const isBOLColumn = bolFields.some(bolField =>
+                                headerName.includes(bolField.toLowerCase())
+                            );
+
+                            if (!isBOLFilter || isBOLColumn) {
+                                cell.style.display = "";
+                            } else {
+                                cell.style.display = "none";
+                            }
+                        });
+
+                        visibleCount++;
+                    } else {
+                        row.style.display = "none";
+                    }
+                });
+
+                visibleCountSpan.textContent = visibleCount;
+                updateNoResultsMessage(visibleCount);
+                return; // 🔚 Exit early – organized by filter doesn't apply without supplier
+            }
+
+            // ✅ Filtering starts only when a supplier is selected
             rows.forEach(row => {
-                // Skip empty row placeholder
                 if (row.cells.length < 2) {
                     row.style.display = "none";
                     return;
                 }
 
-                // Get cell values
                 const supplierBadge = row.cells[0].querySelector('.badge');
                 const sourceBadge = row.cells[1].querySelector('.badge');
-                
+
                 const supplier = supplierBadge ? supplierBadge.textContent.trim() : '';
                 const source = sourceBadge ? sourceBadge.textContent.trim() : '';
-                
-                // Determine if this is a BOL item
                 const isBOL = isBillOfLading(row);
-                
-                // Get all text content for search
-                const rowText = Array.from(row.cells).map(cell => 
-                    cell.textContent.toLowerCase()
-                ).join(' ');
+                const rowText = Array.from(row.cells).map(cell => cell.textContent.toLowerCase()).join(' ');
 
-                // Apply filters
                 const matchSupplier = supplierVal === "" || supplier === supplierVal;
-                
-                // Organized by filter logic
+                const supplierSelected = supplierVal !== "";
+
                 let matchOrganizedBy = true;
                 if (organizedByVal === "Bill of Lading") {
                     matchOrganizedBy = isBOL;
                 } else if (organizedByVal !== "") {
                     matchOrganizedBy = source === organizedByVal;
                 }
-                
+
                 const matchSearch = searchVal === "" || rowText.includes(searchVal);
 
-                if (matchSupplier && matchOrganizedBy && matchSearch) {
+                if ((supplierSelected ? matchSupplier : true) && matchOrganizedBy && matchSearch) {
                     row.style.display = "";
-                    visibleCount++;
-                    
-                    // Hide/show cells based on column visibility
+
                     Array.from(row.cells).forEach((cell, index) => {
-                        // Always show first two columns
                         if (index < 2) {
                             cell.style.display = "";
                             return;
                         }
-                        
-                        if (index < headers.length) {
-                            const headerName = headerTexts[index];
-                            const isBOLColumn = bolFields.some(bolField => 
-                                headerName.toLowerCase().includes(bolField.toLowerCase())
-                            );
-                            
-                            // Show cell if: not filtering by BOL, OR it's a BOL column
-                            if (!isBOLFilter || isBOLColumn) {
-                                cell.style.display = "";
-                            } else {
-                                cell.style.display = "none";
-                            }
+
+                        const headerName = headerTexts[index];
+                        const isBOLColumn = bolFields.some(bolField =>
+                            headerName.includes(bolField.toLowerCase())
+                        );
+
+                        if (!isBOLFilter || isBOLColumn) {
+                            cell.style.display = "";
+                        } else {
+                            cell.style.display = "none";
                         }
                     });
+
+                    visibleCount++;
                 } else {
                     row.style.display = "none";
                 }
             });
 
-            // Update visible count
             visibleCountSpan.textContent = visibleCount;
-            
-            // Show/hide "no results" message if needed
             updateNoResultsMessage(visibleCount);
         }
 
         function updateNoResultsMessage(visibleCount) {
             let noResultsRow = tableBody.querySelector('.no-results-row');
-            
+
             if (visibleCount === 0 && totalRows > 0) {
-                // Create "no results" message if it doesn't exist
                 if (!noResultsRow) {
                     noResultsRow = document.createElement('tr');
                     noResultsRow.className = 'no-results-row';
@@ -354,16 +354,34 @@
             filterSupplier.value = "";
             filterOrganizedBy.value = "";
             filterSearch.value = "";
+            toggleFilterInputs(); // disable fields again
             filterTable();
         }
 
+        function toggleFilterInputs() {
+            const isSupplierSelected = filterSupplier.value.trim() !== "";
+            // Only disable "organized by" when no supplier is selected
+            // Search should always be enabled
+            filterOrganizedBy.disabled = !isSupplierSelected;
+            
+            // Reset "organized by" when supplier is deselected
+            if (!isSupplierSelected) {
+                filterOrganizedBy.value = "";
+            }
+        }
+
         // Attach event listeners
-        filterSupplier.addEventListener("change", filterTable);
+        filterSupplier.addEventListener("change", () => {
+            toggleFilterInputs();
+            filterTable();
+        });
+
         filterOrganizedBy.addEventListener("change", filterTable);
         filterSearch.addEventListener("input", filterTable);
         clearFiltersBtn.addEventListener("click", clearFilters);
 
-        // Initialize - show all rows
+        // Initialize
+        toggleFilterInputs(); 
         filterTable();
     });
 </script>
