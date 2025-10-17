@@ -16,12 +16,29 @@
         <div class="collapse navbar-collapse justify-content-end" id="navbarSupportedContent">
             <ul class="navbar-nav align-items-center">
 
-                <!-- Inventory and Dashboard -->
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="{% url 'dashboard-index' %}">Inventory</a>
-                </li>
+                <!-- Dashboard -->
                 <li class="nav-item">
                     <a class="nav-link text-white" href="{% url 'dashboard-index' %}">Dashboard</a>
+                </li>
+
+                <!-- Inventory (Products) -->
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="{% url 'dashboard-product' %}">Inventory</a>
+                </li>
+
+                <!-- Staff -->
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="{% url 'dashboard-staff' %}">Staff</a>
+                </li>
+
+                <!-- Orders -->
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="{% url 'dashboard-order' %}">Orders</a>
+                </li>
+
+                <!-- Bill of Lading -->
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="{% url 'dashboard-bol' %}">Bill of Lading</a>
                 </li>
 
                 {% if user.is_authenticated %}

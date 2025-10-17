@@ -1,0 +1,244 @@
+{% extends 'partials/base.html' %}
+{% block title %}Preview Bill of Lading - {{ bol.bill_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-12">
+      <h2><i class="fas fa-eye"></i> Preview Bill of Lading: {{ bol.bill_number }}</h2>
+    </div>
+  </div>
+
+  <div class="row mt-4">
+    <!-- BOL Details -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-info text-white">
+          <h5><i class="fas fa-info-circle"></i> BOL Details</h5>
+        </div>
+        <div class="card-body">
+          <div class="row mb-3">
+            <div class="col-6">
+              <strong>BOL Number:</strong><br>
+              {{ bol.bill_number }}
+            </div>
+            <div class="col-6">
+              <strong>Status:</strong><br>
+              <span class="badge bg-warning">{{ bol.get_status_display }}</span>
+            </div>
+          </div>
+          
+          <div class="row mb-3">
+            <div class="col-6">
+              <strong>Supplier:</strong><br>
+              {{ bol.supplier.name }}
+            </div>
+            <div class="col-6">
+              <strong>Delivery Date:</strong><br>
+              {{ bol.delivery_date|date:"M d, Y"|default:"Not set" }}
+            </div>
+          </div>
+          
+          <hr>
+          
+          <h6 class="text-primary">Shipping Information</h6>
+          <div class="row mb-2">
+            <div class="col-6">
+              <strong>Origin:</strong><br>
+              {{ bol.origin|default:"N/A" }}
+            </div>
+            <div class="col-6">
+              <strong>Destination:</strong><br>
+              {{ bol.destination|default:"N/A" }}
+            </div>
+          </div>
+          
+          <div class="row mb-2">
+            <div class="col-12">
+              <strong>Shipper:</strong><br>
+              {{ bol.shipper_name|default:"N/A" }}<br>
+              <small>{{ bol.shipper_address|default:"" }}</small>
+            </div>
+          </div>
+          
+          <div class="row mb-2">
+            <div class="col-12">
+              <strong>Consignee:</strong><br>
+              {{ bol.consignee_name|default:"N/A" }}<br>
+              <small>{{ bol.consignee_address|default:"" }}</small>
+            </div>
+          </div>
+          
+          <hr>
+          
+          <h6 class="text-primary">Transport Details</h6>
+          <div class="row mb-2">
+            <div class="col-6">
+              <strong>Carrier:</strong><br>
+              {{ bol.carrier|default:"N/A" }}
+            </div>
+            <div class="col-6">
+              <strong>Vessel/Barge:</strong><br>
+              {{ bol.vessel_name|default:"N/A" }}
+            </div>
+          </div>
+          
+          <div class="row mb-2">
+            <div class="col-6">
+              <strong>Container #:</strong><br>
+              {{ bol.container_number|default:"N/A" }}
+            </div>
+            <div class="col-6">
+              <strong>Seal #:</strong><br>
+              {{ bol.seal_number|default:"N/A" }}
+            </div>
+          </div>
+          
+          {% if bol.freight_charges %}
+          <div class="row mb-2">
+            <div class="col-12">
+              <strong>Freight Charges:</strong><br>
+              ${{ bol.freight_charges }}
+            </div>
+          </div>
+          {% endif %}
+          
+          {% if bol.notes %}
+          <hr>
+          <strong>Notes:</strong><br>
+          <p>{{ bol.notes }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Line Items -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-success text-white">
+          <h5><i class="fas fa-box-open"></i> Products / Line Items</h5>
+        </div>
+        <div class="card-body">
+          {% if line_items %}
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered">
+                <thead class="table-light">
+                  <tr>
+                    <th>Product</th>
+                    <th>Quantity</th>
+                    <th>Weight (lbs)</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in line_items %}
+                  <tr>
+                    <td><strong>{{ item.product.name }}</strong></td>
+                    <td>{{ item.quantity }}</td>
+                    <td>{{ item.weight|default:"-" }}</td>
+                    <td><small>{{ item.description|truncatewords:10|default:"-" }}</small></td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                  <tr>
+                    <td colspan="2"><strong>Total Items:</strong></td>
+                    <td colspan="2"><strong>{{ line_items|length }}</strong></td>
+                  </tr>
+                  <tr>
+                    <td colspan="2"><strong>Total Weight:</strong></td>
+                    <td colspan="2"><strong>{{ total_weight|floatformat:2 }} lbs</strong></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          {% else %}
+            <div class="alert alert-warning">
+              <i class="fas fa-exclamation-triangle"></i> No products added to this BOL yet.
+              <a href="{% url 'dashboard-bol-edit' bol.id %}" class="alert-link">Add products</a>.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Template Preview -->
+      {% if bol.template %}
+      <div class="card mt-3">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="fas fa-file-pdf"></i> PDF Template</h5>
+          <a href="{% url 'dashboard-bol-view-template' bol.template.id %}" 
+             target="_blank" 
+             class="btn btn-sm btn-light">
+            <i class="fas fa-external-link-alt"></i> Open in New Tab
+          </a>
+        </div>
+        <div class="card-body p-0">
+          <iframe src="{% url 'dashboard-bol-view-template' bol.template.id %}" 
+                  width="100%" 
+                  height="500px" 
+                  style="border: none;">
+          </iframe>
+          <div class="p-3 bg-light">
+            <small class="text-muted">
+              <i class="fas fa-info-circle"></i> This template will be used as reference for the Bill of Lading. 
+              If the PDF doesn't display, <a href="{% url 'dashboard-bol-view-template' bol.template.id %}" target="_blank">click here to open it</a>.
+            </small>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="card mt-3">
+        <div class="card-body">
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i> No PDF template uploaded for <strong>{{ bol.supplier.name }}</strong>. 
+            <a href="{% url 'dashboard-bol' %}" class="alert-link">Upload a template</a> to use it with BOLs.
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="row mt-4 mb-4">
+    <div class="col-12">
+      {% if line_items %}
+        <form method="post" action="{% url 'dashboard-bol-confirm' bol.id %}" style="display:inline;" 
+              onsubmit="return confirm('Confirm this Bill of Lading? Orders will be scheduled for {{ bol.delivery_date|date:\'M d, Y\'|default:\'the delivery date\' }}. This action cannot be undone.');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-success btn-lg">
+            <i class="fas fa-check-circle"></i> Confirm BOL & Create Orders
+          </button>
+        </form>
+      {% else %}
+        <button class="btn btn-success btn-lg" disabled title="Add products first">
+          <i class="fas fa-check-circle"></i> Confirm BOL & Create Orders
+        </button>
+      {% endif %}
+      
+      <a href="{% url 'dashboard-bol-edit' bol.id %}" class="btn btn-warning btn-lg">
+        <i class="fas fa-edit"></i> Edit BOL
+      </a>
+      <a href="{% url 'dashboard-bol' %}" class="btn btn-secondary btn-lg">
+        <i class="fas fa-arrow-left"></i> Back to BOL List
+      </a>
+    </div>
+  </div>
+
+  <!-- Information Box -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="alert alert-info">
+        <h5><i class="fas fa-info-circle"></i> What happens when you confirm?</h5>
+        <ul class="mb-0">
+          <li>The BOL status will be changed to <strong>Confirmed</strong></li>
+          <li>An order will be created for <strong>each product</strong> in the BOL</li>
+          <li>Orders will be scheduled for delivery on: <strong>{{ bol.delivery_date|date:"M d, Y"|default:"the specified date" }}</strong></li>
+          <li>Orders will appear on the dashboard for tracking</li>
+          <li>The BOL cannot be edited after confirmation</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

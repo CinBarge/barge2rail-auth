@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Product, Order, Supplier, RawProductData
+from .models import Product, Order, Supplier, RawProductData, BillOfLadingTemplate, BillOfLading, BillOfLadingLineItem
 from django.contrib.auth.models import Group
 from django import forms
 
@@ -130,8 +130,73 @@ class RawProductDataAdmin(AdminMediaMixin, admin.ModelAdmin):
         return queryset.select_related('supplier', 'uploaded_by')
 
 
+class BillOfLadingTemplateAdmin(AdminMediaMixin, admin.ModelAdmin):
+    """Admin configuration for Bill of Lading Template model"""
+    list_display = ('id', 'supplier', 'file_name', 'uploaded_by', 'uploaded_at')
+    list_filter = ('supplier', 'uploaded_at')
+    search_fields = ('supplier__name', 'file_name', 'uploaded_by__username')
+    readonly_fields = ('uploaded_at',)
+    date_hierarchy = 'uploaded_at'
+    list_per_page = 25
+    ordering = ('-uploaded_at',)
+
+
+class BillOfLadingLineItemInline(admin.TabularInline):
+    """Inline admin for BOL line items"""
+    model = BillOfLadingLineItem
+    extra = 0
+    fields = ('product', 'quantity', 'weight', 'description')
+    readonly_fields = ('product', 'quantity', 'weight')
+
+
+class BillOfLadingAdmin(AdminMediaMixin, admin.ModelAdmin):
+    """Admin configuration for Bill of Lading model"""
+    list_display = ('bill_number', 'supplier', 'status', 'delivery_date', 'created_by', 'created_at')
+    list_filter = ('status', 'supplier', 'created_at', 'delivery_date')
+    search_fields = ('bill_number', 'supplier__name', 'destination', 'origin')
+    readonly_fields = ('bill_number', 'created_at', 'confirmed_at', 'completed_at', 'total_value')
+    date_hierarchy = 'created_at'
+    list_per_page = 25
+    ordering = ('-created_at',)
+    inlines = [BillOfLadingLineItemInline]
+    
+    fieldsets = (
+        ('BOL Information', {
+            'fields': ('bill_number', 'supplier', 'template', 'status')
+        }),
+        ('Shipping Details', {
+            'fields': ('shipper_name', 'shipper_address', 'consignee_name', 'consignee_address', 'origin', 'destination')
+        }),
+        ('Transport Details', {
+            'fields': ('carrier', 'vessel_name', 'container_number', 'seal_number')
+        }),
+        ('Financial', {
+            'fields': ('freight_charges', 'total_value')
+        }),
+        ('Dates', {
+            'fields': ('delivery_date', 'created_at', 'confirmed_at', 'completed_at')
+        }),
+        ('Additional Info', {
+            'fields': ('notes', 'created_by'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+class BillOfLadingLineItemAdmin(AdminMediaMixin, admin.ModelAdmin):
+    """Admin configuration for Bill of Lading Line Item model"""
+    list_display = ('id', 'bill_of_lading', 'product', 'quantity', 'weight')
+    list_filter = ('bill_of_lading__supplier', 'bill_of_lading__status')
+    search_fields = ('bill_of_lading__bill_number', 'product__name')
+    list_per_page = 50
+    ordering = ('-id',)
+
+
 # Register models with their admin classes
 admin.site.register(Product, ProductAdmin)
 admin.site.register(Order, OrderAdmin)
 admin.site.register(Supplier, SupplierAdmin)
 admin.site.register(RawProductData, RawProductDataAdmin)
+admin.site.register(BillOfLadingTemplate, BillOfLadingTemplateAdmin)
+admin.site.register(BillOfLading, BillOfLadingAdmin)
+admin.site.register(BillOfLadingLineItem, BillOfLadingLineItemAdmin)

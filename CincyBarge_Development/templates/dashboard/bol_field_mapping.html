@@ -1,0 +1,187 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% block title %}BOL Field Mapping - {{ template.supplier.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-map"></i> Field Mapping - {{ template.supplier.name }}</h2>
+    <a href="{% url 'dashboard-bol' %}" class="btn btn-secondary">
+      <i class="fas fa-arrow-left"></i> Back to BOL Management
+    </a>
+  </div>
+
+  <!-- Template Info Card -->
+  <div class="card mb-4 border-primary">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0"><i class="fas fa-info-circle"></i> Template Information</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-4">
+          <p><strong>Supplier:</strong> {{ template.supplier.name }}</p>
+        </div>
+        <div class="col-md-4">
+          <p><strong>File:</strong> {{ template.file_name }}</p>
+        </div>
+        <div class="col-md-4">
+          <p><strong>Type:</strong> <span class="badge bg-success">{{ template.template_type|title }}</span></p>
+        </div>
+      </div>
+      {% if template.description %}
+        <p class="mb-0"><strong>Description:</strong> {{ template.description }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Field Mapping Form -->
+  <div class="card">
+    <div class="card-header bg-info text-white">
+      <h5 class="mb-0"><i class="fas fa-columns"></i> Map Template Fields to System Fields</h5>
+    </div>
+    <div class="card-body">
+      {% if headers %}
+        <form method="post">
+          {% csrf_token %}
+          
+          <div class="alert alert-info">
+            <i class="fas fa-lightbulb"></i> <strong>Instructions:</strong> Map each column from your spreadsheet template to the corresponding system field. 
+            This allows the system to understand which column represents which data when generating bills of lading.
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-bordered">
+              <thead class="table-dark">
+                <tr>
+                  <th style="width: 40%;">Template Column</th>
+                  <th style="width: 60%;">Maps To System Field</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for header in headers %}
+                  <tr>
+                    <td>
+                      <div class="d-flex align-items-center">
+                        <i class="fas fa-table text-primary me-2"></i>
+                        <strong>{{ header }}</strong>
+                      </div>
+                    </td>
+                    <td>
+                      <select name="mapping_{{ header }}" class="form-select">
+                        <option value="">-- Select System Field --</option>
+                        {% for field in system_fields %}
+                          <option value="{{ field }}" 
+                                  {% if current_mapping %}
+                                    {% for key, value in current_mapping.items %}
+                                      {% if key == header and value == field %}selected{% endif %}
+                                    {% endfor %}
+                                  {% endif %}>
+                            {{ field|title }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mt-4">
+            <div>
+              <p class="text-muted mb-0">
+                <i class="fas fa-info-circle"></i> 
+                <small>You don't need to map all columns. Only map the ones you'll use for bill generation.</small>
+              </p>
+            </div>
+            <div>
+              <a href="{% url 'dashboard-bol' %}" class="btn btn-secondary me-2">
+                <i class="fas fa-times"></i> Cancel
+              </a>
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> Save Field Mapping
+              </button>
+            </div>
+          </div>
+        </form>
+      {% else %}
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle"></i> 
+          <strong>No headers found in the template.</strong> 
+          Please ensure your spreadsheet file has a header row.
+        </div>
+        <a href="{% url 'dashboard-bol' %}" class="btn btn-secondary">
+          <i class="fas fa-arrow-left"></i> Back to BOL Management
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Field Reference Card -->
+  <div class="card mt-4 border-secondary">
+    <div class="card-header bg-light">
+      <h6 class="mb-0"><i class="fas fa-book"></i> System Fields Reference</h6>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <h6 class="text-primary">Product Information:</h6>
+          <ul class="small">
+            <li><strong>product_name</strong> - Name of the product/cargo</li>
+            <li><strong>quantity</strong> - Number of units</li>
+            <li><strong>weight</strong> - Total weight</li>
+            <li><strong>description</strong> - Product description</li>
+            <li><strong>unit_price</strong> - Price per unit</li>
+            <li><strong>total_value</strong> - Total cargo value</li>
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <h6 class="text-primary">Shipping Information:</h6>
+          <ul class="small">
+            <li><strong>shipper_name</strong> - Name of shipper</li>
+            <li><strong>shipper_address</strong> - Shipper address</li>
+            <li><strong>consignee_name</strong> - Name of consignee</li>
+            <li><strong>consignee_address</strong> - Consignee address</li>
+            <li><strong>origin</strong> - Origin location</li>
+            <li><strong>destination</strong> - Destination location</li>
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <h6 class="text-primary">Transport Details:</h6>
+          <ul class="small">
+            <li><strong>carrier</strong> - Carrier name</li>
+            <li><strong>vessel_name</strong> - Name of vessel/vehicle</li>
+            <li><strong>container_number</strong> - Container ID</li>
+            <li><strong>seal_number</strong> - Seal number</li>
+            <li><strong>freight_charges</strong> - Freight costs</li>
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <h6 class="text-primary">Administrative:</h6>
+          <ul class="small">
+            <li><strong>date</strong> - Shipment date</li>
+            <li><strong>bill_number</strong> - Bill of lading number</li>
+            <li><strong>notes</strong> - Additional notes</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .table td {
+    vertical-align: middle;
+  }
+  
+  .form-select {
+    border: 2px solid #dee2e6;
+  }
+  
+  .form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  }
+</style>
+{% endblock %}

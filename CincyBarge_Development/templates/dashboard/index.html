@@ -6,6 +6,115 @@
 {% include 'partials/topnav.html'%}
 
 <div class="container-fluid mt-4">
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-file-invoice fa-3x text-primary mb-3"></i>
+                    <h3 class="mb-2">{{ bols_draft|length }}</h3>
+                    <h6 class="mb-3">Draft BOLs</h6>
+                    <a href="{% url 'dashboard-bol' %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>Create Bill of Lading
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-box fa-3x text-success mb-3"></i>
+                    <h3 class="mb-2">{{ total_products }}</h3>
+                    <h6 class="mb-3">Total Products</h6>
+                    <a href="{% url 'dashboard-product' %}" class="btn btn-success">
+                        <i class="fas fa-boxes me-1"></i>Manage Products
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-clipboard-list fa-3x text-info mb-3"></i>
+                    <h3 class="mb-2">{{ scheduled_deliveries|length }}</h3>
+                    <h6 class="mb-3">Scheduled</h6>
+                    <a href="{% url 'dashboard-order' %}" class="btn btn-info">
+                        <i class="fas fa-list me-1"></i>View All Orders
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scheduled Deliveries Info Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">
+                        <i class="fas fa-truck me-2"></i>Scheduled Deliveries (From Bills of Lading)
+                    </h4>
+                    <span class="badge bg-light text-primary fs-6">{{ scheduled_deliveries|length }} Delivery(ies)</span>
+                </div>
+                <div class="card-body">
+                    {% if scheduled_deliveries %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Delivery Date</th>
+                                        <th>BOL Number</th>
+                                        <th>Product</th>
+                                        <th>Quantity</th>
+                                        <th>Status</th>
+                                        <th>Assigned To</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for order in scheduled_deliveries %}
+                                        <tr>
+                                            <td class="fw-bold">
+                                                <i class="fas fa-calendar me-1"></i>{{ order.delivery_date|date:"M d, Y" }}
+                                            </td>
+                                            <td>
+                                                {% if order.bill_of_lading %}
+                                                    <span class="badge bg-success">{{ order.bill_of_lading.bill_number }}</span>
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ order.product.name }}</td>
+                                            <td><span class="badge bg-info">{{ order.order_quantity }} units</span></td>
+                                            <td>
+                                                {% if order.status == 'scheduled' %}
+                                                    <span class="badge bg-warning text-dark">Scheduled</span>
+                                                {% elif order.status == 'in_progress' %}
+                                                    <span class="badge bg-primary">In Progress</span>
+                                                {% elif order.status == 'completed' %}
+                                                    <span class="badge bg-success">Completed</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{{ order.get_status_display }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ order.staff.username|default:"Unassigned" }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info mb-0" role="alert">
+                            <i class="fas fa-info-circle me-2"></i>No scheduled deliveries. 
+                            <a href="{% url 'dashboard-bol' %}" class="alert-link">Create a Bill of Lading</a> to schedule deliveries.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Today's Orders Info Card -->
     <div class="row mb-4">
         <div class="col-12">
@@ -23,8 +132,10 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th>Order #</th>
+                                        <th>BOL Number</th>
                                         <th>Product</th>
                                         <th>Quantity</th>
+                                        <th>Status</th>
                                         <th>Ordered By</th>
                                         <th>Time</th>
                                     </tr>
@@ -33,8 +144,22 @@
                                     {% for order in todays_orders %}
                                         <tr>
                                             <td class="fw-bold">#{{ order.id }}</td>
+                                            <td>
+                                                {% if order.bill_of_lading %}
+                                                    <small class="badge bg-success">{{ order.bill_of_lading.bill_number }}</small>
+                                                {% else %}
+                                                    <small class="text-muted">-</small>
+                                                {% endif %}
+                                            </td>
                                             <td>{{ order.product.name }}</td>
                                             <td><span class="badge bg-info">{{ order.order_quantity }} units</span></td>
+                                            <td>
+                                                {% if order.status %}
+                                                    <span class="badge bg-secondary">{{ order.get_status_display }}</span>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
                                             <td>{{ order.staff.username }}</td>
                                             <td class="text-muted">{{ order.date|date:"h:i A" }}</td>
                                         </tr>
@@ -44,13 +169,14 @@
                         </div>
                     {% else %}
                         <div class="alert alert-info mb-0" role="alert">
-                            <i class="fas fa-info-circle me-2"></i>No more orders
+                            <i class="fas fa-info-circle me-2"></i>No orders for today
                         </div>
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
+
 </div>
 
 {% else %}

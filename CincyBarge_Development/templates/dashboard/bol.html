@@ -1,20 +1,231 @@
 {% extends 'partials/base.html' %}
-{% block title %}Bill of Lading{% endblock %}
+{% block title %}Bill of Lading Management{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-  <div class="card">
-    <div class="card-header bg-primary text-white">
-      <h3><i class="fas fa-file-invoice"></i> Bill of Lading</h3>
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-12">
+      <h2><i class="fas fa-file-invoice"></i> Bill of Lading Management</h2>
     </div>
-    <div class="card-body text-center py-5">
-      <i class="fas fa-ship fa-5x text-muted mb-4"></i>
-      <h4 class="text-muted">Bill of Lading Management</h4>
-      <p class="text-muted">Bill generation functionality coming soon...</p>
-      <a href="{% url 'dashboard-index' %}" class="btn btn-primary mt-3">
+  </div>
+
+  <!-- Template Upload Section -->
+  <div class="row mt-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5><i class="fas fa-upload"></i> Upload BOL Template (PDF)</h5>
+        </div>
+        <div class="card-body">
+          <form method="post" action="{% url 'dashboard-bol-upload-template' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label for="id_supplier" class="form-label">Supplier</label>
+              {{ template_form.supplier }}
+            </div>
+            <div class="mb-3">
+              <label for="id_template_file" class="form-label">PDF Template</label>
+              {{ template_form.template_file }}
+              <small class="form-text text-muted">Upload a PDF template for the Bill of Lading (Max 10MB)</small>
+            </div>
+            <div class="mb-3">
+              <label for="id_description" class="form-label">Description (Optional)</label>
+              {{ template_form.description }}
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-upload"></i> Upload Template
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Existing Templates -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-info text-white">
+          <h5><i class="fas fa-file-pdf"></i> BOL Templates</h5>
+        </div>
+        <div class="card-body">
+          {% if templates %}
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Supplier</th>
+                    <th>Uploaded</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for template in templates %}
+                  <tr>
+                    <td><strong>{{ template.supplier.name }}</strong></td>
+                    <td><small>{{ template.uploaded_at|date:"M d, Y" }}</small></td>
+                    <td>
+                      <a href="{% url 'dashboard-bol-view-template' template.id %}" target="_blank" 
+                         class="btn btn-sm btn-success" title="Preview PDF">
+                        <i class="fas fa-eye"></i>
+                      </a>
+                      <form method="post" action="{% url 'dashboard-bol-delete-template' template.id %}" 
+                            style="display:inline;" onsubmit="return confirm('Delete this template?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-danger" title="Delete">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted">No templates uploaded yet.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create New BOL Button -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <a href="{% url 'dashboard-bol-create' %}" class="btn btn-success btn-lg">
+        <i class="fas fa-plus"></i> Create New Bill of Lading
+      </a>
+    </div>
+  </div>
+
+  <!-- Draft BOLs -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-warning">
+          <h5><i class="fas fa-edit"></i> Draft Bills of Lading</h5>
+        </div>
+        <div class="card-body">
+          {% if bols_draft %}
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>BOL Number</th>
+                    <th>Supplier</th>
+                    <th>Destination</th>
+                    <th>Delivery Date</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for bol in bols_draft %}
+                  <tr>
+                    <td><strong>{{ bol.bill_number }}</strong></td>
+                    <td>{{ bol.supplier.name }}</td>
+                    <td>{{ bol.destination|default:"Not set" }}</td>
+                    <td>
+                      {% if bol.delivery_date %}
+                        {{ bol.delivery_date|date:"M d, Y" }}
+                      {% else %}
+                        <span class="text-muted">Not set</span>
+                      {% endif %}
+                    </td>
+                    <td><small>{{ bol.created_at|date:"M d, Y H:i" }}</small></td>
+                    <td>
+                      <a href="{% url 'dashboard-bol-edit' bol.id %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-edit"></i> Edit
+                      </a>
+                      <a href="{% url 'dashboard-bol-preview' bol.id %}" class="btn btn-sm btn-info">
+                        <i class="fas fa-eye"></i> Preview
+                      </a>
+                      <form method="post" action="{% url 'dashboard-bol-delete' bol.id %}" 
+                            style="display:inline;" onsubmit="return confirm('Delete this draft BOL?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-danger">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted">No draft BOLs.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Confirmed BOLs -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-success text-white">
+          <h5><i class="fas fa-check-circle"></i> Recent Confirmed Bills of Lading</h5>
+        </div>
+        <div class="card-body">
+          {% if bols_confirmed %}
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>BOL Number</th>
+                    <th>Supplier</th>
+                    <th>Destination</th>
+                    <th>Delivery Date</th>
+                    <th>Status</th>
+                    <th>Confirmed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for bol in bols_confirmed %}
+                  <tr>
+                    <td><strong>{{ bol.bill_number }}</strong></td>
+                    <td>{{ bol.supplier.name }}</td>
+                    <td>{{ bol.destination|default:"N/A" }}</td>
+                    <td>
+                      {% if bol.delivery_date %}
+                        {{ bol.delivery_date|date:"M d, Y" }}
+                      {% else %}
+                        <span class="text-muted">N/A</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <span class="badge bg-{{ bol.status|lower }}">
+                        {{ bol.get_status_display }}
+                      </span>
+                    </td>
+                    <td><small>{{ bol.confirmed_at|date:"M d, Y H:i" }}</small></td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted">No confirmed BOLs yet.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4 mb-4">
+    <div class="col-12">
+      <a href="{% url 'dashboard-index' %}" class="btn btn-secondary">
         <i class="fas fa-arrow-left"></i> Back to Dashboard
       </a>
     </div>
   </div>
 </div>
+
+<style>
+.badge.bg-confirmed { background-color: #28a745 !important; }
+.badge.bg-in_progress { background-color: #17a2b8 !important; }
+.badge.bg-completed { background-color: #6c757d !important; }
+.badge.bg-cancelled { background-color: #dc3545 !important; }
+</style>
 {% endblock %}

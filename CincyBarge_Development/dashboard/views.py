@@ -1,17 +1,17 @@
-from django.shortcuts import render, redirect
-from django.http import HttpResponse, JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponse, JsonResponse, FileResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
-from .models import Product, Order, RawProductData
+from .models import Product, Order, RawProductData, Supplier, BillOfLadingTemplate, BillOfLading, BillOfLadingLineItem
+from .forms import BillOfLadingTemplateForm, BillOfLadingForm, BillOfLadingLineItemForm
 from utilities.googlesheet import get_sheet_data, update_sheet_row, update_sheet_cell, sync_sheet_to_database
 from urllib.parse import urlparse, parse_qs
 from django.contrib import messages 
-from datetime import date
-from .models import Supplier
-from .forms import FileUploadForm
+from datetime import date, datetime
 import json
 import csv
 import io
+from django.db import transaction
 
 # Create your views here.
 
@@ -24,13 +24,26 @@ def index(request):
     today = datetime.now().date()
     
     # Fetch today's orders and upcoming orders
-    todays_orders = Order.objects.filter(date__date=today).order_by('-date')
-    upcoming_orders = Order.objects.filter(date__date__gt=today).order_by('date')
+    todays_orders = Order.objects.filter(date__date=today).select_related('product', 'bill_of_lading').order_by('-date')
+    upcoming_orders = Order.objects.filter(date__date__gt=today).select_related('product', 'bill_of_lading').order_by('date')
+    
+    # Get scheduled deliveries (orders with delivery dates)
+    scheduled_deliveries = Order.objects.filter(
+        delivery_date__isnull=False,
+        status__in=['pending', 'scheduled', 'in_progress']
+    ).select_related('product', 'bill_of_lading', 'staff').order_by('delivery_date')
+    
+    # Get statistics for dashboard cards
+    total_products = Product.objects.count()
+    bols_draft = BillOfLading.objects.filter(status='draft')
     
     context = {
         'todays_orders': todays_orders,
         'upcoming_orders': upcoming_orders,
+        'scheduled_deliveries': scheduled_deliveries,
         'today': today,
+        'total_products': total_products,
+        'bols_draft': bols_draft,
     }
     
     return render(request, 'dashboard/index.html', context)
@@ -247,7 +260,233 @@ def order(request):
 
 @login_required
 def bol(request):
-    return render(request, 'dashboard/bol.html')
+    """Main BOL page with template upload and BOL creation"""
+    templates = BillOfLadingTemplate.objects.select_related('supplier', 'uploaded_by').all()
+    bols_draft = BillOfLading.objects.filter(status='draft').select_related('supplier', 'created_by').order_by('-created_at')
+    bols_confirmed = BillOfLading.objects.exclude(status='draft').select_related('supplier', 'created_by').order_by('-created_at')[:10]
+    suppliers = Supplier.objects.all()
+    
+    template_form = BillOfLadingTemplateForm()
+    
+    context = {
+        'templates': templates,
+        'bols_draft': bols_draft,
+        'bols_confirmed': bols_confirmed,
+        'suppliers': suppliers,
+        'template_form': template_form,
+    }
+    
+    return render(request, 'dashboard/bol.html', context)
+
+@login_required
+@require_http_methods(["POST"])
+def upload_bol_template(request):
+    """Handle BOL template upload"""
+    form = BillOfLadingTemplateForm(request.POST, request.FILES)
+    
+    if form.is_valid():
+        template = form.save(commit=False)
+        template.uploaded_by = request.user
+        template.file_name = request.FILES['template_file'].name
+        template.save()
+        messages.success(request, f"Template uploaded successfully for {template.supplier.name}")
+    else:
+        for error in form.errors.values():
+            messages.error(request, error)
+    
+    return redirect('dashboard-bol')
+
+@login_required
+def view_bol_template(request, template_id):
+    """View/preview BOL template PDF"""
+    template = get_object_or_404(BillOfLadingTemplate, id=template_id)
+    
+    try:
+        return FileResponse(template.template_file.open('rb'), content_type='application/pdf')
+    except Exception as e:
+        messages.error(request, f"Error opening template: {str(e)}")
+        return redirect('dashboard-bol')
+
+@login_required
+@require_http_methods(["POST"])
+def delete_bol_template(request, template_id):
+    """Delete BOL template"""
+    template = get_object_or_404(BillOfLadingTemplate, id=template_id)
+    supplier_name = template.supplier.name
+    template.delete()
+    messages.success(request, f"Template for {supplier_name} deleted successfully")
+    return redirect('dashboard-bol')
+
+@login_required
+def create_bol(request):
+    """Create a new Bill of Lading"""
+    if request.method == 'POST':
+        form = BillOfLadingForm(request.POST)
+        if form.is_valid():
+            bol = form.save(commit=False)
+            bol.created_by = request.user
+            
+            # Generate unique bill number
+            from datetime import datetime
+            bill_number = f"BOL-{datetime.now().strftime('%Y%m%d')}-{BillOfLading.objects.count() + 1:04d}"
+            bol.bill_number = bill_number
+            
+            # Try to link template
+            try:
+                template = BillOfLadingTemplate.objects.get(supplier=bol.supplier)
+                bol.template = template
+            except BillOfLadingTemplate.DoesNotExist:
+                pass
+            
+            bol.save()
+            messages.success(request, f"Bill of Lading {bill_number} created successfully")
+            return redirect('dashboard-bol-edit', bol_id=bol.id)
+    else:
+        form = BillOfLadingForm()
+    
+    context = {
+        'form': form,
+    }
+    return render(request, 'dashboard/bol_create.html', context)
+
+@login_required
+def edit_bol(request, bol_id):
+    """Edit BOL and add products"""
+    bol = get_object_or_404(BillOfLading, id=bol_id)
+    
+    if bol.status != 'draft':
+        messages.warning(request, "This BOL has been confirmed and cannot be edited")
+        return redirect('dashboard-bol')
+    
+    # Get products from the same supplier
+    products = Product.objects.filter(supplier=bol.supplier)
+    line_items = bol.line_items.select_related('product').all()
+    
+    context = {
+        'bol': bol,
+        'products': products,
+        'line_items': line_items,
+    }
+    
+    return render(request, 'dashboard/bol_edit.html', context)
+
+@login_required
+@require_http_methods(["POST"])
+def add_product_to_bol(request, bol_id):
+    """Add a product to the BOL"""
+    bol = get_object_or_404(BillOfLading, id=bol_id)
+    
+    if bol.status != 'draft':
+        return JsonResponse({'success': False, 'error': 'BOL is already confirmed'}, status=400)
+    
+    try:
+        data = json.loads(request.body)
+        product_id = data.get('product_id')
+        quantity = data.get('quantity', 1)
+        weight = data.get('weight')
+        description = data.get('description', '')
+        
+        product = get_object_or_404(Product, id=product_id)
+        
+        # Create line item
+        line_item = BillOfLadingLineItem.objects.create(
+            bill_of_lading=bol,
+            product=product,
+            quantity=quantity,
+            weight=weight or product.weight,
+            description=description or product.description or ''
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'line_item': {
+                'id': line_item.id,
+                'product_name': product.name,
+                'quantity': line_item.quantity,
+                'weight': float(line_item.weight) if line_item.weight else 0,
+                'description': line_item.description
+            }
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@login_required
+@require_http_methods(["POST"])
+def remove_product_from_bol(request, bol_id, line_item_id):
+    """Remove a product from the BOL"""
+    bol = get_object_or_404(BillOfLading, id=bol_id)
+    
+    if bol.status != 'draft':
+        return JsonResponse({'success': False, 'error': 'BOL is already confirmed'}, status=400)
+    
+    line_item = get_object_or_404(BillOfLadingLineItem, id=line_item_id, bill_of_lading=bol)
+    line_item.delete()
+    
+    return JsonResponse({'success': True})
+
+@login_required
+def preview_bol(request, bol_id):
+    """Preview BOL before confirmation"""
+    bol = get_object_or_404(BillOfLading, id=bol_id)
+    line_items = bol.line_items.select_related('product').all()
+    
+    total_weight = bol.calculate_total_weight()
+    
+    context = {
+        'bol': bol,
+        'line_items': line_items,
+        'total_weight': total_weight,
+    }
+    
+    return render(request, 'dashboard/bol_preview.html', context)
+
+@login_required
+@require_http_methods(["POST"])
+def confirm_bol(request, bol_id):
+    """Confirm BOL and create orders for scheduled delivery"""
+    bol = get_object_or_404(BillOfLading, id=bol_id)
+    
+    if bol.status != 'draft':
+        messages.warning(request, "This BOL has already been confirmed")
+        return redirect('dashboard-bol')
+    
+    try:
+        with transaction.atomic():
+            # Update BOL status
+            bol.status = 'confirmed'
+            bol.confirmed_at = datetime.now()
+            bol.save()
+            
+            # Create orders for each line item
+            for line_item in bol.line_items.all():
+                Order.objects.create(
+                    product=line_item.product,
+                    bill_of_lading=bol,
+                    staff=request.user,
+                    order_quantity=line_item.quantity,
+                    delivery_date=bol.delivery_date,
+                    status='scheduled'
+                )
+            
+            messages.success(request, f"Bill of Lading {bol.bill_number} confirmed successfully! Orders have been scheduled.")
+            return redirect('dashboard-index')
+    except Exception as e:
+        messages.error(request, f"Error confirming BOL: {str(e)}")
+        return redirect('dashboard-bol-edit', bol_id=bol_id)
+
+@login_required
+def delete_bol(request, bol_id):
+    """Delete a draft BOL"""
+    bol = get_object_or_404(BillOfLading, id=bol_id)
+    
+    if bol.status != 'draft':
+        messages.warning(request, "Only draft BOLs can be deleted")
+        return redirect('dashboard-bol')
+    
+    bill_number = bol.bill_number
+    bol.delete()
+    messages.success(request, f"Bill of Lading {bill_number} deleted successfully")
+    return redirect('dashboard-bol')
 
 @login_required
 @require_http_methods(["POST"])
