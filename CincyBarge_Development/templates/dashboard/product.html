@@ -21,9 +21,9 @@
 
             <!-- Upload Raw Inventory Data Form -->
             <div class="card card-body mt-4">
-                <h5>Upload Raw Inventory Data</h5>
+                <h5>Upload Inventory Data</h5>
                 <hr>
-                <p class="text-muted small">Upload unstructured inventory data from CSV or JSON files. Data will be stored per supplier.</p>
+                <p class="text-muted small">Upload inventory data from CSV or JSON files. Data will be stored per supplier.</p>
                 <form method="POST" action="{% url 'upload-raw-data' %}" enctype="multipart/form-data">
                     {% csrf_token %}
 
@@ -59,7 +59,7 @@
                 
                 <!-- View Raw Data Button -->
                 <a href="{% url 'raw-data-view' %}" class="btn btn-info btn-block mt-2">
-                    View Uploaded Raw Data
+                    View Uploaded Data
                 </a>
             </div>
         </div>

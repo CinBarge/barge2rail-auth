@@ -17,4 +17,7 @@ urlpatterns = [
     path('upload-raw-data/', views.upload_raw_data, name='upload-raw-data'),
     path('raw-data/', views.raw_data_view, name='raw-data-view'),
     path('raw-data/<int:pk>/', views.raw_data_detail, name='raw-data-detail'),
+    path('raw-data/edit/', views.raw_data_edit_list, name='raw-data-edit-list'),
+    path('raw-data/edit/<int:pk>/', views.raw_data_edit, name='raw-data-edit'),
+    path('raw-data/delete/<int:pk>/', views.raw_data_delete, name='raw-data-delete'),
 ]

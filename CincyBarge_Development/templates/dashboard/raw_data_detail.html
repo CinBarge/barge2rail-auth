@@ -1,5 +1,5 @@
 {% extends 'partials/base.html' %}
-{% block title %}Raw Data Detail{% endblock %}
+{% block title %}Uploaded Data Detail{% endblock %}
 
 {% block content %}
 {% include 'partials/topnav.html'%}
@@ -8,7 +8,7 @@
     <div class="row my-4">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2>Raw Data Detail</h2>
+                <h2>Uploaded Data Detail</h2>
                 <div>
                     <a href="{% url 'raw-data-view' %}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> Back to List
@@ -67,7 +67,7 @@
             <!-- Data Display Card -->
             <div class="card">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Raw Data Content</h5>
+                    <h5 class="mb-0">Uploaded Data Content</h5>
                     <button class="btn btn-sm btn-light" onclick="copyToClipboard()">
                         <i class="fas fa-copy"></i> Copy JSON
                     </button>

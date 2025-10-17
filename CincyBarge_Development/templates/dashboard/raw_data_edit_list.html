@@ -1,0 +1,128 @@
+{% extends 'partials/base.html' %}
+{% block title %}Edit Uploaded Inventory Data{% endblock %}
+
+{% block content %}
+{% include 'partials/topnav.html' %}
+
+<div class="container-fluid">
+    <div class="row my-4">
+        <div class="col-12">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="card">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-edit"></i> Edit Uploaded Inventory Data</h5>
+                    <a href="{% url 'dashboard-product' %}" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Products
+                    </a>
+                </div>
+
+                <div class="card-body">
+                    {% if raw_data_entries %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="bg-light">
+                                    <tr>
+                                        <th>File Name</th>
+                                        <th>Supplier</th>
+                                        <th>Uploaded By</th>
+                                        <th>Upload Date</th>
+                                        <th>Data Summary</th>
+                                        <th class="text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for entry in raw_data_entries %}
+                                    <tr>
+                                        <td>
+                                            <i class="fas fa-file"></i> 
+                                            <strong>{{ entry.file_name }}</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-info">{{ entry.supplier.name }}</span>
+                                        </td>
+                                        <td>{{ entry.uploaded_by.username }}</td>
+                                        <td>{{ entry.uploaded_at|date:"M d, Y h:i A" }}</td>
+                                        <td>
+                                            {% if entry.data.total_rows %}
+                                                <span class="badge badge-success">{{ entry.data.total_rows }} rows</span>
+                                            {% elif entry.data|length > 0 %}
+                                                <span class="badge badge-success">{{ entry.data|length }} items</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">Data available</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-center">
+                                            <a href="{% url 'raw-data-edit' entry.pk %}" 
+                                               class="btn btn-sm btn-primary" 
+                                               title="Edit">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </a>
+                                            <button type="button" 
+                                                    class="btn btn-sm btn-danger" 
+                                                    data-toggle="modal" 
+                                                    data-target="#deleteModal{{ entry.pk }}"
+                                                    title="Delete">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </button>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Delete Confirmation Modal -->
+                                    <div class="modal fade" id="deleteModal{{ entry.pk }}" tabindex="-1" role="dialog">
+                                        <div class="modal-dialog" role="document">
+                                            <div class="modal-content">
+                                                <div class="modal-header bg-danger text-white">
+                                                    <h5 class="modal-title">Confirm Delete</h5>
+                                                    <button type="button" class="close text-white" data-dismiss="modal">
+                                                        <span>&times;</span>
+                                                    </button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <p>Are you sure you want to delete this raw data entry?</p>
+                                                    <p><strong>File:</strong> {{ entry.file_name }}</p>
+                                                    <p><strong>Supplier:</strong> {{ entry.supplier.name }}</p>
+                                                    <p class="text-danger"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone!</p>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                                                    <form method="POST" action="{% url 'raw-data-delete' entry.pk %}" style="display: inline;">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-danger">
+                                                            <i class="fas fa-trash"></i> Delete
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> No data entries found. Upload some data first from the Products page.
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="card-footer text-muted">
+                    <small>
+                        <strong>Total Entries:</strong> {{ raw_data_entries|length }}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

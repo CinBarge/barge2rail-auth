@@ -1,0 +1,146 @@
+{% extends 'partials/base.html' %}
+{% block title %}Edit Uploaded Data - {{ raw_data.file_name }}{% endblock %}
+
+{% block content %}
+{% include 'partials/topnav.html' %}
+
+<div class="container-fluid">
+    <div class="row my-4">
+        <div class="col-12">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-edit"></i> Edit Uploaded Data Entry</h5>
+                    <a href="{% url 'raw-data-view' %}" class="btn btn-sm btn-light">
+                        <i class="fas fa-arrow-left"></i> Back to Uploaded Data
+                    </a>
+                </div>
+
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p><strong>File Name:</strong> {{ raw_data.file_name }}</p>
+                            <p><strong>Current Supplier:</strong> <span class="badge badge-info">{{ raw_data.supplier.name }}</span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Uploaded By:</strong> {{ raw_data.uploaded_by.username }}</p>
+                            <p><strong>Upload Date:</strong> {{ raw_data.uploaded_at|date:"M d, Y h:i A" }}</p>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <form method="POST">
+                        {% csrf_token %}
+                        
+                        <div class="form-group">
+                            <label for="supplier"><strong>Change Supplier:</strong></label>
+                            <select name="supplier" id="supplier" class="form-control">
+                                {% for sup in suppliers %}
+                                    <option value="{{ sup.id }}" {% if sup.id == raw_data.supplier.id %}selected{% endif %}>
+                                        {{ sup.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Select a different supplier if needed</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="data"><strong>Edit Data (JSON Format):</strong></label>
+                            <textarea name="data" id="data" class="form-control" rows="20" style="font-family: monospace; font-size: 12px;">{{ formatted_data }}</textarea>
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle"></i> Edit the JSON data carefully. Make sure to maintain valid JSON format.
+                            </small>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i> <strong>Warning:</strong> 
+                            Editing this data will update all product entries associated with this raw data file. 
+                            Make sure your JSON is valid before saving.
+                        </div>
+
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save"></i> Save Changes
+                            </button>
+                            <a href="{% url 'raw-data-view' %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="button" class="btn btn-info" onclick="validateJSON()">
+                                <i class="fas fa-check-circle"></i> Validate JSON
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card-footer">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i> 
+                        Tip: Use an online JSON validator or editor if you need help formatting the data.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function validateJSON() {
+        const dataTextarea = document.getElementById('data');
+        const jsonString = dataTextarea.value;
+        
+        try {
+            JSON.parse(jsonString);
+            alert('✓ JSON is valid!');
+            dataTextarea.classList.remove('is-invalid');
+            dataTextarea.classList.add('is-valid');
+        } catch (e) {
+            alert('✗ Invalid JSON!\n\nError: ' + e.message);
+            dataTextarea.classList.remove('is-valid');
+            dataTextarea.classList.add('is-invalid');
+        }
+    }
+
+    // Add syntax highlighting helper
+    document.addEventListener('DOMContentLoaded', function() {
+        const textarea = document.getElementById('data');
+        
+        // Add tab support for better JSON editing
+        textarea.addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                
+                // Insert 2 spaces for tab
+                this.value = this.value.substring(0, start) + '  ' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 2;
+            }
+        });
+    });
+</script>
+
+<style>
+    #data {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+    }
+    #data.is-valid {
+        border-color: #28a745;
+    }
+    #data.is-invalid {
+        border-color: #dc3545;
+    }
+</style>
+
+{% endblock %}

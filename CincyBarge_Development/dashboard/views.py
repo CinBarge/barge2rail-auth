@@ -414,3 +414,74 @@ def raw_data_detail(request, pk):
     except RawProductData.DoesNotExist:
         messages.error(request, "Raw data entry not found.")
         return redirect('dashboard-raw-data')
+
+
+@login_required
+def raw_data_edit_list(request):
+    """Display list of raw data entries for editing."""
+    raw_data_entries = RawProductData.objects.select_related('supplier', 'uploaded_by').all().order_by('-uploaded_at')
+    
+    context = {
+        'raw_data_entries': raw_data_entries,
+    }
+    
+    return render(request, 'dashboard/raw_data_edit_list.html', context)
+
+
+@login_required
+def raw_data_edit(request, pk):
+    """Edit a specific raw data entry."""
+    try:
+        raw_data = RawProductData.objects.select_related('supplier', 'uploaded_by').get(pk=pk)
+        
+        if request.method == 'POST':
+            # Get updated data from form
+            updated_data_str = request.POST.get('data')
+            supplier_id = request.POST.get('supplier')
+            
+            try:
+                # Parse the JSON data
+                updated_data = json.loads(updated_data_str)
+                
+                # Update the raw data entry
+                raw_data.data = updated_data
+                if supplier_id:
+                    raw_data.supplier_id = supplier_id
+                raw_data.save()
+                
+                messages.success(request, f"Successfully updated raw data entry: {raw_data.file_name}")
+                return redirect('raw-data-view')
+                
+            except json.JSONDecodeError as e:
+                messages.error(request, f"Invalid JSON format: {str(e)}")
+        
+        # Format the JSON data for editing
+        formatted_data = json.dumps(raw_data.data, indent=2)
+        suppliers = Supplier.objects.all()
+        
+        context = {
+            'raw_data': raw_data,
+            'formatted_data': formatted_data,
+            'suppliers': suppliers,
+        }
+        
+        return render(request, 'dashboard/raw_data_edit.html', context)
+        
+    except RawProductData.DoesNotExist:
+        messages.error(request, "Raw data entry not found.")
+        return redirect('raw-data-edit-list')
+
+
+@login_required
+def raw_data_delete(request, pk):
+    """Delete a specific raw data entry."""
+    if request.method == 'POST':
+        try:
+            raw_data = RawProductData.objects.get(pk=pk)
+            file_name = raw_data.file_name
+            raw_data.delete()
+            messages.success(request, f"Successfully deleted raw data entry: {file_name}")
+        except RawProductData.DoesNotExist:
+            messages.error(request, "Raw data entry not found.")
+    
+    return redirect('raw-data-view')
