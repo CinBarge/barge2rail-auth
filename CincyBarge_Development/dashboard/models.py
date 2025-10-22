@@ -51,12 +51,27 @@ class BillOfLadingTemplate(models.Model):
     file_name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     
+    # Smart Template: Store extracted field structure for reuse
+    field_mapping = models.JSONField(
+        default=dict, 
+        blank=True,
+        help_text="Extracted field structure from template PDF for quick BOL creation"
+    )
+    is_configured = models.BooleanField(
+        default=False,
+        help_text="Whether field mapping has been extracted and configured"
+    )
+    
     class Meta:
         verbose_name_plural = 'Bill of Lading Templates'
         ordering = ['-uploaded_at']
     
     def __str__(self):
         return f"BOL Template - {self.supplier.name}"
+    
+    def has_field_mapping(self):
+        """Check if template has configured field mapping"""
+        return self.is_configured and bool(self.field_mapping)
 
 
 class BillOfLading(models.Model):

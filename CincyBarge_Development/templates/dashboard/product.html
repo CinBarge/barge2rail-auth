@@ -61,6 +61,16 @@
                 <a href="{% url 'raw-data-view' %}" class="btn btn-info btn-block mt-2">
                     View Uploaded Data
                 </a>
+                
+                <!-- Sync Raw Data to Products -->
+                <form method="POST" action="{% url 'sync-raw-data' %}" class="mt-2">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success btn-block" 
+                            onclick="return confirm('This will convert all uploaded raw data (CSV/JSON) into structured Product records. Continue?');">
+                        <i class="fas fa-sync-alt"></i> Sync Uploaded Data to Products
+                    </button>
+                </form>
+                <small class="text-muted d-block mt-1">Convert uploaded CSV/JSON data into structured products</small>
             </div>
         </div>
 

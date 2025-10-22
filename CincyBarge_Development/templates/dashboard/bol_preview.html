@@ -204,7 +204,7 @@
     <div class="col-12">
       {% if line_items %}
         <form method="post" action="{% url 'dashboard-bol-confirm' bol.id %}" style="display:inline;" 
-              onsubmit="return confirm('Confirm this Bill of Lading? Orders will be scheduled for {{ bol.delivery_date|date:\'M d, Y\'|default:\'the delivery date\' }}. This action cannot be undone.');">
+              onsubmit="return confirm('Confirm this Bill of Lading? Orders will be created and scheduled. This action cannot be undone.');">
           {% csrf_token %}
           <button type="submit" class="btn btn-success btn-lg">
             <i class="fas fa-check-circle"></i> Confirm BOL & Create Orders

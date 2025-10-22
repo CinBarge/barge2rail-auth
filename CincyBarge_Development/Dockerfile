@@ -34,8 +34,15 @@ python manage.py migrate --noinput\n\
 python manage.py runserver 0.0.0.0:8000' > /entrypoint.sh && \
 chmod +x /entrypoint.sh
 
-# Install netcat for database wait check
-RUN apt-get update && apt-get install -y netcat-traditional && rm -rf /var/lib/apt/lists/*
+# Install system dependencies for pdfplumber and netcat for database wait check
+RUN apt-get update && \
+    apt-get install -y \
+    netcat-traditional \
+    gcc \
+    g++ \
+    libffi-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Use the entrypoint script
 ENTRYPOINT ["/entrypoint.sh"]

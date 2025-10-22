@@ -1,0 +1,134 @@
+{% extends 'partials/base.html' %}
+{% block title %}Edit Order{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-12">
+      <h2><i class="fas fa-edit"></i> Edit Order #{{ order.id }}</h2>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{% url 'dashboard-index' %}">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'dashboard-order' %}">Orders</a></li>
+          <li class="breadcrumb-item active">Edit Order #{{ order.id }}</li>
+        </ol>
+      </nav>
+    </div>
+  </div>
+
+  <div class="row mt-3">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5><i class="fas fa-box"></i> Order Details</h5>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            
+            <div class="mb-3">
+              <label for="product" class="form-label">Product <span class="text-danger">*</span></label>
+              <select class="form-select" id="product" name="product" required>
+                <option value="">Select a product...</option>
+                {% for product in products %}
+                  <option value="{{ product.id }}" {% if product.id == order.product.id %}selected{% endif %}>
+                    {{ product.name }} 
+                    {% if product.supplier %}({{ product.supplier.name }}){% endif %}
+                    - Qty: {{ product.quantity }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label for="order_quantity" class="form-label">Order Quantity <span class="text-danger">*</span></label>
+              <input type="number" class="form-control" id="order_quantity" name="order_quantity" 
+                     value="{{ order.order_quantity }}" min="1" required>
+              <small class="form-text text-muted">Number of units to order</small>
+            </div>
+
+            <div class="mb-3">
+              <label for="delivery_date" class="form-label">Delivery Date</label>
+              <input type="date" class="form-control" id="delivery_date" name="delivery_date" 
+                     value="{{ order.delivery_date|date:'Y-m-d' }}">
+              <small class="form-text text-muted">Expected delivery date</small>
+            </div>
+
+            <div class="mb-3">
+              <label for="status" class="form-label">Status <span class="text-danger">*</span></label>
+              <select class="form-select" id="status" name="status" required>
+                {% for value, label in status_choices %}
+                  <option value="{{ value }}" {% if value == order.status %}selected{% endif %}>
+                    {{ label }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
+              <button type="submit" class="btn btn-primary btn-lg">
+                <i class="fas fa-save"></i> Save Changes
+              </button>
+              <a href="{% url 'dashboard-order' %}" class="btn btn-secondary btn-lg">
+                <i class="fas fa-times"></i> Cancel
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-header bg-info text-white">
+          <h5><i class="fas fa-info-circle"></i> Order Information</h5>
+        </div>
+        <div class="card-body">
+          <p><strong>Order ID:</strong> #{{ order.id }}</p>
+          <p><strong>Current Product:</strong> {{ order.product.name }}</p>
+          {% if order.product.supplier %}
+          <p><strong>Supplier:</strong> {{ order.product.supplier.name }}</p>
+          {% endif %}
+          <p><strong>Created:</strong> {{ order.date|date:"M d, Y H:i" }}</p>
+          <p><strong>Created By:</strong> {{ order.staff.username|default:"N/A" }}</p>
+          <p><strong>Current Status:</strong> 
+            <span class="badge bg-{{ order.status }}">{{ order.get_status_display }}</span>
+          </p>
+          {% if order.completed_at %}
+          <p><strong>Completed:</strong> {{ order.completed_at|date:"M d, Y H:i" }}</p>
+          {% endif %}
+          {% if order.bill_of_lading %}
+          <p><strong>BOL:</strong> 
+            <a href="{% url 'dashboard-bol-preview' order.bill_of_lading.id %}">
+              {{ order.bill_of_lading.bill_number }}
+            </a>
+          </p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card mt-3">
+        <div class="card-header bg-warning">
+          <h5><i class="fas fa-exclamation-triangle"></i> Important Notes</h5>
+        </div>
+        <div class="card-body">
+          <ul class="mb-0">
+            <li>Only pending and scheduled orders can be fully edited</li>
+            <li>Completed and cancelled orders cannot be edited</li>
+            <li>Changing status to "completed" will record completion timestamp</li>
+            <li>Orders linked to BOLs should be reviewed carefully</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.badge.bg-pending { background-color: #ffc107 !important; }
+.badge.bg-scheduled { background-color: #17a2b8 !important; }
+.badge.bg-in_progress { background-color: #007bff !important; }
+.badge.bg-completed { background-color: #28a745 !important; }
+.badge.bg-cancelled { background-color: #dc3545 !important; }
+</style>
+{% endblock %}

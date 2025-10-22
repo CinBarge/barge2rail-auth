@@ -91,3 +91,30 @@ class BillOfLadingLineItemForm(forms.ModelForm):
             'weight': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
+
+
+class BOLPDFUploadForm(forms.Form):
+    """Form for uploading BOL PDF for data extraction"""
+    supplier = forms.ModelChoiceField(
+        queryset=Supplier.objects.all(),
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text="Select the supplier for this Bill of Lading"
+    )
+    pdf_file = forms.FileField(
+        required=True,
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': '.pdf'}),
+        help_text="Upload a Bill of Lading PDF to extract data"
+    )
+    
+    def clean_pdf_file(self):
+        file = self.cleaned_data.get('pdf_file')
+        if file:
+            file_extension = file.name.split('.')[-1].lower()
+            if file_extension != 'pdf':
+                raise forms.ValidationError("Only PDF files are allowed.")
+            
+            # Check file size (max 15MB)
+            if file.size > 15 * 1024 * 1024:
+                raise forms.ValidationError("File size cannot exceed 15MB.")
+        return file

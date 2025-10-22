@@ -16,12 +16,20 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.shortcuts import redirect
 from user import views as user_view
 from django.contrib.auth import views as auth_views
 from django.conf import settings
 from django.conf.urls.static import static
 
+def index_redirect(request):
+    """Redirect root to dashboard or SSO login"""
+    if request.user.is_authenticated:
+        return redirect('dashboard-index')
+    return redirect('sso-login')
+
 urlpatterns = [
+    path('', index_redirect, name='index'),
     path('admin/', admin.site.urls),
     path('', include('dashboard.urls')),
     path('sso-login/', user_view.sso_login, name='sso-login'),
