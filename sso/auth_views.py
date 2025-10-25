@@ -289,7 +289,7 @@ def google_auth_callback(request):
                       status=status.HTTP_400_BAD_REQUEST)
     
     # Exchange the code for tokens
-    redirect_uri = f"{request.scheme}://{request.get_host()}"
+    redirect_uri = f"{request.scheme}://{request.get_host()}/api/auth/google/callback/"
     token_url = 'https://oauth2.googleapis.com/token'
     
     payload = {
