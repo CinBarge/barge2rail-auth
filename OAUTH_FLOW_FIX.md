@@ -1,0 +1,195 @@
+# OAuth Flow Fix - URL Encoding Issue
+
+## Problem Identified
+
+When PrimeTrade redirected users to SSO's `/auth/authorize/` endpoint and the user wasn't authenticated, SSO would redirect to the login page with a `next` parameter. However, the `next` parameter contained OAuth query parameters (client_id, redirect_uri, state, etc.), and these weren't being properly URL-encoded.
+
+### Before the Fix
+
+```python
+# In sso/oauth_views.py line 86
+return redirect(f"{login_url}?next={current_url}")
+```
+
+This generated URLs like:
+```
+/auth/web/login/?next=/auth/authorize/?client_id=xxx&redirect_uri=http://...&state=yyy
+```
+
+The problem: The `&` characters in the `next` value were interpreted as separate query parameters for the login URL, causing the OAuth parameters to be lost.
+
+### After the Fix
+
+```python
+# In sso/oauth_views.py line 88
+from urllib.parse import quote
+return redirect(f"{login_url}?next={quote(current_url, safe='')}")
+```
+
+This now generates properly encoded URLs:
+```
+/auth/web/login/?next=%2Fauth%2Fauthorize%2F%3Fclient_id%3Dxxx%26redirect_uri%3Dhttp%253A%252F%252F...%26state%3Dyyy
+```
+
+All OAuth parameters are preserved!
+
+## Complete OAuth Flow
+
+### Step 1: PrimeTrade Initiates OAuth
+```
+GET http://127.0.0.1:8000/auth/authorize/?client_id=primetrade_client&redirect_uri=http://127.0.0.1:8002/auth/callback/&response_type=code&scope=openid email profile&state=random123
+```
+
+### Step 2: SSO Checks Authentication
+- **If authenticated**: Skip to Step 5
+- **If not**: Redirect to login (Step 3)
+
+```
+HTTP 302 Redirect to:
+/auth/web/login/?next=%2Fauth%2Fauthorize%2F%3Fclient_id%3Dprimetrade_client%26...
+```
+
+### Step 3: User Sees Login Page
+SSO shows login form with options:
+- Google Sign-In (for @barge2rail.com users)
+- Username/Password (for field workers and external users)
+
+The `next` parameter is preserved in a hidden form field.
+
+### Step 4: User Authenticates
+After successful login, SSO redirects to the `next` URL:
+```
+HTTP 302 Redirect to:
+/auth/authorize/?client_id=primetrade_client&redirect_uri=http://127.0.0.1:8002/auth/callback/&...
+```
+
+### Step 5: SSO Generates Authorization Code
+Now that the user is authenticated, the authorize endpoint:
+1. Validates client_id and redirect_uri
+2. Checks user has access to the application
+3. Generates authorization code
+4. Redirects back to PrimeTrade with the code
+
+```python
+# oauth_views.py lines 101-117
+auth_code = AuthorizationCode.objects.create(
+    user=request.user,
+    application=application,
+    redirect_uri=redirect_uri,
+    scope=scope,
+    state=state
+)
+
+params = {
+    'code': auth_code.code,
+    'state': state,
+}
+redirect_url = f"{redirect_uri}?{urlencode(params)}"
+return redirect(redirect_url)
+```
+
+```
+HTTP 302 Redirect to:
+http://127.0.0.1:8002/auth/callback/?code=ABC123&state=random123
+```
+
+### Step 6: PrimeTrade Exchanges Code for Tokens
+PrimeTrade's callback handler receives the code and exchanges it:
+
+```python
+POST http://127.0.0.1:8000/auth/token/
+{
+    "code": "ABC123",
+    "client_id": "primetrade_client",
+    "client_secret": "secret",
+    "redirect_uri": "http://127.0.0.1:8002/auth/callback/",
+    "grant_type": "authorization_code"
+}
+```
+
+### Step 7: SSO Returns JWT Tokens
+```json
+{
+    "access_token": "eyJ...",
+    "refresh_token": "eyJ...",
+    "user": {
+        "id": "uuid",
+        "email": "user@example.com",
+        "roles": {
+            "primetrade": {
+                "role": "admin",
+                "permissions": {}
+            }
+        }
+    }
+}
+```
+
+### Step 8: User Logged Into PrimeTrade
+PrimeTrade uses the access token to authenticate API requests and creates a Django session for the user.
+
+## Files Modified
+
+### `/Users/cerion/Projects/barge2rail-auth/sso/oauth_views.py`
+**Line 84-88**: Added URL encoding for the `next` parameter
+
+```python
+# Check if user is authenticated
+if not request.user.is_authenticated:
+    # Redirect to web login form (NOT API endpoint)
+    from urllib.parse import quote
+    login_url = '/auth/web/login/'
+    current_url = request.get_full_path()
+    # URL-encode the next parameter to preserve OAuth query params
+    return redirect(f"{login_url}?next={quote(current_url, safe='')}")
+```
+
+## Testing
+
+### Manual Test
+1. Clear browser cookies
+2. Visit `http://127.0.0.1:8002/login/`
+3. Should redirect through SSO OAuth flow
+4. After login, should return to PrimeTrade dashboard
+
+### Automated Test
+Run the OAuth flow test script:
+```bash
+cd /Users/cerion/Projects/barge2rail-auth
+source venv/bin/activate
+python test_oauth_flow.py
+```
+
+Expected output:
+```
+✅ Got authorization code
+✅ State matches
+✅ SUCCESS! Got tokens
+OAUTH FLOW COMPLETE ✅
+```
+
+## Security Considerations
+
+### URL Encoding
+- Using `quote(current_url, safe='')` ensures ALL special characters are encoded
+- This prevents injection attacks via the `next` parameter
+- Django's `redirect()` function handles the encoded URL correctly
+
+### State Parameter
+- OAuth state parameter provides CSRF protection
+- Generated by PrimeTrade, validated during token exchange
+- Single-use to prevent replay attacks
+
+### Authorization Code
+- One-time use code
+- Short expiry (10 minutes by default)
+- Bound to specific client_id and redirect_uri
+
+## Implementation Date
+October 12, 2025
+
+## Status
+✅ **FIXED AND READY FOR TESTING**
+
+The OAuth flow will now work correctly:
+- PrimeTrade → SSO → Login → Back to PrimeTrade with auth code → Token exchange → Success
