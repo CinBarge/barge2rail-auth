@@ -80,10 +80,12 @@ def oauth_authorize(request):
 
     # Check if user is authenticated
     if not request.user.is_authenticated:
-        # Redirect to login, then back here
-        login_url = '/login/'
+        # Redirect to web login form (NOT API endpoint)
+        from urllib.parse import quote
+        login_url = '/auth/web/login/'
         current_url = request.get_full_path()
-        return redirect(f"{login_url}?next={current_url}")
+        # URL-encode the next parameter to preserve OAuth query params
+        return redirect(f"{login_url}?next={quote(current_url, safe='')}")
 
     # Check if user has access to this application
     try:
