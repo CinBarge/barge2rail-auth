@@ -41,34 +41,74 @@ def login_email(request):
     return generate_token_response(user)
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def login_google(request):
-    """Google Sign-In authentication"""
+    """
+    Google Sign-In authentication.
+
+    GET: Initiates Google OAuth flow (redirects to Google consent screen)
+    POST: Verifies Google ID token and creates/updates user
+    """
+
+    # Handle GET requests - initiate Google OAuth flow
+    if request.method == 'GET':
+        logger.info("[GOOGLE LOGIN] GET request - initiating Google OAuth flow")
+
+        if not GOOGLE_AUTH_AVAILABLE:
+            return Response({'error': 'Google authentication not available'},
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        if not GOOGLE_CLIENT_ID:
+            return Response({'error': 'Google OAuth not configured'},
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Build redirect URI (where Google will send user after authentication)
+        redirect_uri = f"{request.scheme}://{request.get_host()}/api/auth/google/callback/"
+
+        # Build Google OAuth authorization URL
+        from urllib.parse import urlencode
+        google_oauth_params = {
+            'client_id': GOOGLE_CLIENT_ID,
+            'redirect_uri': redirect_uri,
+            'response_type': 'code',
+            'scope': 'openid email profile',
+            'access_type': 'offline',
+            'prompt': 'select_account'
+        }
+
+        google_auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(google_oauth_params)}"
+
+        logger.info(f"[GOOGLE LOGIN] Redirecting to Google OAuth: {google_auth_url[:80]}...")
+
+        # Redirect user to Google OAuth consent screen
+        return redirect(google_auth_url)
+
+    # Handle POST requests - verify ID token
     token = request.data.get('token')
-    
+
     if not token:
-        return Response({'error': 'Google token required'}, 
+        return Response({'error': 'Google token required'},
                        status=status.HTTP_400_BAD_REQUEST)
-    
+
     if not GOOGLE_AUTH_AVAILABLE:
-        return Response({'error': 'Google authentication not available'}, 
+        return Response({'error': 'Google authentication not available'},
                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
     if not GOOGLE_CLIENT_ID:
-        return Response({'error': 'Google OAuth not configured'}, 
+        return Response({'error': 'Google OAuth not configured'},
                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
     try:
         # Verify Google token
         idinfo = id_token.verify_oauth2_token(
             token, google_requests.Request(), GOOGLE_CLIENT_ID
         )
-        
+
         google_id = idinfo['sub']
         email = idinfo['email']
         name = idinfo.get('name', '')
-        
+
         # Find or create user
         user, created = User.objects.get_or_create(
             google_id=google_id,
@@ -82,7 +122,7 @@ def login_google(request):
                 'is_active': True,
             }
         )
-        
+
         # Update user info if existing
         if not created:
             user.email = email
@@ -90,11 +130,11 @@ def login_google(request):
             user.first_name = idinfo.get('given_name', '')
             user.last_name = idinfo.get('family_name', '')
             user.save()
-        
+
         return generate_token_response(user, created=created)
-        
+
     except ValueError as e:
-        return Response({'error': 'Invalid Google token'}, 
+        return Response({'error': 'Invalid Google token'},
                        status=status.HTTP_400_BAD_REQUEST)
 
 
