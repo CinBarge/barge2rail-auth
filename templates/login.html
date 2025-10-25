@@ -192,14 +192,7 @@
             },
 
             async getGoogleOAuthUrl() {
-                try {
-                    const response = await fetch(`${SSO_URL}/api/auth/oauth/google/url/`);
-                    const data = await response.json();
-                    return data.auth_url;
-                } catch (error) {
-                    console.error('Failed to get Google OAuth URL:', error);
-                    return null;
-                }
+                return `${SSO_URL}/api/auth/login/google/`;
             }
         };
 
@@ -209,13 +202,9 @@
                 try {
                     showAlert('Getting Google authentication URL...', 'info');
                     
-                    const authUrl = await sso.getGoogleOAuthUrl();
-                    if (authUrl) {
-                        showAlert('Redirecting to Google...', 'info');
-                        window.location.href = authUrl;
-                    } else {
-                        showAlert('Failed to get Google authentication URL', 'error');
-                    }
+            async getGoogleOAuthUrl() {
+                return `${SSO_URL}/api/auth/login/google/`;
+            }
                 } catch (error) {
                     showAlert('Error initiating Google Sign-In', 'error');
                 }
