@@ -120,6 +120,66 @@
 
 ---
 
+## Common Django Commands
+
+### Development
+- `python manage.py runserver` - Start dev server (http://localhost:8000)
+- `python manage.py shell` - Django Python shell with models loaded
+- `python manage.py dbshell` - Direct PostgreSQL shell access
+
+### Database
+- `python manage.py makemigrations` - Create migration files from model changes
+- `python manage.py migrate` - Apply migrations to database
+- `python manage.py showmigrations` - Show migration status
+- `python manage.py sqlmigrate app_name migration_number` - Show SQL for a migration
+
+### Testing
+- `python manage.py test` - Run full test suite
+- `python manage.py test app_name` - Run tests for specific app
+- `python manage.py test --keepdb` - Run tests reusing test DB (faster)
+- `python manage.py test --parallel` - Run tests in parallel (faster for large suites)
+
+### User Management
+- `python manage.py createsuperuser` - Create Django admin user
+- `python manage.py changepassword <username>` - Reset user password
+
+### Deployment (Render)
+- **Trigger:** Git push to `main` branch ? automatic deployment
+- **Render runs:** `python manage.py migrate` then `python manage.py collectstatic --noinput`
+- **Environment variables:** Set in Render dashboard (never commit secrets)
+- **Logs:** View in Render dashboard ? Logs tab
+- **Rollback:** Render dashboard ? Manual Deploy ? select previous commit
+
+### Debugging
+- `python manage.py check` - Validate Django project (catch common configuration errors)
+- `python manage.py check --deploy` - Additional production-readiness checks (settings validation)
+- `python manage.py diffsettings` - Show which settings differ from Django defaults
+
+### Static Files
+- `python manage.py collectstatic` - Gather static files for deployment
+- `python manage.py collectstatic --noinput` - Non-interactive version (for CI/CD)
+
+### Django Shell Utilities
+```python
+# Common shell operations
+from django.contrib.auth import get_user_model
+User = get_user_model()
+
+# List all users
+User.objects.all()
+
+# Find specific user
+User.objects.get(email='user@barge2rail.com')
+
+# Test OAuth token
+from allauth.socialaccount.models import SocialToken
+SocialToken.objects.filter(account__user__email='user@barge2rail.com')
+```
+
+**Note:** All commands assume you're in the project root (`/Users/cerion/Projects/barge2rail-auth`) with virtual environment activated.
+
+---
+
 ## Patterns That Work Here
 
 ### Pattern 1: OAuth Integration
@@ -221,6 +281,180 @@ redirect_uri = google_redirect_uri()
 
 ---
 
+## Error Handling Philosophy
+
+### Diagnose First, Fix Second
+**When encountering a bug or error:**
+1. **Analyze the root cause step-by-step** - Don't jump to solutions
+2. **Check assumptions** - What did we assume that might be wrong?
+3. **Trace the data flow** - Where does the bad data come from?
+4. **Review relevant code paths** - What else touches this functionality?
+5. **Use Django's error messages** - They're usually accurate and helpful
+
+**Example approach:**
+```
+Error: "redirect_uri_mismatch" from Google OAuth
+
+Step 1: What is the actual redirect_uri being sent?
+Step 2: What is configured in Google Console?
+Step 3: Do they match exactly (protocol, domain, path, trailing slash)?
+Step 4: Is BASE_URL environment variable set correctly?
+Step 5: Is google_redirect_uri() helper being used consistently?
+```
+
+### Graceful Error Handling
+
+**For External Dependencies (OAuth, APIs):**
+```python
+# DO: Wrap in try/except with specific exceptions
+try:
+    token_response = requests.post(token_url, data=token_data, timeout=10)
+    token_response.raise_for_status()
+except requests.Timeout:
+    logger.error("OAuth token request timed out", extra={'correlation_id': correlation_id})
+    return JsonResponse({'error': 'Authentication service temporarily unavailable. Please try again.'}, status=503)
+except requests.HTTPError as e:
+    logger.error(f"OAuth token request failed: {e.response.status_code}", extra={'correlation_id': correlation_id})
+    return JsonResponse({'error': 'Authentication failed. Please try again or contact support.'}, status=500)
+```
+
+**For Database Operations:**
+```python
+# DO: Use transactions for multi-step operations
+from django.db import transaction
+
+try:
+    with transaction.atomic():
+        user = User.objects.create(email=email)
+        profile = Profile.objects.create(user=user, ...)
+        # All or nothing - rolls back on any error
+except IntegrityError:
+    logger.warning(f"Duplicate user creation attempt: {email}")
+    return JsonResponse({'error': 'User already exists'}, status=409)
+```
+
+**For User-Facing Errors:**
+- Return clear, actionable messages (no technical jargon)
+- Use Django's messages framework for UI feedback
+- Provide next steps ("Click here to retry" not just "Error occurred")
+- Include correlation IDs in logs (for debugging) but not in user messages
+
+### Logging Standards
+
+**Use Django's logging framework:**
+```python
+import logging
+logger = logging.getLogger(__name__)
+
+# ERROR: Genuine errors requiring investigation
+logger.error("OAuth callback failed", extra={
+    'user_email': user.email,
+    'error_type': 'token_exchange_failed',
+    'correlation_id': correlation_id
+})
+
+# WARNING: Expected issues that might need attention
+logger.warning("User attempted login with revoked Google access", extra={
+    'user_email': user.email
+})
+
+# INFO: Normal operations for audit trail
+logger.info("User logged in successfully", extra={
+    'user_email': user.email,
+    'login_method': 'google_oauth'
+})
+```
+
+**Logging Rules:**
+- ? **DO:** Include context (user ID, correlation ID, operation type)
+- ? **DO:** Use structured logging (extra={} dict)
+- ? **DO:** Log at appropriate level (ERROR/WARNING/INFO)
+- ? **DON'T:** Log tokens, passwords, or PII (NEVER)
+- ? **DON'T:** Log entire request/response objects (may contain secrets)
+- ? **DON'T:** Use ERROR level for expected flows (use INFO or WARNING)
+
+### No Silent Failures
+
+**BAD - Swallows exception:**
+```python
+try:
+    user = User.objects.get(email=email)
+except User.DoesNotExist:
+    pass  # ? Silent failure - what happens now?
+```
+
+**GOOD - Handles explicitly:**
+```python
+try:
+    user = User.objects.get(email=email)
+except User.DoesNotExist:
+    logger.warning(f"Login attempt for non-existent user: {email}")
+    return JsonResponse({'error': 'Invalid credentials'}, status=401)
+```
+
+**Use Django's built-in exceptions:**
+- `Http404` - For not-found scenarios (triggers 404 page)
+- `PermissionDenied` - For authorization failures (triggers 403 page)
+- `SuspiciousOperation` - For security issues (logged and returns 400)
+
+### OAuth-Specific Error Handling
+
+**Common OAuth errors and responses:**
+```python
+# redirect_uri_mismatch
+# Cause: Mismatch between request and Google Console
+# Fix: Use google_redirect_uri() helper consistently
+# User message: "Configuration error. Please contact support."
+
+# invalid_grant
+# Cause: Refresh token expired or revoked
+# Fix: Clear tokens, redirect to re-authenticate
+# User message: "Your session has expired. Please log in again."
+
+# access_denied
+# Cause: User clicked "Cancel" on Google consent screen
+# Fix: Expected behavior, handle gracefully
+# User message: "Login cancelled. You can try again anytime."
+```
+
+### Debugging Checklist
+
+**When stuck on a bug:**
+1. [ ] Check Django's error page (DEBUG=True locally) - full stack trace
+2. [ ] Review relevant logs (filter by correlation_id or timestamp)
+3. [ ] Test in Django shell - reproduce issue in isolation
+4. [ ] Check database state - does data match expectations?
+5. [ ] Verify environment variables - are they set correctly?
+6. [ ] Check for recent changes - what changed before bug appeared?
+7. [ ] Use `python manage.py check --deploy` - catches common config issues
+8. [ ] Review Common Pitfalls section - is this a known issue?
+
+**Django debugging tools:**
+- `python manage.py shell` - Test models and logic interactively
+- `python manage.py dbshell` - Inspect database directly
+- `python manage.py diffsettings` - See non-default settings
+- Django Debug Toolbar (dev only) - SQL queries, cache hits, timing
+
+### Error Recovery Strategies
+
+**If a solution isn't working:**
+1. **Stop and reassess** - Don't keep trying random fixes
+2. **Revert recent changes** - Get back to known-good state
+3. **Test in isolation** - Remove complexity, test one thing at a time
+4. **Check external dependencies** - Is Google OAuth down? Is database accessible?
+5. **Consult documentation** - Django docs, OAuth specs, Render guides
+6. **Ask for help** - Flag to The Bridge if uncertain about approach
+
+**For production issues:**
+- Have rollback plan ready (see Deployment Context section)
+- Monitor error rates in Render logs
+- Keep old system accessible during parallel operation
+- Document issue in Common Pitfalls for future reference
+
+---
+
+## Deployment Context---
+
 ## Deployment Context
 
 **Environment Variables (Critical):**
@@ -260,6 +494,251 @@ redirect_uri = google_redirect_uri()
 - **Mobile access:** Field technicians on boats, in vehicles, spotty connectivity
 - **Non-technical users:** Office staff have basic computer skills, need simple interfaces
 - **Context switching:** Users juggle multiple tasks, need clear "where was I?" cues
+
+---
+
+## Edge Cases & Corner Cases
+
+### Always Consider These Scenarios
+
+**For ANY non-trivial feature, proactively list and handle edge cases.**
+
+### Category 1: Empty/Null/Missing Data
+
+**What to check:**
+- What if the input list/queryset is empty?
+- What if a required field is None/null?
+- What if a string is empty ('')?
+- What if a dictionary is missing expected keys?
+- What if optional parameters aren't provided?
+
+**Examples for this project:**
+```python
+# BAD: Assumes users exist
+users = User.objects.all()
+first_user = users[0]  # ? Crashes if no users
+
+# GOOD: Handles empty case
+users = User.objects.all()
+if not users.exists():
+    logger.warning("No users found in system")
+    return JsonResponse({'error': 'No users available'}, status=404)
+first_user = users.first()  # Returns None if empty (doesn't crash)
+```
+
+### Category 2: Concurrent Access & Race Conditions
+
+**What to check:**
+- What if two users modify the same data simultaneously?
+- What if a user opens the app in multiple browser tabs?
+- What if an OAuth callback arrives while user is already logged in?
+- What if two requests try to create the same user record?
+
+**Examples for this project:**
+```python
+# BAD: Race condition possible
+if not User.objects.filter(email=email).exists():
+    User.objects.create(email=email)  # ? Two requests might both pass check
+
+# GOOD: Database constraint handles it
+try:
+    user = User.objects.create(email=email)
+except IntegrityError:
+    user = User.objects.get(email=email)  # Already exists, use it
+```
+
+### Category 3: Session & Authentication Edge Cases
+
+**Critical for SSO system - what to check:**
+- User revokes Google access mid-session (refresh token invalid)
+- User changes Google password (invalidates all tokens)
+- User clicks "login" button twice rapidly (duplicate OAuth states)
+- User manually edits OAuth callback URL parameters (CSRF attempt)
+- Session expires during a long form submission
+- User logs in on device A, then device B (multiple active sessions)
+- Token expires between page load and API call
+
+**Examples for this project:**
+```python
+# Handle token refresh failure
+try:
+    new_token = refresh_oauth_token(refresh_token)
+except OAuthTokenExpired:
+    # Gracefully handle - clear session, redirect to login
+    request.session.flush()
+    messages.warning(request, "Your session has expired. Please log in again.")
+    return redirect('login')
+```
+
+### Category 4: Input Validation & Format Issues
+
+**What to check:**
+- What if email format is invalid?
+- What if a name contains special characters (O'Brien, José, ??)?
+- What if input exceeds expected length (500-character company name)?
+- What if numeric input is negative when should be positive?
+- What if date ranges are invalid (end before start)?
+
+**Examples for this project:**
+```python
+# Validate email before processing
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+
+try:
+    validate_email(email)
+except ValidationError:
+    return JsonResponse({'error': 'Invalid email format'}, status=400)
+
+# Handle special characters in names
+name = name.strip()  # Remove whitespace
+if len(name) > 200:
+    return JsonResponse({'error': 'Name too long (max 200 characters)'}, status=400)
+```
+
+### Category 5: Network & External Service Issues
+
+**What to check:**
+- What if OAuth provider (Google) is down or slow?
+- What if network request times out?
+- What if API returns unexpected status code (500, 429, etc.)?
+- What if database connection is lost mid-request?
+- What if third-party service changes API format?
+
+**Examples for this project:**
+```python
+# Handle Google API unavailability
+try:
+    response = requests.get(google_api_url, timeout=10)
+    response.raise_for_status()
+except requests.Timeout:
+    logger.error("Google API request timed out", extra={'url': google_api_url})
+    return JsonResponse({
+        'error': 'Authentication service temporarily unavailable. Please try again in a few moments.'
+    }, status=503)
+except requests.RequestException as e:
+    logger.error(f"Google API request failed: {str(e)}")
+    return JsonResponse({'error': 'Authentication failed. Please contact support.'}, status=500)
+```
+
+### Category 6: OAuth-Specific Edge Cases
+
+**Critical for this authentication system:**
+
+| Edge Case | Impact | Handling |
+|-----------|--------|----------|
+| Redirect URI has trailing slash mismatch | OAuth fails | Use `google_redirect_uri()` helper everywhere |
+| User clicks "Cancel" on Google consent | No auth granted | Expected - show friendly message, allow retry |
+| OAuth state parameter missing/tampered | CSRF attack | Validate state, reject if invalid |
+| Multiple OAuth callbacks for same state | Duplicate processing | Mark state as used after first callback |
+| Refresh token revoked by user | Can't refresh access | Clear session, require re-authentication |
+| User has no Google Workspace account | Wrong account type | Validate domain, reject non-workspace accounts |
+| OAuth scopes changed in Google Console | Unexpected data access | Log and alert, may need user re-consent |
+
+### Category 7: Data Limits & Boundaries
+
+**What to check:**
+- What if there are 10,000 users? (pagination needed)
+- What if a single user has 1,000 active sessions? (cleanup needed)
+- What if company name is 1,000 characters? (database limit)
+- What if date is far future (year 9999)? (validation needed)
+- What if numeric calculation could overflow? (use Decimal for money)
+
+### Edge Case Testing Approach
+
+**For any new feature:**
+
+1. **Brainstorm edge cases** (spend 5 minutes listing scenarios)
+2. **Categorize** (which of the 7 categories above apply?)
+3. **Decide handling strategy** for each:
+   - **Validate and reject** (with clear error message)
+   - **Handle gracefully** (fallback behavior)
+   - **Fail fast** (raise exception, logged)
+   - **Document assumption** (if edge case intentionally not handled)
+
+4. **Implement guards:**
+```python
+# Example: Login endpoint edge case guards
+def login_view(request):
+    # Edge case 1: Already authenticated
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    
+    # Edge case 2: Missing OAuth state
+    state = request.GET.get('state')
+    if not state:
+        logger.warning("OAuth callback missing state parameter")
+        return JsonResponse({'error': 'Invalid authentication attempt'}, status=400)
+    
+    # Edge case 3: Invalid/expired state
+    if not validate_oauth_state(state):
+        logger.warning("OAuth callback with invalid state", extra={'state': state[:20]})
+        return JsonResponse({'error': 'Authentication request expired. Please try again.'}, status=400)
+    
+    # Continue with normal flow...
+```
+
+5. **Test edge cases explicitly:**
+   - Add test cases for each identified edge case
+   - Include in functional tests ("What happens if user clicks login twice?")
+   - Document in test plan
+
+### When to Raise Exceptions vs. Handle Gracefully
+
+**Raise exceptions (fail fast) when:**
+- Programming error (developer mistake, not user mistake)
+- Configuration error (missing env var, invalid settings)
+- Data corruption (database integrity violated)
+- Security violation (CSRF, tampered data)
+
+**Handle gracefully when:**
+- User input error (invalid email, wrong format)
+- Expected edge case (user clicks cancel, session expires)
+- External service issue (Google API down, network timeout)
+- Business logic condition (user already exists, insufficient permissions)
+
+### Logistics-Specific Edge Cases
+
+**Unique to barge2rail operations:**
+
+- **Spotty connectivity:** Field technician loses network mid-form
+  - *Handling:* Auto-save drafts, allow offline work, sync when reconnected
+
+- **Long interruptions:** User called away for emergency, returns hours later
+  - *Handling:* Long session timeouts, save work-in-progress, easy resume
+
+- **Mobile device quirks:** iOS Safari, Android Chrome, various screen sizes
+  - *Handling:* Responsive design, test on actual devices, touch-friendly UI
+
+- **Seasonal patterns:** River freeze (winter) means different usage
+  - *Handling:* System should work year-round, scale down if needed
+
+- **Emergency scenarios:** Urgent operational issue during system use
+  - *Handling:* Quick save, clear exit points, easy return to task
+
+### Red Flags: Edge Cases You Might Miss
+
+**?? Watch out for these commonly overlooked scenarios:**
+
+- Unicode characters in names (José, ??, emoji)
+- Time zone issues (database UTC, user local time)
+- DST transitions (dates jumping forward/backward)
+- Leap years (February 29)
+- Very old dates (before 1900) or far future (after 2100)
+- First/last element of array (off-by-one errors)
+- Empty responses from external APIs
+- Partial failures (some operations succeed, others fail)
+- Idempotency (can same operation run twice safely?)
+
+### Documentation Requirement
+
+**When encountering an edge case in development:**
+1. Add it to "Common Pitfalls" section with solution
+2. Log to Galactica for institutional memory
+3. Add test to prevent regression
+4. Update this section if new category discovered
+
+**Prefer to fail fast on bad input rather than proceeding with wrong assumptions.**
 
 ---
 

@@ -12,7 +12,10 @@ from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework_simplejwt.tokens import RefreshToken
 from sso.tokens import CustomRefreshToken
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, login as django_login
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 from .models import User, Application, UserRole
 from .serializers import (
@@ -161,6 +164,77 @@ OAUTH_ERROR_MESSAGES = {
     'token_error': "Authentication failed: Could not obtain access token.",
     'user_info_error': "Authentication failed: Could not retrieve user information.",
 }
+
+# ============================================================================
+# Web-Based Authentication Views (Browser Users)
+# ============================================================================
+
+@require_http_methods(["GET", "POST"])
+def login_web(request):
+    """
+    Web-based login form for non-Google authentication.
+    Handles both email/password and username/password.
+    Forces Google OAuth for @barge2rail.com users.
+    """
+    # If already authenticated, redirect
+    if request.user.is_authenticated:
+        next_url = request.GET.get('next', '/dashboard/')
+        return redirect(next_url)
+
+    if request.method == 'GET':
+        next_url = request.GET.get('next', '/dashboard/')
+        return render(request, 'sso/login.html', {'next': next_url})
+
+    # POST - Process login
+    identifier = request.POST.get('identifier', '').strip().lower()  # Normalize to lowercase
+    password = request.POST.get('password', '').strip()
+    next_url = request.POST.get('next', '/dashboard/')
+
+    if not identifier or not password:
+        return render(request, 'sso/login.html', {
+            'next': next_url,
+            'error': 'Please provide both username/email and password'
+        })
+
+    # CRITICAL SECURITY: Block @barge2rail.com users from password login
+    if identifier.endswith('@barge2rail.com'):
+        # Log security violation
+        security_logger.warning(
+            f"SECURITY VIOLATION: @barge2rail.com user attempted password login: {identifier} "
+            f"from IP: {request.META.get('REMOTE_ADDR')}"
+        )
+
+        return render(request, 'sso/login.html', {
+            'next': next_url,
+            'force_google': True,
+            'google_url': '/auth/admin/google/login/',
+            'error': '🚫 SECURITY POLICY: Barge2Rail staff MUST use Google Sign-In. Password login is disabled for @barge2rail.com accounts.'
+        })
+
+    # Attempt authentication
+    user = authenticate(request, username=identifier, password=password)
+
+    if user is not None:
+        # Log the user in
+        django_login(request, user)
+        logger.info(f"Web login successful: {identifier}")
+
+        # Update auth_method if not set
+        if not user.auth_method or user.auth_method != 'password':
+            user.auth_method = 'password'
+            user.save(update_fields=['auth_method'])
+
+        # Redirect to next URL or dashboard
+        return redirect(next_url)
+    else:
+        # Authentication failed
+        logger.warning(f"Web login failed: {identifier}")
+        return render(request, 'sso/login.html', {
+            'next': next_url,
+            'error': 'Invalid username/email or password',
+            'identifier': identifier  # Pre-fill username
+        })
+
 
 # ============================================================================
 # Admin Google OAuth Views (Server-side redirect flow)
@@ -793,16 +867,52 @@ def register(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-def login(request):
+def login_api(request):
+    """
+    API endpoint for authentication (programmatic access).
+    Supports username/password and email/password.
+    Returns JWT tokens for successful authentication.
+
+    SECURITY: Blocks @barge2rail.com from password login.
+    """
+    # CRITICAL SECURITY: Block @barge2rail.com users BEFORE authentication
+    identifier = request.data.get('username') or request.data.get('email', '')
+    if isinstance(identifier, str) and identifier.strip().lower().endswith('@barge2rail.com'):
+        security_logger.warning(
+            f"SECURITY VIOLATION: API password login attempted for @barge2rail.com: {identifier} "
+            f"from IP: {request.META.get('REMOTE_ADDR')}"
+        )
+        return Response({
+            'error': 'Forbidden: Barge2Rail staff (@barge2rail.com) must use Google OAuth',
+            'auth_method_required': 'google_oauth',
+            'google_oauth_url': '/auth/admin/google/login/'
+        }, status=status.HTTP_403_FORBIDDEN)
+
     serializer = LoginSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.validated_data['user']
+
+        # DOUBLE-CHECK: Verify user doesn't have @barge2rail.com email
+        if user.email and user.email.lower().endswith('@barge2rail.com'):
+            security_logger.error(
+                f"CRITICAL: @barge2rail.com user bypassed initial check: {user.email}"
+            )
+            return Response({
+                'error': 'Forbidden: Your account requires Google OAuth authentication',
+                'auth_method_required': 'google_oauth'
+            }, status=status.HTTP_403_FORBIDDEN)
+
         refresh = RefreshToken.for_user(user)
-        
+
         # Add custom claims
         refresh['email'] = user.email
         refresh['is_sso_admin'] = user.is_sso_admin
-        
+
+        # Update auth_method if not set
+        if not user.auth_method or user.auth_method != 'password':
+            user.auth_method = 'password'
+            user.save(update_fields=['auth_method'])
+
         return Response({
             'user': UserSerializer(user).data,
             'tokens': {
