@@ -3,8 +3,8 @@ from . import views, auth_views, oauth_views
 
 urlpatterns = [
     # OAuth 2.0 Authorization Server
-    path('authorize/', oauth_views.authorize, name='oauth_authorize'),
-    path('token/', oauth_views.token_exchange, name='oauth_token'),
+    path('authorize/', oauth_views.oauth_authorize, name='oauth_authorize'),
+    path('token/', oauth_views.oauth_token, name='oauth_token'),
 
     # Google OAuth
     path('login/google/', auth_views.login_google, name='login_google'),
