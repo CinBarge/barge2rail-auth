@@ -7,6 +7,7 @@ from django.contrib.auth import authenticate
 from django.shortcuts import redirect
 import requests
 import json
+import logging
 try:
     from google.oauth2 import id_token
     from google.auth.transport import requests as google_requests
@@ -17,6 +18,8 @@ from decouple import config
 from .models import User, UserRole
 from .serializers import UserSerializer
 
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 # Google OAuth settings
 GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID', default='')
