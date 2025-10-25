@@ -145,20 +145,10 @@
                     }
                 } catch (error) {
                     return { success: false, error: 'Network error' };
-                }
-            },
-
-            async loginGoogle(code) {
-                try {
-                    const response = await fetch(`${SSO_URL}/api/auth/login/google/`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ code: code })
-                    });
-                    
-                    const data = await response.json();
-                    if (response.ok) {
-                        return { success: true, user: data.user };
+    async getGoogleOAuthUrl() {
+        // Direct redirect to Google OAuth login endpoint
+        return `${SSO_URL}/api/auth/login/google/`;
+    }
                     } else {
                         return { success: false, error: data.error };
                     }
