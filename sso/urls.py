@@ -6,6 +6,10 @@ urlpatterns = [
     path('authorize/', oauth_views.oauth_authorize, name='oauth_authorize'),
     path('token/', oauth_views.oauth_token, name='oauth_token'),
 
+    # Admin Google OAuth (for Django admin login)
+    path('admin/google/login/', views.admin_google_login, name='admin_google_login'),
+    path('admin/google/callback/', views.admin_google_callback, name='admin_google_callback'),
+
     # Google OAuth
     path('login/google/', auth_views.login_google, name='login_google'),
     path('google/callback/', auth_views.google_auth_callback, name='google_auth_callback'),
