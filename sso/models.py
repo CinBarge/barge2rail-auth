@@ -14,7 +14,12 @@ class User(AbstractUser):
         ('google', 'Google Sign-In'),
         ('anonymous', 'Anonymous PIN'),
     ]
-    
+
+    AUTH_METHODS = [
+        ('google', 'Google OAuth'),
+        ('password', 'Password Authentication'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True, null=True, blank=True)  # Allow null for anonymous
     phone = models.CharField(max_length=20, blank=True)
@@ -23,9 +28,15 @@ class User(AbstractUser):
     is_sso_admin = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     # New fields for enhanced auth
     auth_type = models.CharField(max_length=20, choices=AUTH_TYPES, default='email')
+    auth_method = models.CharField(
+        max_length=20,
+        choices=AUTH_METHODS,
+        default='password',
+        help_text="How this user authenticates"
+    )
     google_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     
     # Anonymous user fields
@@ -73,6 +84,10 @@ class User(AbstractUser):
         if self.is_anonymous:
             return self.anonymous_username
         return self.email or self.username
+
+    def requires_google_oauth(self):
+        """Check if user must use Google OAuth (barge2rail.com users)"""
+        return self.email and self.email.endswith('@barge2rail.com')
 
 
 class Application(models.Model):
