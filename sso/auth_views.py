@@ -8,6 +8,7 @@ from django.shortcuts import redirect
 import requests
 import json
 import logging
+import secrets
 try:
     from google.oauth2 import id_token
     from google.auth.transport import requests as google_requests
@@ -66,6 +67,20 @@ def login_google(request):
             return Response({'error': 'Google OAuth not configured'},
                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        # GENERATE STATE TOKEN FOR CSRF PROTECTION AND SESSION CONTINUITY
+        state = secrets.token_urlsafe(32)
+        request.session['oauth_state'] = state
+        logger.info(f"[GOOGLE LOGIN] Generated OAuth state token: {state[:10]}...")
+
+        # STORE THE NEXT URL IN SESSION FOR AFTER CALLBACK
+        next_url = request.GET.get('next')
+        if next_url:
+            request.session['oauth_next_url'] = next_url
+            logger.info(f"[GOOGLE LOGIN] Stored next URL in session: {next_url}")
+
+        # Save session immediately to ensure state is persisted
+        request.session.save()
+
         # Build redirect URI (where Google will send user after authentication)
         redirect_uri = f"{request.scheme}://{request.get_host()}/api/auth/google/callback/"
 
@@ -77,7 +92,8 @@ def login_google(request):
             'response_type': 'code',
             'scope': 'openid email profile',
             'access_type': 'offline',
-            'prompt': 'select_account'
+            'prompt': 'select_account',
+            'state': state  # Include state for CSRF protection
         }
 
         google_auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(google_oauth_params)}"
@@ -281,13 +297,42 @@ def debug_google_config(request):
 @permission_classes([AllowAny])
 def google_auth_callback(request):
     """Handle Google OAuth redirect callback"""
-    
+
+    logger.info("[GOOGLE CALLBACK] Callback received")
+
+    # VERIFY STATE PARAMETER FOR CSRF PROTECTION
+    state = request.GET.get('state')
+    stored_state = request.session.get('oauth_state')
+
+    if not state:
+        logger.error("[GOOGLE CALLBACK] No state parameter in callback URL")
+        return Response({'error': 'No session ID provided in URL'},
+                      status=status.HTTP_400_BAD_REQUEST)
+
+    if not stored_state:
+        logger.error("[GOOGLE CALLBACK] No stored state in session")
+        return Response({'error': 'Session expired or invalid'},
+                      status=status.HTTP_400_BAD_REQUEST)
+
+    if state != stored_state:
+        logger.error(f"[GOOGLE CALLBACK] State mismatch - possible CSRF attack. Expected: {stored_state[:10]}..., Got: {state[:10]}...")
+        return Response({'error': 'Invalid session state - possible CSRF attack'},
+                      status=status.HTTP_400_BAD_REQUEST)
+
+    logger.info(f"[GOOGLE CALLBACK] State verified successfully: {state[:10]}...")
+
+    # Clear the state from session after successful verification
+    request.session.pop('oauth_state', None)
+
     # Get the authorization code from the callback
     code = request.GET.get('code')
     if not code:
-        return Response({'error': 'Authorization code not provided'}, 
+        logger.error("[GOOGLE CALLBACK] No authorization code in callback")
+        return Response({'error': 'Authorization code not provided'},
                       status=status.HTTP_400_BAD_REQUEST)
-    
+
+    logger.info(f"[GOOGLE CALLBACK] Authorization code received: {code[:20]}...")
+
     # Exchange the code for tokens
     redirect_uri = f"{request.scheme}://{request.get_host()}/api/auth/google/callback/"
     token_url = 'https://oauth2.googleapis.com/token'
