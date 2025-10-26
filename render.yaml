@@ -11,11 +11,10 @@ services:
       - key: SECRET_KEY
         generateValue: true  # Render will generate a secure key
       
-      # CRITICAL: Database configuration
+      # CRITICAL: Neon PostgreSQL Database
+      # You'll paste your Neon connection string in Render dashboard
       - key: DATABASE_URL
-        fromDatabase:
-          name: barge2rail-db
-          property: connectionString
+        sync: false  # Set manually in Render dashboard with your Neon connection string
       
       # Django settings
       - key: DEBUG
@@ -40,10 +39,11 @@ services:
       # Logging
       - key: DJANGO_LOG_LEVEL
         value: "INFO"
+      
+      # Optional: Admin user creation on first deploy
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false  # Set if you want auto-creation
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false  # Set if you want auto-creation
 
-databases:
-  - name: barge2rail-db
-    databaseName: barge2rail_sso
-    user: barge2rail
-    region: ohio  # Same region as web service
-    plan: starter  # PostgreSQL starter plan
+# No databases section needed - using external Neon PostgreSQL
