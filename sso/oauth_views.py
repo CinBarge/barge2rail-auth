@@ -1,278 +1,394 @@
-"""
-OAuth 2.0 Authorization Server Views
-Implements standard OAuth 2.0 authorization code flow for client applications
-"""
-
-from django.shortcuts import redirect, render
-from django.http import JsonResponse, HttpResponseForbidden
-from django.contrib.auth.decorators import login_required
-from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
-from urllib.parse import urlencode, urlparse, quote
-from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.exceptions import AuthenticationFailed
-from .models import Application, AuthorizationCode, UserRole, RefreshToken
-import logging
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import authenticate, login
+from django.shortcuts import redirect
+import requests
 import json
+import logging
+try:
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+    GOOGLE_AUTH_AVAILABLE = True
+except ImportError:
+    GOOGLE_AUTH_AVAILABLE = False
+from decouple import config
+from .models import User, UserRole
+from .serializers import UserSerializer
 
+# Initialize logger
 logger = logging.getLogger(__name__)
 
+# Google OAuth settings
+GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID', default='')
 
-def oauth_authorize(request):
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_email(request):
+    """Traditional email/password login"""
+    email = request.data.get('email')
+    password = request.data.get('password')
+    
+    if not email or not password:
+        return Response({'error': 'Email and password required'}, 
+                       status=status.HTTP_400_BAD_REQUEST)
+    
+    user = authenticate(username=email, password=password)
+    if not user:
+        return Response({'error': 'Invalid credentials'}, 
+                       status=status.HTTP_401_UNAUTHORIZED)
+    
+    return generate_token_response(user)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def login_google(request):
     """
-    OAuth 2.0 Authorization Endpoint
+    Google Sign-In authentication.
 
-    GET /api/auth/authorize/?client_id=XXX&redirect_uri=YYY&response_type=code&scope=openid&state=ZZZ
-
-    Flow:
-    1. Validates client_id and redirect_uri
-    2. Checks if user is authenticated (redirects to Google OAuth if not)
-    3. Checks if user has access to this application
-    4. Generates authorization code
-    5. Redirects back to client with code and state
+    GET: Initiates Google OAuth flow (redirects to Google consent screen)
+    POST: Verifies Google ID token and creates/updates user
     """
 
-    # Get OAuth parameters
-    client_id = request.GET.get('client_id')
-    redirect_uri = request.GET.get('redirect_uri')
-    response_type = request.GET.get('response_type', 'code')
-    scope = request.GET.get('scope', 'openid email profile')
-    state = request.GET.get('state', '')
+    # Handle GET requests - initiate Google OAuth flow
+    if request.method == 'GET':
+        logger.info("[GOOGLE LOGIN] GET request - initiating Google OAuth flow")
 
-    logger.info(f"[FLOW AUTH 1] OAuth authorize: client={client_id[:10] if client_id else 'MISSING'}..., redirect_uri={redirect_uri}")
+        if not GOOGLE_AUTH_AVAILABLE:
+            return Response({'error': 'Google authentication not available'},
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # Validate required parameters
-    if not client_id or not redirect_uri:
-        logger.warning(f"[FLOW AUTH ERROR] Missing required parameters")
-        return HttpResponseForbidden("Missing required parameters: client_id and redirect_uri")
+        if not GOOGLE_CLIENT_ID:
+            return Response({'error': 'Google OAuth not configured'},
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    if response_type != 'code':
-        logger.warning(f"[FLOW AUTH ERROR] Unsupported response_type: {response_type}")
-        return HttpResponseForbidden("Only 'code' response_type is supported")
+        # STORE THE NEXT URL IN SESSION FOR AFTER CALLBACK
+        next_url = request.GET.get('next')
+        if next_url:
+            request.session['oauth_next_url'] = next_url
+            logger.info(f"[GOOGLE LOGIN] Stored next URL in session: {next_url}")
 
-    # Validate client_id
-    try:
-        application = Application.objects.get(client_id=client_id, is_active=True)
-        logger.info(f"[FLOW AUTH 2] Client validated: {application.name}")
-    except Application.DoesNotExist:
-        logger.error(f"[FLOW AUTH ERROR] Invalid client_id: {client_id}")
-        return HttpResponseForbidden("Invalid client_id")
+        # Build redirect URI (where Google will send user after authentication)
+        redirect_uri = f"{request.scheme}://{request.get_host()}/api/auth/google/callback/"
 
-    # Validate redirect_uri matches registered URIs
-    # Split on both commas and newlines to support both formats
-    allowed_uris = [
-        uri.strip()
-        for line in application.redirect_uris.split('\n')
-        for uri in line.split(',')
-        if uri.strip()
-    ]
-    if redirect_uri not in allowed_uris:
-        logger.error(f"[FLOW AUTH ERROR] Redirect URI mismatch. Got: {redirect_uri}, Allowed: {allowed_uris}")
-        return HttpResponseForbidden("Invalid redirect_uri")
-
-    # Try JWT authentication first (SSO uses JWT tokens)
-    jwt_auth = JWTAuthentication()
-    try:
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if auth_header.startswith('Bearer '):
-            # Validate JWT token
-            validated_token = jwt_auth.get_validated_token(auth_header.split(' ')[1])
-            user = jwt_auth.get_user(validated_token)
-            request.user = user
-    except (AuthenticationFailed, Exception):
-        # JWT auth failed, will check session auth below
-        pass
-
-    logger.info(f"[FLOW AUTH 3] User authenticated check: {request.user.is_authenticated}")
-
-    # Check if user is authenticated
-    if not request.user.is_authenticated:
-        logger.info(f"[FLOW AUTH 4] User not authenticated, storing OAuth request and redirecting to Google OAuth")
-        
-        # Store OAuth request in session for later
-        request.session['oauth_pending'] = {
-            'client_id': client_id,
+        # Build Google OAuth authorization URL
+        from urllib.parse import urlencode
+        google_oauth_params = {
+            'client_id': GOOGLE_CLIENT_ID,
             'redirect_uri': redirect_uri,
-            'scope': scope,
-            'state': state,
+            'response_type': 'code',
+            'scope': 'openid email profile',
+            'access_type': 'offline',
+            'prompt': 'select_account'
         }
-        request.session.modified = True
-        
-        # Redirect to Google OAuth
-        return redirect('/api/auth/login/google/')
 
-    # Check if user has access to this application
+        google_auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(google_oauth_params)}"
+
+        logger.info(f"[GOOGLE LOGIN] Redirecting to Google OAuth: {google_auth_url[:80]}...")
+
+        # Redirect user to Google OAuth consent screen
+        return redirect(google_auth_url)
+
+    # Handle POST requests - verify ID token (for API/frontend use)
+    token = request.data.get('token')
+
+    if not token:
+        return Response({'error': 'Google token required'},
+                       status=status.HTTP_400_BAD_REQUEST)
+
+    if not GOOGLE_AUTH_AVAILABLE:
+        return Response({'error': 'Google authentication not available'},
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    if not GOOGLE_CLIENT_ID:
+        return Response({'error': 'Google OAuth not configured'},
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     try:
-        user_role = UserRole.objects.get(
-            user=request.user,
-            application=application
-        )
-        logger.info(f"[FLOW AUTH 5] User has access to {application.name}")
-    except UserRole.DoesNotExist:
-        logger.warning(f"[FLOW AUTH ERROR] User {request.user.email} has no access to {application.name}")
-        return HttpResponseForbidden(
-            f"You don't have access to {application.name}. Contact your administrator."
+        # Verify Google token
+        idinfo = id_token.verify_oauth2_token(
+            token, google_requests.Request(), GOOGLE_CLIENT_ID
         )
 
-    # Generate authorization code
-    auth_code = AuthorizationCode.objects.create(
-        user=request.user,
-        application=application,
-        redirect_uri=redirect_uri,
-        scope=scope,
-        state=state
-    )
+        google_id = idinfo['sub']
+        email = idinfo['email']
+        name = idinfo.get('name', '')
 
-    logger.info(f"[FLOW AUTH 6] Generated auth code for {request.user.email} → {application.name}: {auth_code.code[:10]}...")
+        # Find or create user
+        user, created = User.objects.get_or_create(
+            google_id=google_id,
+            defaults={
+                'email': email,
+                'username': email,  # Use email as username for Google users
+                'display_name': name,
+                'first_name': idinfo.get('given_name', ''),
+                'last_name': idinfo.get('family_name', ''),
+                'auth_type': 'google',
+                'is_active': True,
+            }
+        )
 
-    # Redirect back to client with code and state
-    params = {
-        'code': auth_code.code,
-        'state': state,
-    }
-    redirect_url = f"{redirect_uri}?{urlencode(params)}"
-    logger.info(f"[FLOW AUTH 7] Redirecting to client: {redirect_url[:80]}...")
-    return redirect(redirect_url)
+        # Update user info if existing
+        if not created:
+            user.email = email
+            user.display_name = name
+            user.first_name = idinfo.get('given_name', '')
+            user.last_name = idinfo.get('family_name', '')
+            user.save()
+
+        return generate_token_response(user, created=created)
+
+    except ValueError as e:
+        return Response({'error': 'Invalid Google token'},
+                       status=status.HTTP_400_BAD_REQUEST)
 
 
-@csrf_exempt
-def oauth_token(request):
-    """
-    OAuth 2.0 Token Endpoint
-
-    POST /api/auth/token/
-    Body: {
-        "code": "authorization_code",
-        "client_id": "app_XXX",
-        "client_secret": "secret",
-        "redirect_uri": "http://...",
-        "grant_type": "authorization_code"
-    }
-
-    Returns JWT access token and refresh token with user roles
-    """
-
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
-
-    logger.info(f"[FLOW TOKEN 1] Token exchange request received")
-
-    # Get parameters (support both JSON and form data)
-    if request.content_type == 'application/json':
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_anonymous(request):
+    """Anonymous login with username and PIN"""
+    username = request.data.get('username')
+    pin = request.data.get('pin')
+    
+    if username and pin:
+        # Existing anonymous user login
         try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            logger.warning(f"[FLOW TOKEN ERROR] Invalid JSON in request body")
-            return JsonResponse({
-                'error': 'invalid_request',
-                'error_description': 'Invalid JSON in request body'
-            }, status=400)
+            user = User.objects.get(
+                anonymous_username=username,
+                pin_code=pin,
+                is_anonymous=True
+            )
+            return generate_token_response(user)
+        except User.DoesNotExist:
+            return Response({'error': 'Invalid username or PIN'}, 
+                           status=status.HTTP_401_UNAUTHORIZED)
     else:
-        data = request.POST
-
-    code = data.get('code')
-    client_id = data.get('client_id')
-    client_secret = data.get('client_secret')
-    redirect_uri = data.get('redirect_uri')
-    grant_type = data.get('grant_type')
-
-    logger.info(f"[FLOW TOKEN 2] Token exchange: client={client_id[:10] if client_id else 'MISSING'}..., code={code[:10] if code else 'MISSING'}..., grant_type={grant_type}")
-
-    # Validate required parameters
-    if not all([code, client_id, client_secret, redirect_uri]):
-        logger.warning(f"[FLOW TOKEN ERROR] Missing required parameters")
-        return JsonResponse({
-            'error': 'invalid_request',
-            'error_description': 'Missing required parameters'
-        }, status=400)
-
-    if grant_type != 'authorization_code':
-        logger.warning(f"[FLOW TOKEN ERROR] Unsupported grant_type: {grant_type}")
-        return JsonResponse({
-            'error': 'unsupported_grant_type',
-            'error_description': 'Only authorization_code grant type is supported'
-        }, status=400)
-
-    # Validate client credentials
-    try:
-        application = Application.objects.get(
-            client_id=client_id,
-            client_secret=client_secret,
-            is_active=True
+        # Create new anonymous user
+        user = User.objects.create(
+            auth_type='anonymous',
+            is_anonymous=True,
+            is_active=True,
         )
-        logger.info(f"[FLOW TOKEN 3] Client validated: {application.name}")
-    except Application.DoesNotExist:
-        logger.error(f"[FLOW TOKEN ERROR] Invalid client credentials: {client_id}")
-        return JsonResponse({
-            'error': 'invalid_client',
-            'error_description': 'Invalid client credentials'
-        }, status=401)
+        
+        # Save to generate username and PIN
+        user.save()
+        
+        return generate_token_response(user, anonymous_credentials={
+            'username': user.anonymous_username,
+            'pin': user.pin_code
+        })
 
-    # Validate authorization code
-    try:
-        auth_code = AuthorizationCode.objects.get(
-            code=code,
-            application=application
-        )
-        logger.info(f"[FLOW TOKEN 4] Authorization code found: user={auth_code.user.email}")
-    except AuthorizationCode.DoesNotExist:
-        logger.error(f"[FLOW TOKEN ERROR] Invalid authorization code: {code}")
-        return JsonResponse({
-            'error': 'invalid_grant',
-            'error_description': 'Invalid authorization code'
-        }, status=400)
 
-    # Check if code is valid (not expired, not used)
-    if not auth_code.is_valid():
-        logger.error(f"[FLOW TOKEN ERROR] Authorization code expired or already used: {code}")
-        return JsonResponse({
-            'error': 'invalid_grant',
-            'error_description': 'Authorization code expired or already used'
-        }, status=400)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_email(request):
+    """Register new email/password user"""
+    email = request.data.get('email')
+    password = request.data.get('password')
+    display_name = request.data.get('display_name', '')
+    first_name = request.data.get('first_name', '')
+    last_name = request.data.get('last_name', '')
+    
+    if not email or not password:
+        return Response({'error': 'Email and password required'}, 
+                       status=status.HTTP_400_BAD_REQUEST)
+    
+    if User.objects.filter(email=email).exists():
+        return Response({'error': 'Email already registered'}, 
+                       status=status.HTTP_400_BAD_REQUEST)
+    
+    user = User.objects.create_user(
+        username=email,
+        email=email,
+        password=password,
+        display_name=display_name,
+        first_name=first_name,
+        last_name=last_name,
+        auth_type='email'
+    )
+    
+    return generate_token_response(user, created=True)
 
-    logger.info(f"[FLOW TOKEN 5] Authorization code valid")
 
-    # Validate redirect_uri matches
-    if auth_code.redirect_uri != redirect_uri:
-        logger.error(f"[FLOW TOKEN ERROR] Redirect URI mismatch on token exchange")
-        return JsonResponse({
-            'error': 'invalid_grant',
-            'error_description': 'Redirect URI mismatch'
-        }, status=400)
-
-    logger.info(f"[FLOW TOKEN 6] Redirect URI validated")
-
-    # Mark code as used
-    auth_code.used = True
-    auth_code.save()
-
-    logger.info(f"[FLOW TOKEN 7] Authorization code marked as used")
-
-    # Get user's role for this application
-    try:
-        user_role = UserRole.objects.get(
-            user=auth_code.user,
-            application=application
-        )
-    except UserRole.DoesNotExist:
-        logger.error(f"[FLOW TOKEN ERROR] User has no role in application")
-        return JsonResponse({
-            'error': 'invalid_grant',
-            'error_description': 'User has no access to this application'
-        }, status=400)
-
-    # Generate tokens (reuse existing token generation logic)
-    from .views import generate_token_response
-    tokens = generate_token_response(auth_code.user)
-
-    # Add role information to token response
-    tokens['user']['roles'] = {
-        application.slug: {
-            'role': user_role.role,
-            'permissions': user_role.permissions or {}
+def generate_token_response(user, created=False, anonymous_credentials=None):
+    """Generate JWT token response"""
+    refresh = RefreshToken.for_user(user)
+    
+    # Add custom claims
+    refresh['email'] = user.email if user.email else ''
+    refresh['is_sso_admin'] = user.is_sso_admin
+    refresh['auth_type'] = user.auth_type
+    refresh['is_anonymous'] = user.is_anonymous
+    refresh['display_name'] = user.display_name
+    
+    # Get user roles
+    roles = {}
+    for role in user.roles.select_related('application').all():
+        if role.application.slug:
+            roles[role.application.slug] = {
+                'app_slug': role.application.slug,
+                'app_name': role.application.name,
+                'role': role.role,
+                'permissions': role.permissions
+            }
+    
+    response_data = {
+        'access_token': str(refresh.access_token),
+        'refresh_token': str(refresh),
+        'user': {
+            'id': str(user.id),
+            'email': user.email,
+            'display_name': user.display_name,
+            'display_identifier': user.display_identifier,
+            'auth_type': user.auth_type,
+            'is_anonymous': user.is_anonymous,
+            'is_sso_admin': user.is_sso_admin,
+            'roles': roles
         }
     }
+    
+    # Include anonymous credentials for new anonymous users
+    if anonymous_credentials:
+        response_data['anonymous_credentials'] = anonymous_credentials
+        response_data['message'] = 'Anonymous account created. Save your username and PIN!'
+    
+    if created and not anonymous_credentials:
+        response_data['message'] = 'Account created successfully'
+    
+    return Response(response_data)
 
-    logger.info(f"[FLOW TOKEN 8] Token exchange successful: {auth_code.user.email} → {application.name}")
 
-    return JsonResponse(tokens)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def debug_google_config(request):
+    """Debug endpoint to verify Google OAuth configuration"""
+    from django.conf import settings
+    
+    return Response({
+        'client_id_from_decouple': GOOGLE_CLIENT_ID,
+        'client_id_from_settings': getattr(settings, 'GOOGLE_CLIENT_ID', 'NOT SET'),
+        'google_auth_available': GOOGLE_AUTH_AVAILABLE,
+        'current_origin': f"{request.scheme}://{request.get_host()}",
+        'request_meta_host': request.META.get('HTTP_HOST'),
+        'debug_info': {
+            'scheme': request.scheme,
+            'host': request.get_host(),
+            'path': request.path,
+            'full_url': request.build_absolute_uri(),
+        }
+    })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def google_auth_callback(request):
+    """Handle Google OAuth redirect callback"""
+    
+    # Get the authorization code from the callback
+    code = request.GET.get('code')
+    if not code:
+        return Response({'error': 'Authorization code not provided'}, 
+                      status=status.HTTP_400_BAD_REQUEST)
+    
+    # Exchange the code for tokens
+    redirect_uri = f"{request.scheme}://{request.get_host()}/api/auth/google/callback/"
+    token_url = 'https://oauth2.googleapis.com/token'
+    
+    payload = {
+        'code': code,
+        'client_id': GOOGLE_CLIENT_ID,
+        'client_secret': config('GOOGLE_CLIENT_SECRET', default=''),
+        'redirect_uri': redirect_uri,
+        'grant_type': 'authorization_code'
+    }
+    
+    response = requests.post(token_url, data=payload)
+    if response.status_code != 200:
+        return Response({'error': 'Failed to exchange authorization code for tokens',
+                        'details': response.text}, 
+                      status=status.HTTP_400_BAD_REQUEST)
+    
+    # Extract tokens from response
+    token_data = response.json()
+    id_token_value = token_data.get('id_token')
+    
+    if not id_token_value:
+        return Response({'error': 'No ID token in response'}, 
+                      status=status.HTTP_400_BAD_REQUEST)
+    
+    # Verify the ID token
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            id_token_value, google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+        
+        google_id = idinfo['sub']
+        email = idinfo['email']
+        name = idinfo.get('name', '')
+        
+        # Find or create user
+        user, created = User.objects.get_or_create(
+            google_id=google_id,
+            defaults={
+                'email': email,
+                'username': email,  # Use email as username for Google users
+                'display_name': name,
+                'first_name': idinfo.get('given_name', ''),
+                'last_name': idinfo.get('family_name', ''),
+                'auth_type': 'google',
+                'is_active': True,
+            }
+        )
+        
+        # Update user info if existing
+        if not created:
+            user.email = email
+            user.display_name = name
+            user.first_name = idinfo.get('given_name', '')
+            user.last_name = idinfo.get('family_name', '')
+            user.save()
+        
+        # CHECK IF THIS IS AN ADMIN LOGIN (has next URL in session)
+        next_url = request.session.pop('oauth_next_url', None)
+        
+        if next_url and '/admin/' in next_url:
+            # This is admin login - use Django's built-in auth
+            from django.contrib.auth import login as django_login
+            
+            # Mark user as staff/superuser if they're SSO admin
+            if user.is_sso_admin:
+                user.is_staff = True
+                user.is_superuser = True
+                user.save()
+            
+            # Log them into Django admin
+            django_login(request, user)
+            logger.info(f"[GOOGLE CALLBACK] Admin login successful for {user.email}, redirecting to {next_url}")
+            return redirect(next_url)
+        
+        # Regular API login - return tokens
+        refresh = RefreshToken.for_user(user)
+        
+        # Redirect to success page with tokens (or use next_url if provided)
+        if next_url:
+            # Add tokens to the redirect URL if it's not admin
+            from urllib.parse import urlencode
+            params = {
+                'access_token': str(refresh.access_token),
+                'refresh_token': str(refresh)
+            }
+            separator = '&' if '?' in next_url else '?'
+            return redirect(f"{next_url}{separator}{urlencode(params)}")
+        else:
+            # Default success page
+            success_url = f"/login/google-success/?access_token={str(refresh.access_token)}&refresh_token={str(refresh)}"
+            return redirect(success_url)
+        
+    except ValueError as e:
+        logger.error(f"[GOOGLE CALLBACK] Token verification failed: {str(e)}")
+        return Response({'error': 'Invalid Google token', 'details': str(e)}, 
+                      status=status.HTTP_400_BAD_REQUEST)
