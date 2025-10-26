@@ -145,15 +145,6 @@
                     }
                 } catch (error) {
                     return { success: false, error: 'Network error' };
-    async getGoogleOAuthUrl() {
-        // Direct redirect to Google OAuth login endpoint
-        return `${SSO_URL}/api/auth/login/google/`;
-    }
-                    } else {
-                        return { success: false, error: data.error };
-                    }
-                } catch (error) {
-                    return { success: false, error: 'Network error' };
                 }
             },
 
@@ -190,11 +181,14 @@
         class GoogleOAuth {
             async initiateLogin() {
                 try {
-                    showAlert('Getting Google authentication URL...', 'info');
-                    
-            async getGoogleOAuthUrl() {
-                return `${SSO_URL}/api/auth/login/google/`;
-            }
+                    showAlert('Redirecting to Google Sign-In...', 'info');
+
+                    // Get next URL from query params if present
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const nextUrl = urlParams.get('next') || '/dashboard/';
+
+                    // Redirect to Google OAuth endpoint with next parameter
+                    window.location.href = `${SSO_URL}/api/auth/login/google/?next=${encodeURIComponent(nextUrl)}`;
                 } catch (error) {
                     showAlert('Error initiating Google Sign-In', 'error');
                 }

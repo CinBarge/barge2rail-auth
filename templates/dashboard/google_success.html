@@ -213,46 +213,76 @@
     </div>
     
     <script>
-        // Fetch tokens on page load using session ID
+        // Fetch tokens on page load - check URL parameters first, fall back to session exchange
         window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
+            const accessToken = urlParams.get('access_token');
+            const refreshToken = urlParams.get('refresh_token');
             const sessionId = urlParams.get('session');
 
-            if (!sessionId) {
-                showError('No session ID provided in URL');
-                return;
-            }
+            // OPTION 1: Tokens already in URL (new flow)
+            if (accessToken && refreshToken) {
+                console.log('Tokens found in URL parameters');
 
-            console.log('Exchanging session for tokens:', sessionId);
+                // Store tokens
+                localStorage.setItem('barge2rail_access_token', accessToken);
+                localStorage.setItem('barge2rail_refresh_token', refreshToken);
 
-            try {
-                const response = await fetch(`/api/auth/session/${sessionId}/tokens/`, {
-                    method: 'GET',
-                    credentials: 'include',
-                    headers: {
-                        'Accept': 'application/json',
+                // Display success
+                showSuccess({
+                    access_token: accessToken,
+                    refresh_token: refreshToken,
+                    user: {
+                        email: 'Authenticated',
+                        display_name: 'Successfully logged in'
                     }
                 });
 
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || `HTTP ${response.status}`);
-                }
+                // Redirect to dashboard after 2 seconds
+                setTimeout(() => {
+                    window.location.href = '/dashboard/';
+                }, 2000);
 
-                const data = await response.json();
-                console.log('Token exchange successful');
-
-                // Store tokens
-                localStorage.setItem('barge2rail_access_token', data.access_token);
-                localStorage.setItem('barge2rail_refresh_token', data.refresh_token);
-
-                // Display success
-                showSuccess(data);
-
-            } catch (error) {
-                console.error('Token exchange error:', error);
-                showError(error.message || 'Failed to retrieve authentication tokens');
+                return;
             }
+
+            // OPTION 2: Session exchange (old flow, kept for backward compatibility)
+            if (sessionId) {
+                console.log('Exchanging session for tokens:', sessionId);
+
+                try {
+                    const response = await fetch(`/api/auth/session/${sessionId}/tokens/`, {
+                        method: 'GET',
+                        credentials: 'include',
+                        headers: {
+                            'Accept': 'application/json',
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error || `HTTP ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('Token exchange successful');
+
+                    // Store tokens
+                    localStorage.setItem('barge2rail_access_token', data.access_token);
+                    localStorage.setItem('barge2rail_refresh_token', data.refresh_token);
+
+                    // Display success
+                    showSuccess(data);
+
+                } catch (error) {
+                    console.error('Token exchange error:', error);
+                    showError(error.message || 'Failed to retrieve authentication tokens');
+                }
+                return;
+            }
+
+            // OPTION 3: No tokens or session found - error
+            showError('No authentication data provided. Please try logging in again.');
         });
 
         function showSuccess(data) {
