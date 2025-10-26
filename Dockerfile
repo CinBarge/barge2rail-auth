@@ -1,4 +1,4 @@
-# Dockerfile
+# Production Dockerfile for Django SSO
 FROM python:3.11-slim
 
 # Set working directory
@@ -7,34 +7,35 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     postgresql-client \
+    gcc \
+    python3-dev \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
+# Copy requirements first (for better caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project files
 COPY . .
 
-# Create logs directory
-RUN mkdir -p logs
+# Create necessary directories
+RUN mkdir -p logs staticfiles
 
-# REMOVED: collectstatic (will run at startup instead)
-# REMOVED: migrate (will run at startup instead)
+# Make startup script executable
+RUN chmod +x /app/start.sh
+
+# Security: Don't run as root
+RUN useradd -m -u 1000 django && \
+    chown -R django:django /app
+USER django
 
 # Expose port
 EXPOSE 8000
 
-# Create startup script that runs migrations, collectstatic, then starts server
-RUN echo '#!/bin/bash\n\
-set -e\n\
-echo "Running migrations..."\n\
-python manage.py migrate --noinput\n\
-echo "Collecting static files..."\n\
-python manage.py collectstatic --noinput\n\
-echo "Starting server..."\n\
-gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 4 --timeout 60\n\
-' > /app/start.sh && chmod +x /app/start.sh
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/auth/health/').read()"
 
-# Use startup script as entrypoint
+# Use startup script
 CMD ["/app/start.sh"]

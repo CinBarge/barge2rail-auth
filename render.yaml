@@ -4,20 +4,46 @@ services:
     runtime: docker
     region: ohio  # Columbus region
     plan: starter
-    healthCheckPath: /api/auth/health/  # Fixed: matches your Django endpoint
-    # CRITICAL: Django WSGI start command
+    healthCheckPath: /api/auth/health/
+    
     envVars:
+      # CRITICAL: Security settings
+      - key: SECRET_KEY
+        generateValue: true  # Render will generate a secure key
+      
+      # CRITICAL: Database configuration
+      - key: DATABASE_URL
+        fromDatabase:
+          name: barge2rail-db
+          property: connectionString
+      
+      # Django settings
       - key: DEBUG
-        value: "False"  # String format for environment variables
+        value: "False"
       - key: BASE_URL
-        value: "https://sso.barge2rail.com"  # Fixed: explicit value instead of dynamic
+        value: "https://sso.barge2rail.com"
       - key: ALLOWED_HOSTS
-        value: "sso.barge2rail.com,barge2rail-sso.onrender.com"  # Include both custom domain and Render URL
+        value: "sso.barge2rail.com,barge2rail-sso.onrender.com,*.onrender.com"
       - key: CSRF_TRUSTED_ORIGINS
-        value: "https://sso.barge2rail.com"  # Fixed: include https:// prefix
+        value: "https://sso.barge2rail.com,https://barge2rail-sso.onrender.com"
+      
+      # Google OAuth (set manually in Render dashboard)
       - key: GOOGLE_CLIENT_ID
-        sync: false  # You'll set these manually in Render dashboard
+        sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      
+      # CORS configuration
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://sso.barge2rail.com,http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000"
+        value: "https://sso.barge2rail.com,https://admin.barge2rail.com,https://barge2rail-sso.onrender.com,http://localhost:3000,http://localhost:8000"
+      
+      # Logging
+      - key: DJANGO_LOG_LEVEL
+        value: "INFO"
+
+databases:
+  - name: barge2rail-db
+    databaseName: barge2rail_sso
+    user: barge2rail
+    region: ohio  # Same region as web service
+    plan: starter  # PostgreSQL starter plan
