@@ -243,6 +243,11 @@ GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID', default=None)
 GOOGLE_CLIENT_SECRET = config('GOOGLE_CLIENT_SECRET', default=None)
 BASE_URL = config('BASE_URL', default='http://127.0.0.1:8000')
 
+# OAuth Admin Whitelist (Phase 4)
+# Comma-separated email addresses authorized for admin/superuser access via OAuth
+ADMIN_WHITELIST = config('ADMIN_WHITELIST', default='')
+SUPERUSER_WHITELIST = config('SUPERUSER_WHITELIST', default='')
+
 # CORS - Allow both development and production origins
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
