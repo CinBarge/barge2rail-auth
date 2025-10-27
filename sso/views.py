@@ -1060,9 +1060,17 @@ def google_auth_callback(request):
         )
         
         logger.info(f'Created token exchange session {exchange_session.session_id} for {user.email}')
-        
-        # Redirect to dashboard instead of token exchange page
-        return redirect('/dashboard/')
+
+        # Check if there was a next URL stored for OAuth continuation
+        next_url = request.session.get('oauth_next_url')
+        if next_url:
+            request.session.pop('oauth_next_url', None)  # Clear it after use
+            logger.info(f'Redirecting to stored OAuth next URL: {next_url}')
+            return redirect(next_url)
+        else:
+            # Default: redirect to dashboard
+            logger.info('No OAuth next URL found, redirecting to dashboard')
+            return redirect('/dashboard/')
         
     except Exception as e:
         logger.error(f'Google OAuth callback error: {str(e)}')
