@@ -2,25 +2,14 @@ from django.urls import path
 from django.shortcuts import redirect
 from django.urls import reverse
 from urllib.parse import urlencode
-from . import views, auth_views, oauth_views
-
-# Admin OAuth redirects - these bridge to the main OAuth flow
-def admin_google_login_redirect(request):
-    """Redirect admin login to main OAuth, preserving next parameter"""
-    next_url = request.GET.get('next', '/admin/')
-    oauth_url = reverse('login_google')
-    return redirect(f"{oauth_url}?{urlencode({'next': next_url})}")
-
-def admin_google_callback_redirect(request):
-    """This shouldn't be hit, but redirect to main callback if it is"""
-    return redirect(reverse('google_auth_callback') + '?' + request.GET.urlencode())
+from . import views, auth_views, oauth_views, admin_oauth_views
 
 urlpatterns = [
-    # Admin Google OAuth - NOW JUST REDIRECTS TO MAIN OAUTH
-    path('admin/google/login/', admin_google_login_redirect, name='admin_google_login'),
-    path('admin/google/callback/', admin_google_callback_redirect, name='admin_google_callback'),
+    # Admin Google OAuth - OAuth Admin Integration (Phase 4)
+    path('admin/oauth/login/', admin_oauth_views.admin_oauth_login, name='admin_oauth_login'),
+    path('admin/oauth/callback/', admin_oauth_views.admin_oauth_callback, name='admin_oauth_callback'),
 
-    # MAIN Google OAuth - THE ONLY REAL IMPLEMENTATION
+    # MAIN Google OAuth - For general user authentication
     path('login/google/', auth_views.login_google, name='login_google'),
     path('google/callback/', auth_views.google_auth_callback, name='google_auth_callback'),
 
