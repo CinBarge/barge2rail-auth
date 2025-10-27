@@ -161,6 +161,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom User Model
 AUTH_USER_MODEL = 'sso.User'
 
+# Authentication Backends - OAuth primary, password fallback
+# OAuthBackend enables Google OAuth authentication for admin access
+# ModelBackend provides password-based fallback for emergency access
+AUTHENTICATION_BACKENDS = [
+    'sso.backends.OAuthBackend',  # OAuth authentication (primary)
+    'django.contrib.auth.backends.ModelBackend',  # Password-based fallback (emergency access)
+]
+
 # Authentication URLs - Override Django defaults
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
