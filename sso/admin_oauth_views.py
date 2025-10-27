@@ -149,20 +149,22 @@ def admin_oauth_login(request):
 
     # Generate and store state parameter for CSRF protection
     state = generate_oauth_state()
+    
+    # CRITICAL: Force session creation before redirect
+    # Without this, session cookie won't be set and state will be lost
+    if not request.session.session_key:
+        request.session.create()
+    
     request.session['admin_oauth_state'] = state
+    request.session['admin_oauth_next'] = request.GET.get('next', '/admin/')
+    
+    # Mark session as modified to ensure cookie is set
+    request.session.modified = True
+
     logger.info(f"admin_oauth_login: Generated OAuth state token (length: {len(state)})")
-
-    # Store next URL for post-authentication redirect
-    next_url = request.GET.get('next', '/admin/')
-    request.session['admin_oauth_next'] = next_url
-    logger.info(f"admin_oauth_login: Stored next URL: {next_url}")
-
-    # Save session immediately to ensure state is persisted
-    request.session.save()
 
     # Build redirect URI (where Google will send user after authentication)
     redirect_uri = f"{settings.BASE_URL}/sso/admin/oauth/callback/"
-    logger.info(f"admin_oauth_login: Redirect URI: {redirect_uri}")
 
     # Build Google OAuth authorization URL
     google_oauth_params = {
@@ -178,7 +180,11 @@ def admin_oauth_login(request):
     google_auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(google_oauth_params)}"
 
     logger.info("admin_oauth_login: Redirecting to Google OAuth consent screen")
-    return redirect(google_auth_url)
+    
+    # Create response and explicitly save session before redirect
+    response = redirect(google_auth_url)
+    request.session.save()
+    return response
 
 
 @require_http_methods(["GET"])

@@ -4,10 +4,14 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from sso.views import google_auth_callback
+from sso.admin_oauth_views import admin_oauth_login, admin_oauth_callback
 from core.views import Health, SecureEcho  # add
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    # Admin OAuth URLs (Phase 4) - must come before general auth includes
+    path("sso/admin/oauth/login/", admin_oauth_login, name="admin_oauth_login"),
+    path("sso/admin/oauth/callback/", admin_oauth_callback, name="admin_oauth_callback"),
     # Google callback MUST come before includes to take precedence
     path("auth/google/callback/", google_auth_callback, name="google_oauth_callback"),
     path("api/auth/", include("sso.urls")),
