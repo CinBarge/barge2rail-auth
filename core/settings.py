@@ -65,12 +65,22 @@ if not DEBUG:
 
 # Gate 7: Session Security Configuration
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Database-backed sessions
-SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
 SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access
-SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
 SESSION_COOKIE_AGE = 1800  # 30 minutes in seconds
 SESSION_SAVE_EVERY_REQUEST = True  # Update last activity on every request
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Don't persist after browser close
+
+# OAuth-compatible session cookie settings
+# Modern browsers block cookies on cross-site redirects (OAuth callback from Google)
+# SameSite=None required for OAuth flows, Secure=True required for SameSite=None in production
+if DEBUG:
+    # Development: Allow OAuth redirects over HTTP
+    SESSION_COOKIE_SAMESITE = None  # Required for OAuth callbacks
+    SESSION_COOKIE_SECURE = False   # HTTP allowed in development
+else:
+    # Production: Secure OAuth over HTTPS
+    SESSION_COOKIE_SAMESITE = 'None'  # Required for OAuth callbacks (string 'None' for production)
+    SESSION_COOKIE_SECURE = True      # HTTPS required for SameSite=None
 
 # Application definition
 INSTALLED_APPS = [
@@ -262,8 +272,7 @@ X_FRAME_OPTIONS = 'DENY'
 # Production-only security settings
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_HTTPONLY = True
+    # SESSION_COOKIE_SECURE and SESSION_COOKIE_HTTPONLY already configured above for OAuth compatibility
     CSRF_COOKIE_SECURE = True
     CSRF_COOKIE_HTTPONLY = True
     SECURE_HSTS_SECONDS = 31536000  # 1 year
