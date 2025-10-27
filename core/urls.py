@@ -14,6 +14,11 @@ urlpatterns = [
     path("sso/admin/oauth/callback/", admin_oauth_callback, name="admin_oauth_callback"),
     # Google callback MUST come before includes to take precedence
     path("auth/google/callback/", google_auth_callback, name="google_oauth_callback"),
+
+    # OAuth2 Provider endpoints (django-oauth-toolkit)
+    # Provides: /o/authorize/, /o/token/, /o/revoke_token/, /o/introspect/
+    path("o/", include("oauth2_provider.urls", namespace="oauth2_provider")),
+
     path("api/auth/", include("sso.urls")),
     path("auth/", include("sso.urls")),  # Also include under /auth/ for admin OAuth
     path("health/", Health.as_view()),          # add

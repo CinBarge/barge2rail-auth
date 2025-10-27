@@ -2,6 +2,12 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, Application, UserRole, ApplicationRole, RefreshToken, AuthorizationCode
 
+# Unregister oauth2_provider's Application admin if it was registered
+try:
+    admin.site.unregister(Application)
+except admin.sites.NotRegistered:
+    pass
+
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
@@ -54,20 +60,21 @@ class UserAdmin(BaseUserAdmin):
 
 @admin.register(Application)
 class ApplicationAdmin(admin.ModelAdmin):
-    list_display = ['name', 'slug', 'client_id', 'is_active', 'created_at']
-    list_filter = ['is_active', 'created_at']
+    list_display = ['name', 'slug', 'client_id', 'client_type', 'is_active', 'created']
+    list_filter = ['is_active', 'client_type', 'authorization_grant_type', 'created']
     search_fields = ['name', 'slug', 'client_id']
-    readonly_fields = ['id', 'created_at', 'updated_at']
-    
+    readonly_fields = ['id', 'created', 'updated']
+
     fieldsets = (
         (None, {
-            'fields': ('name', 'description', 'is_active')
+            'fields': ('name', 'slug', 'description', 'is_active', 'user')
         }),
-        ('OAuth Settings', {
-            'fields': ('client_id', 'client_secret', 'redirect_uris')
+        ('OAuth2 Settings', {
+            'fields': ('client_id', 'client_secret', 'client_type', 'authorization_grant_type',
+                       'redirect_uris', 'skip_authorization')
         }),
         ('Metadata', {
-            'fields': ('id', 'created_at', 'updated_at'),
+            'fields': ('id', 'created', 'updated'),
             'classes': ('collapse',)
         }),
     )

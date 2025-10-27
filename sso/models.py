@@ -6,6 +6,7 @@ import uuid
 import random
 import string
 import secrets
+from oauth2_provider.models import AbstractApplication
 
 
 class User(AbstractUser):
@@ -90,13 +91,26 @@ class User(AbstractUser):
         return self.email and self.email.endswith('@barge2rail.com')
 
 
-class Application(models.Model):
+class Application(AbstractApplication):
+    """OAuth2 Application model compatible with django-oauth-toolkit.
+
+    Extends AbstractApplication with custom fields for B2R SSO.
+    Maintains backward compatibility with existing applications.
+    """
+    # Override id to use UUID (AbstractApplication uses BigAutoField by default)
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=100, unique=True)
+
+    # Custom fields (in addition to AbstractApplication fields)
     slug = models.SlugField(max_length=50, unique=True, default='')
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    # Override AbstractApplication fields to match existing schema
+    name = models.CharField(max_length=100, unique=True)
     client_id = models.CharField(
         max_length=100,
         unique=True,
+        db_index=True,
         blank=True,
         help_text="Auto-generated if left blank. Format: app_XXXXXXXXXXXXXXXX"
     )
@@ -105,11 +119,40 @@ class Application(models.Model):
         blank=True,
         help_text="Auto-generated if left blank. Cryptographically secure random string."
     )
-    redirect_uris = models.TextField(help_text="Comma-separated list of allowed redirect URIs")
-    is_active = models.BooleanField(default=True)
-    description = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+
+    # AbstractApplication required fields with sensible defaults
+    client_type = models.CharField(
+        max_length=32,
+        choices=AbstractApplication.CLIENT_TYPES,
+        default=AbstractApplication.CLIENT_CONFIDENTIAL,
+        help_text="Confidential clients can keep secrets, public clients cannot"
+    )
+    authorization_grant_type = models.CharField(
+        max_length=32,
+        choices=AbstractApplication.GRANT_TYPES,
+        default=AbstractApplication.GRANT_AUTHORIZATION_CODE,
+        help_text="OAuth2 grant type for this application"
+    )
+    redirect_uris = models.TextField(
+        blank=True,
+        help_text="Comma or newline-separated list of allowed redirect URIs"
+    )
+    skip_authorization = models.BooleanField(
+        default=False,
+        help_text="Skip authorization screen for trusted applications"
+    )
+
+    # Optional: Link application to creating user (nullable for backward compatibility)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='oauth_applications',
+        help_text="User who created this application (optional)"
+    )
+
+    # Note: AbstractApplication provides 'created' and 'updated' timestamp fields
 
     def save(self, *args, **kwargs):
         # Auto-generate client_id if not provided

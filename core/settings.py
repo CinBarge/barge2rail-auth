@@ -84,10 +84,6 @@ else:
 
 # Application definition
 INSTALLED_APPS = [
-    # Local apps (before Django apps to override templates)
-    'sso',
-    'dashboard',
-
     # Django
     'django.contrib.admin',
     'django.contrib.auth',
@@ -96,11 +92,16 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # Third party
+    # Third party (oauth2_provider before local apps to allow override)
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+    'oauth2_provider',
+
+    # Local apps (after oauth2_provider to override admin)
+    'sso',
+    'dashboard',
 ]
 
 MIDDLEWARE = [
@@ -224,6 +225,42 @@ SIMPLE_JWT = {
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
     'JTI_CLAIM': 'jti',
+}
+
+# OAuth2 Provider (django-oauth-toolkit)
+OAUTH2_PROVIDER = {
+    # Use custom Application model
+    'APPLICATION_MODEL': 'sso.Application',
+
+    # Enable OpenID Connect (OIDC) support
+    'OIDC_ENABLED': True,
+
+    # OAuth2 scopes
+    'SCOPES': {
+        'read': 'Read access',
+        'write': 'Write access',
+        'openid': 'OpenID Connect',
+        'profile': 'User profile information',
+        'email': 'User email address',
+    },
+    'DEFAULT_SCOPES': ['openid', 'profile', 'email'],
+
+    # Token lifetimes (align with SIMPLE_JWT)
+    'ACCESS_TOKEN_EXPIRE_SECONDS': 900,  # 15 minutes
+    'REFRESH_TOKEN_EXPIRE_SECONDS': 604800,  # 7 days
+    'AUTHORIZATION_CODE_EXPIRE_SECONDS': 600,  # 10 minutes
+
+    # OAuth2 settings
+    'ROTATE_REFRESH_TOKEN': True,
+    'PKCE_REQUIRED': False,  # Can enable for enhanced security
+    'OAUTH2_VALIDATOR_CLASS': 'sso.oauth_validators.CustomOAuth2Validator',
+
+    # Allow existing client credentials
+    'CLIENT_ID_GENERATOR_CLASS': 'oauth2_provider.generators.ClientIdGenerator',
+    'CLIENT_SECRET_GENERATOR_CLASS': 'oauth2_provider.generators.ClientSecretGenerator',
+
+    # Disable auto admin registration (we have custom admin)
+    'APPLICATION_ADMIN_CLASS': '',
 }
 
 # Rate limiting configuration
