@@ -62,12 +62,9 @@ class GetAdminWhitelistTests(TestCase):
         whitelist = get_admin_whitelist()
         self.assertEqual(whitelist, [])
 
+    @override_settings(ADMIN_WHITELIST='')
     def test_missing_setting(self):
         """Test missing ADMIN_WHITELIST setting."""
-        # Remove setting if exists
-        if hasattr(self._testMethodName, 'ADMIN_WHITELIST'):
-            delattr(self._testMethodName, 'ADMIN_WHITELIST')
-
         whitelist = get_admin_whitelist()
         self.assertEqual(whitelist, [])
 
