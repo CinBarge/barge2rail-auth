@@ -61,3 +61,4 @@ htmlcov/
 # Security
 bandit-report.json
 safety-report.json
+EMERGENCY_*
