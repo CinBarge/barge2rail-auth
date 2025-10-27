@@ -21,11 +21,11 @@ print("\n=== SSO Database Check ===\n")
 # Check all applications
 print("Current Applications:")
 print("-" * 50)
-apps = Application.objects.all().order_by('created_at')
+apps = Application.objects.all().order_by('created')
 for app in apps:
     print(f"Name: {app.name}")
     print(f"  Client ID: {app.client_id}")
-    print(f"  Created: {app.created_at}")
+    print(f"  Created: {app.created}")
     print(f"  Active: {app.is_active}")
     print(f"  Redirect URIs: {app.redirect_uris}")
     print()
@@ -51,5 +51,5 @@ except User.DoesNotExist:
 
 print("\n" + "=" * 50)
 print("To clean up old applications, run:")
-print("Application.objects.filter(created_at__lt='2025-12-01').delete()")
+print("Application.objects.filter(created__lt='2025-12-01').delete()")
 print("=" * 50)

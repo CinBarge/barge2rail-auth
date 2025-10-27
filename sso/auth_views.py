@@ -82,7 +82,7 @@ def login_google(request):
         request.session.save()
 
         # Build redirect URI (where Google will send user after authentication)
-        redirect_uri = f"{request.scheme}://{request.get_host()}/api/auth/google/callback/"
+        redirect_uri = f"{request.scheme}://{request.get_host()}/auth/google/callback/"
 
         # Build Google OAuth authorization URL
         from urllib.parse import urlencode
@@ -334,7 +334,7 @@ def google_auth_callback(request):
     logger.info(f"[GOOGLE CALLBACK] Authorization code received: {code[:20]}...")
 
     # Exchange the code for tokens
-    redirect_uri = f"{request.scheme}://{request.get_host()}/api/auth/google/callback/"
+    redirect_uri = f"{request.scheme}://{request.get_host()}/auth/google/callback/"
     token_url = 'https://oauth2.googleapis.com/token'
     
     payload = {

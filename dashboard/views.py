@@ -87,6 +87,6 @@ def dashboard(request):
         'app_count': Application.objects.count(),
         'role_count': UserRole.objects.count(),
         'recent_users': User.objects.order_by('-created_at')[:5],
-        'recent_apps': Application.objects.order_by('-created_at')[:5],
+        'recent_apps': Application.objects.order_by('-created')[:5],
     }
     return render(request, 'dashboard/dashboard.html', context)
