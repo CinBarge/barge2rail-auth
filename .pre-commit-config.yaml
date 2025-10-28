@@ -1,0 +1,193 @@
+# Pre-commit Hooks Configuration for Barge2Rail Django Projects
+#
+# Installation:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Test manually:
+#   pre-commit run --all-files
+#
+# Run on specific files:
+#   pre-commit run --files myfile.py
+#
+# Skip a specific hook for a commit:
+#   SKIP=black,flake8 git commit -m \"message\"
+#
+# Disable a hook temporarily (edit this file and remove the repo section)
+
+repos:
+  # ============================================================================
+  # Code Formatting (Black)
+  # ============================================================================
+  - repo: https://github.com/psf/black
+    rev: 25.9.0
+    hooks:
+      - id: black
+        language_version: python3.11
+        args: ['--line-length=88']
+        # Black reformats code to consistent style
+        # Configured for 88 characters per line (Black standard)
+
+  # ============================================================================
+  # Python Style Checking (Flake8)
+  # ============================================================================
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        args:
+          - '--max-line-length=88'
+          - '--extend-ignore=E203,W503'  # Black-compatible
+          - '--exclude=.git,__pycache__,.venv,migrations'
+        # Flake8 checks:
+        # E/W: PEP 8 style violations
+        # F: PyFlakes (undefined names, unused imports)
+        # C: McCabe complexity (disabled by default)
+
+  # ============================================================================
+  # Security Scanning (Bandit)
+  # ============================================================================
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.6
+    hooks:
+      - id: bandit
+        args: ['-ll']  # Low severity level (catches more issues)
+        exclude: ^tests/
+        # Bandit scans for security issues:
+        # - Hardcoded SQL statements
+        # - Insecure random number generation
+        # - Weak cryptography
+        # - SQL injection vulnerabilities
+        # Skipped in tests directory (less critical)
+
+  # ============================================================================
+  # Django-Specific Checks (django-upgrade)
+  # ============================================================================
+  - repo: https://github.com/adamchainz/django-upgrade
+    rev: 1.29.1
+    hooks:
+      - id: django-upgrade
+        args: ['--target-version', '5.0']
+        # Modernizes Django code for compatibility with Django 5.0
+        # Examples:
+        # - Removes deprecated patterns
+        # - Updates ORM usage
+        # - Modernizes model definitions
+
+  # ============================================================================
+  # Secrets Detection (detect-secrets)
+  # ============================================================================
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        # Prevents committing API keys, passwords, tokens
+        # Will create .secrets.baseline on first run
+        # Update with: detect-secrets scan --baseline .secrets.baseline
+
+  # ============================================================================
+  # Import Sorting (isort)
+  # ============================================================================
+  - repo: https://github.com/pycqa/isort
+    rev: 7.0.0
+    hooks:
+      - id: isort
+        args: ['--profile', 'black']
+        # Organizes imports consistently:
+        # 1. Standard library
+        # 2. Third-party packages
+        # 3. Local imports
+        # Configured to work with Black
+
+  # ============================================================================
+  # File Formatting & Validation
+  # ============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # Remove trailing whitespace
+      - id: trailing-whitespace
+        args: ['--markdown-linebreak-ext=md,markdown']
+
+      # Ensure files end with newline
+      - id: end-of-file-fixer
+
+      # Validate YAML files
+      - id: check-yaml
+        args: ['--unsafe']
+
+      # Check for large files that shouldn't be committed
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+        # Warns if files larger than 500KB are added
+
+      # Detect merge conflicts
+      - id: check-merge-conflict
+
+      # Check for private keys
+      - id: detect-private-key
+
+      # Fix common JSON issues
+      - id: pretty-format-json
+        args: ['--autofix']
+
+      # Ensure no debug breakpoints
+      - id: debug-statements
+
+# ============================================================================
+# Optional: Additional Hooks for Larger Projects
+# ============================================================================
+# Uncomment these if you need additional checks:
+
+# - repo: https://github.com/pycqa/pydocstyle
+#   rev: 6.3.0
+#   hooks:
+#     - id: pydocstyle
+#       args: ['--convention=google']
+#       # Validates docstring format
+
+# - repo: https://github.com/PyCQA/pylint
+#   rev: v3.0.0
+#   hooks:
+#     - id: pylint
+#       args: ['--disable=all', '--enable=E,F']
+#       # More comprehensive linting (slower)
+#       # Disabled by default - very strict
+
+# - repo: https://github.com/pycqa/pytest-runner
+#   rev: v0.0.1
+#   hooks:
+#     - id: pytest
+#       entry: pytest
+#       language: system
+#       pass_filenames: false
+#       always_run: true
+#       # Runs pytest on every commit (slow)
+
+# ============================================================================
+# Configuration Notes
+# ============================================================================
+#
+# Running Pre-Commit Manually:
+#   pre-commit run --all-files    # Check all files
+#   pre-commit run --files *.py    # Check specific files
+#   pre-commit run black           # Run specific hook
+#
+# Troubleshooting:
+#   - If hooks fail, fix issues and commit again
+#   - Use SKIP=hook_id to skip a hook once: SKIP=bandit git commit
+#   - Update hooks: pre-commit autoupdate
+#   - Clear cache: pre-commit clean
+#
+# Performance:
+#   - First run is slowest (installs tools)
+#   - Bandit is slowest hook (security scanning)
+#   - Most hooks run on changed files only
+#   - Consider using stages for expensive hooks:
+#     stages: [manual]  # Only with: pre-commit run --hook-stage manual
+#
+# CI/CD Integration:
+#   - Run in GitHub Actions: pre-commit run --all-files
+#   - Blocks PRs if any check fails (enforces compliance)
+#   - Cache pre-commit environment for speed
