@@ -142,6 +142,15 @@ class Application(AbstractApplication):
         help_text="Skip authorization screen for trusted applications"
     )
 
+    # Override algorithm field to default to RS256 for OIDC support
+    algorithm = models.CharField(
+        max_length=5,
+        choices=AbstractApplication.ALGORITHM_TYPES,
+        default=AbstractApplication.RS256_ALGORITHM,
+        blank=True,
+        help_text="RS256 uses global OIDC_RSA_PRIVATE_KEY for signing ID tokens"
+    )
+
     # Optional: Link application to creating user (nullable for backward compatibility)
     user = models.ForeignKey(
         User,
