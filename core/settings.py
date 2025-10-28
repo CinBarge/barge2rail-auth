@@ -235,6 +235,11 @@ OAUTH2_PROVIDER = {
     # Enable OpenID Connect (OIDC) support
     'OIDC_ENABLED': True,
 
+    # RSA Private Key for signing OpenID Connect ID tokens
+    # Required when using RS256 algorithm (loaded from environment)
+    # Note: Escape sequences like \n are decoded from the .env file
+    'OIDC_RSA_PRIVATE_KEY': config('OIDC_RSA_PRIVATE_KEY', default='').replace('\\n', '\n'),
+
     # OAuth2 scopes
     'SCOPES': {
         'read': 'Read access',
