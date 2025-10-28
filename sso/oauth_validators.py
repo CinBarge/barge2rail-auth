@@ -148,6 +148,9 @@ class CustomOAuth2Validator(OAuth2Validator):
                 'preferred_username': user.username,
             })
 
+            # Add SSO admin flag (global permission across all apps)
+            claims['is_sso_admin'] = user.is_sso_admin
+
             # Add role information if available
             if hasattr(request, 'client') and request.client:
                 try:
