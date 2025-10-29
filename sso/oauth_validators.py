@@ -9,7 +9,7 @@ import logging
 
 from oauth2_provider.oauth2_validators import OAuth2Validator
 
-from .models import Application, User, UserRole
+from .models import Application, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,8 @@ class CustomOAuth2Validator(OAuth2Validator):
 
         if authenticated and hasattr(request, "user"):
             logger.debug(
-                f"Request authenticated for user: {request.user.email or request.user.username}"
+                "Request authenticated for user: %s",
+                request.user.email or request.user.username,
             )
 
         return authenticated
@@ -141,6 +142,9 @@ class CustomOAuth2Validator(OAuth2Validator):
     def get_additional_claims(self, request):
         """
         Add custom claims to the ID token (for OpenID Connect).
+
+        Includes user profile, legacy per-client role (backward compatible),
+        and application-specific roles for all apps the user can access.
 
         Returns:
             dict: Additional claims to include in tokens
@@ -163,7 +167,7 @@ class CustomOAuth2Validator(OAuth2Validator):
             # Add SSO admin flag (global permission across all apps)
             claims["is_sso_admin"] = user.is_sso_admin
 
-            # Add role information if available
+            # Backward-compatible per-client role information (if available)
             if hasattr(request, "client") and request.client:
                 try:
                     role = UserRole.objects.get(user=user, application=request.client)
@@ -171,6 +175,26 @@ class CustomOAuth2Validator(OAuth2Validator):
                     claims["permissions"] = role.permissions
                 except UserRole.DoesNotExist:
                     pass
+
+            # Application-specific roles (multi-app authorization)
+            try:
+                from .models import ApplicationRole
+
+                app_roles = ApplicationRole.objects.filter(user=user).only(
+                    "application", "role", "permissions"
+                )
+                claims["application_roles"] = {}
+                for ar in app_roles:
+                    # ar.application is the app slug (e.g., 'primetrade')
+                    claims["application_roles"][ar.application] = {
+                        "role": ar.role,
+                        "permissions": ar.permissions or [],
+                    }
+                if claims.get("application_roles"):
+                    apps = list(claims["application_roles"].keys())
+                    logger.debug("Added application_roles for %s: %s", user.email, apps)
+            except Exception as e:
+                logger.warning(f"Failed to build application_roles claim: {e}")
 
         return claims
 
@@ -184,8 +208,8 @@ class CustomOAuth2Validator(OAuth2Validator):
         is_valid = super().validate_bearer_token(token, scopes, request)
 
         if is_valid:
-            logger.debug(f"Bearer token validated successfully")
+            logger.debug("Bearer token validated successfully")
         else:
-            logger.warning(f"Bearer token validation failed")
+            logger.warning("Bearer token validation failed")
 
         return is_valid
