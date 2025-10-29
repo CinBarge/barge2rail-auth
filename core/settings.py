@@ -29,14 +29,15 @@ SECRET_KEY = config("SECRET_KEY", default=None)
 if not SECRET_KEY:
     if DEBUG:
         # Development fallback - insecure but clearly marked
-        # pragma: allowlist secret
-        SECRET_KEY = "django-insecure-dev-key-only-not-for-production-" + "x" * 20
+        SECRET_KEY = (
+            "django-insecure-dev-key-only-not-for-production-" + "x" * 20
+        )  # pragma: allowlist secret
     else:
         # Production: Must be explicitly set
+        # pragma: allowlist secret
         raise ImproperlyConfigured(
             "SECRET_KEY must be set in environment variables. "
-            "Generate one with: python -c "
-            "'from django.core.management.utils import "
+            "Generate one with: python -c 'from django.core.management.utils import "
             "get_random_secret_key; print(get_random_secret_key())'"
         )
 elif len(SECRET_KEY) < 50:
@@ -44,8 +45,8 @@ elif len(SECRET_KEY) < 50:
     raise ImproperlyConfigured(
         f"SECRET_KEY must be at least 50 characters long "
         f"(current: {len(SECRET_KEY)} characters). "
-        "Generate a new one with: python -c "
-        "'from django.core.management.utils import "
+        # pragma: allowlist secret
+        "Generate a new one with: python -c 'from django.core.management.utils import "
         "get_random_secret_key; print(get_random_secret_key())'"
     )
 
@@ -280,8 +281,10 @@ OAUTH2_PROVIDER = {
         "openid": "OpenID Connect",
         "profile": "User profile information",
         "email": "User email address",
+        "roles": "Application roles and permissions",
     },
-    "DEFAULT_SCOPES": ["openid", "profile", "email"],
+    "DEFAULT_SCOPES": ["openid", "profile", "email", "roles"],
+    "OIDC_EXTRA_SCOPE_CLAIMS": "sso.oidc_claims.CustomScopeClaims",
     # Token lifetimes (align with SIMPLE_JWT)
     "ACCESS_TOKEN_EXPIRE_SECONDS": 900,  # 15 minutes
     "REFRESH_TOKEN_EXPIRE_SECONDS": 604800,  # 7 days
