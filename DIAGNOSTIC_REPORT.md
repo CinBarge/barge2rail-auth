@@ -66,7 +66,7 @@ Either:
 
 ### Details
 - **Size**: 5.2MB of completely separate code
-- **Project Name**: "CincyBarge2Rail" 
+- **Project Name**: "CincyBarge2Rail"
 - **Has its own**: settings.py, database, apps, migrations
 - **Security**: Hardcoded SECRET_KEY in settings.py: `'django-insecure-aid%j!1+#sc2l^w...'`
 - **Installed Apps**: Uses "unfold" admin theme, has "dashboard" and "user" apps
@@ -409,7 +409,7 @@ python manage.py test     # Would fail
 ## 🔨 RECOMMENDED FIXES (Priority Order)
 
 ### Priority 1: IMMEDIATE (Blocks Everything)
-1. **Fix OAuth URL routes** 
+1. **Fix OAuth URL routes**
    - Remove `oauth_authorize` and `oauth_token` lines from `sso/urls.py` (lines 20-21)
    - OR implement these functions if OAuth 2.0 server is needed
    - Verify with: `python manage.py check`
@@ -418,12 +418,12 @@ python manage.py test     # Would fail
 2. **Remove CincyBarge_Development project**
    - Move to separate repository or delete
    - Document decision in commit message
-   
+
 3. **Consolidate authentication code**
    - Choose one canonical location for each function
    - Remove duplicates from other files
    - Update all imports
-   
+
 4. **Secure secrets**
    - Generate proper SECRET_KEY and add to `.env`
    - Review git history for exposed secrets
@@ -434,12 +434,12 @@ python manage.py test     # Would fail
    - Remove duplicate path in `core/urls.py` line 14
    - Choose either `/api/auth/` OR `/auth/` prefix, not both
    - Clean up dashboard callback routing
-   
+
 6. **Clean up dependencies**
    - Review if `nltk`, `marshmallow`, `Authlib` are needed
    - Remove if unused
    - Document why heavy dependencies are needed
-   
+
 7. **Remove duplicate venv**
    - Determine which virtual environment is used
    - Delete the other one
@@ -447,10 +447,10 @@ python manage.py test     # Would fail
 ### Priority 4: MEDIUM (Nice to Have)
 8. **Split large files**
    - Break `views.py` (1,068 lines) into logical modules
-   
+
 9. **Add missing .env variables**
    - Copy from `.env.example` and fill in
-   
+
 10. **Run and review security audits**
     - Check the 9.9MB `bandit-report.json`
     - Address any critical findings
@@ -535,21 +535,21 @@ Before fixing, clarify:
 1. **Is OAuth 2.0 server needed?**
    - If yes: Implement missing functions
    - If no: Remove routes and AuthorizationCode model
-   
+
 2. **What is CincyBarge_Development?**
    - Customer project?
    - Testing environment?
    - Should it be here?
-   
+
 3. **Which auth flow is canonical?**
    - `views.py`?
    - `auth_views.py`? (currently used)
    - `oauth_views.py`?
-   
+
 4. **Why two URL prefixes?**
    - `/api/auth/` and `/auth/`
    - Intentional or accidental?
-   
+
 5. **Is `common.auth.SSOValidationAuthentication` used?**
    - Currently disabled in settings
    - Can it be deleted?

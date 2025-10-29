@@ -64,13 +64,13 @@
                                             <td class="text-muted">{{ order.date|date:"h:i A" }}</td>
                                             <td>
                                                 {% if order.status in 'pending,scheduled,in_progress' %}
-                                                    <a href="{% url 'dashboard-order-edit' order.id %}" 
+                                                    <a href="{% url 'dashboard-order-edit' order.id %}"
                                                        class="btn btn-sm btn-primary" title="Edit Order">
                                                         <i class="fas fa-edit"></i>
                                                     </a>
                                                 {% endif %}
                                                 {% if order.status in 'pending,scheduled' %}
-                                                    <form method="post" action="{% url 'dashboard-order-delete' order.id %}" 
+                                                    <form method="post" action="{% url 'dashboard-order-delete' order.id %}"
                                                           style="display:inline;" onsubmit="return confirm('Delete this order?');">
                                                         {% csrf_token %}
                                                         <button type="submit" class="btn btn-sm btn-danger" title="Delete Order">
@@ -146,13 +146,13 @@
                                             <td class="text-muted">{{ order.date|date:"M d, Y" }}</td>
                                             <td>
                                                 {% if order.status in 'pending,scheduled,in_progress' %}
-                                                    <a href="{% url 'dashboard-order-edit' order.id %}" 
+                                                    <a href="{% url 'dashboard-order-edit' order.id %}"
                                                        class="btn btn-sm btn-primary" title="Edit Order">
                                                         <i class="fas fa-edit"></i>
                                                     </a>
                                                 {% endif %}
                                                 {% if order.status in 'pending,scheduled' %}
-                                                    <form method="post" action="{% url 'dashboard-order-delete' order.id %}" 
+                                                    <form method="post" action="{% url 'dashboard-order-delete' order.id %}"
                                                           style="display:inline;" onsubmit="return confirm('Delete this order?');">
                                                         {% csrf_token %}
                                                         <button type="submit" class="btn btn-sm btn-danger" title="Delete Order">

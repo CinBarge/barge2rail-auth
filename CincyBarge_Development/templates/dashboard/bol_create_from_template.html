@@ -7,7 +7,7 @@
     <div class="col-12">
       <h2><i class="fas fa-bolt"></i> Create BOL from Template: {{ template.supplier.name }}</h2>
       <p class="text-muted">
-        <i class="fas fa-info-circle"></i> 
+        <i class="fas fa-info-circle"></i>
         Fields below are pre-filled from the template. Edit as needed and add products.
       </p>
     </div>
@@ -15,7 +15,7 @@
 
   <form method="post">
     {% csrf_token %}
-    
+
     <div class="row mt-3">
       <!-- Shipper Information -->
       <div class="col-md-6">
@@ -26,7 +26,7 @@
           <div class="card-body">
             <div class="mb-3">
               <label for="shipper_name" class="form-label">Shipper Name</label>
-              <input type="text" class="form-control" id="shipper_name" name="shipper_name" 
+              <input type="text" class="form-control" id="shipper_name" name="shipper_name"
                      value="{{ field_mapping.shipper_name|default:'' }}">
             </div>
             <div class="mb-3">
@@ -35,7 +35,7 @@
             </div>
             <div class="mb-3">
               <label for="origin" class="form-label">Origin/Port of Loading</label>
-              <input type="text" class="form-control" id="origin" name="origin" 
+              <input type="text" class="form-control" id="origin" name="origin"
                      value="{{ field_mapping.origin|default:'' }}">
             </div>
           </div>
@@ -51,7 +51,7 @@
           <div class="card-body">
             <div class="mb-3">
               <label for="consignee_name" class="form-label">Consignee Name</label>
-              <input type="text" class="form-control" id="consignee_name" name="consignee_name" 
+              <input type="text" class="form-control" id="consignee_name" name="consignee_name"
                      value="{{ field_mapping.consignee_name|default:'' }}">
             </div>
             <div class="mb-3">
@@ -60,7 +60,7 @@
             </div>
             <div class="mb-3">
               <label for="destination" class="form-label">Destination/Port of Discharge</label>
-              <input type="text" class="form-control" id="destination" name="destination" 
+              <input type="text" class="form-control" id="destination" name="destination"
                      value="{{ field_mapping.destination|default:'' }}">
             </div>
           </div>
@@ -78,23 +78,23 @@
           <div class="card-body">
             <div class="mb-3">
               <label for="carrier" class="form-label">Carrier</label>
-              <input type="text" class="form-control" id="carrier" name="carrier" 
+              <input type="text" class="form-control" id="carrier" name="carrier"
                      value="{{ field_mapping.carrier|default:'' }}">
             </div>
             <div class="mb-3">
               <label for="vessel_name" class="form-label">Vessel/Barge Name</label>
-              <input type="text" class="form-control" id="vessel_name" name="vessel_name" 
+              <input type="text" class="form-control" id="vessel_name" name="vessel_name"
                      value="{{ field_mapping.vessel_name|default:'' }}">
             </div>
             <div class="row">
               <div class="col-md-6 mb-3">
                 <label for="container_number" class="form-label">Container Number</label>
-                <input type="text" class="form-control" id="container_number" name="container_number" 
+                <input type="text" class="form-control" id="container_number" name="container_number"
                        value="{{ field_mapping.container_number|default:'' }}">
               </div>
               <div class="col-md-6 mb-3">
                 <label for="seal_number" class="form-label">Seal Number</label>
-                <input type="text" class="form-control" id="seal_number" name="seal_number" 
+                <input type="text" class="form-control" id="seal_number" name="seal_number"
                        value="{{ field_mapping.seal_number|default:'' }}">
               </div>
             </div>
@@ -112,12 +112,12 @@
             <div class="row">
               <div class="col-md-6 mb-3">
                 <label for="delivery_date" class="form-label">Delivery Date</label>
-                <input type="date" class="form-control" id="delivery_date" name="delivery_date" 
+                <input type="date" class="form-control" id="delivery_date" name="delivery_date"
                        value="{{ field_mapping.delivery_date|default:'' }}">
               </div>
               <div class="col-md-6 mb-3">
                 <label for="freight_charges" class="form-label">Freight Charges ($)</label>
-                <input type="number" step="0.01" class="form-control" id="freight_charges" name="freight_charges" 
+                <input type="number" step="0.01" class="form-control" id="freight_charges" name="freight_charges"
                        value="{{ field_mapping.freight_charges|default:'' }}">
               </div>
             </div>
@@ -141,7 +141,7 @@
         </a>
         <div class="mt-2">
           <small class="text-muted">
-            <i class="fas fa-info-circle"></i> 
+            <i class="fas fa-info-circle"></i>
             After creating the BOL, you'll be able to add products on the next page.
           </small>
         </div>

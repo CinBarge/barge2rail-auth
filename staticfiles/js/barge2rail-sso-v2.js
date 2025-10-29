@@ -104,9 +104,9 @@ class Barge2RailSSO {
         if (response.ok) {
             this.setTokens(data.access_token, data.refresh_token);
             this.setUser(data.user);
-            
-            return { 
-                success: true, 
+
+            return {
+                success: true,
                 user: data.user,
                 message: data.message,
                 anonymous_credentials: data.anonymous_credentials
@@ -119,7 +119,7 @@ class Barge2RailSSO {
     // Logout
     async logout() {
         const refreshToken = this.getRefreshToken();
-        
+
         if (refreshToken) {
             try {
                 await fetch(`${this.ssoUrl}/api/auth/logout/`, {
@@ -134,18 +134,18 @@ class Barge2RailSSO {
                 console.error('Logout error:', error);
             }
         }
-        
+
         this.clearAuth();
     }
 
     // Refresh access token
     async refreshToken() {
         const refreshToken = this.getRefreshToken();
-        
+
         if (!refreshToken) {
             throw new Error('No refresh token available');
         }
-        
+
         try {
             const response = await fetch(`${this.ssoUrl}/api/auth/refresh/`, {
                 method: 'POST',
@@ -154,14 +154,14 @@ class Barge2RailSSO {
                 },
                 body: JSON.stringify({ refresh: refreshToken })
             });
-            
+
             if (!response.ok) {
                 throw new Error('Token refresh failed');
             }
-            
+
             const data = await response.json();
             this.setTokens(data.access, data.refresh || refreshToken);
-            
+
             return data.access;
         } catch (error) {
             console.error('Token refresh error:', error);
@@ -173,13 +173,13 @@ class Barge2RailSSO {
     // Make authenticated request
     async authenticatedRequest(url, options = {}) {
         const token = this.getAccessToken();
-        
+
         if (!token) {
             throw new Error('Not authenticated');
         }
-        
+
         const fullUrl = url.startsWith('http') ? url : `${this.ssoUrl}${url}`;
-        
+
         const requestOptions = {
             ...options,
             headers: {
@@ -188,9 +188,9 @@ class Barge2RailSSO {
                 'Content-Type': 'application/json'
             }
         };
-        
+
         let response = await fetch(fullUrl, requestOptions);
-        
+
         // If token expired, try to refresh
         if (response.status === 401) {
             try {
@@ -203,11 +203,11 @@ class Barge2RailSSO {
                 throw new Error('Session expired');
             }
         }
-        
+
         if (!response.ok) {
             throw new Error(`Request failed: ${response.statusText}`);
         }
-        
+
         return response.json();
     }
 
@@ -267,7 +267,7 @@ class Barge2RailSSO {
     getUserRole(appSlug = null) {
         const user = this.getUser();
         if (!user || !user.roles) return null;
-        
+
         const slug = appSlug || this.appSlug;
         return user.roles[slug] || null;
     }
@@ -275,7 +275,7 @@ class Barge2RailSSO {
     hasPermission(permission, appSlug = null) {
         const role = this.getUserRole(appSlug);
         if (!role) return false;
-        
+
         return role.permissions && role.permissions[permission] === true;
     }
 
@@ -287,7 +287,7 @@ class Barge2RailSSO {
             const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
                 return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
             }).join(''));
-            
+
             return JSON.parse(jsonPayload);
         } catch (error) {
             console.error('Token decode error:', error);
@@ -300,7 +300,7 @@ class Barge2RailSSO {
         if (!decoded || !decoded.exp) {
             return true;
         }
-        
+
         const currentTime = Date.now() / 1000;
         return decoded.exp < currentTime;
     }
@@ -314,7 +314,7 @@ class Barge2RailSSO {
                 if (decoded && decoded.exp) {
                     const currentTime = Date.now() / 1000;
                     const timeUntilExpiry = decoded.exp - currentTime;
-                    
+
                     // Refresh if less than 5 minutes until expiry
                     if (timeUntilExpiry < 300) {
                         try {

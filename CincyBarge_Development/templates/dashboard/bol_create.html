@@ -18,41 +18,41 @@
         <div class="card-body">
           <form method="post">
             {% csrf_token %}
-            
+
             <div class="row">
               <div class="col-md-6">
                 <h6 class="border-bottom pb-2 mb-3">Shipping Details</h6>
-                
+
                 <div class="mb-3">
                   <label for="id_supplier" class="form-label">Supplier *</label>
                   {{ form.supplier }}
                 </div>
-                
+
                 <div class="mb-3">
                   <label for="id_shipper_name" class="form-label">Shipper Name</label>
                   {{ form.shipper_name }}
                 </div>
-                
+
                 <div class="mb-3">
                   <label for="id_shipper_address" class="form-label">Shipper Address</label>
                   {{ form.shipper_address }}
                 </div>
-                
+
                 <div class="mb-3">
                   <label for="id_consignee_name" class="form-label">Consignee Name</label>
                   {{ form.consignee_name }}
                 </div>
-                
+
                 <div class="mb-3">
                   <label for="id_consignee_address" class="form-label">Consignee Address</label>
                   {{ form.consignee_address }}
                 </div>
-                
+
                 <div class="mb-3">
                   <label for="id_origin" class="form-label">Origin</label>
                   {{ form.origin }}
                 </div>
-                
+
                 <div class="mb-3">
                   <label for="id_destination" class="form-label">Destination</label>
                   {{ form.destination }}
@@ -61,38 +61,38 @@
 
               <div class="col-md-6">
                 <h6 class="border-bottom pb-2 mb-3">Transport Details</h6>
-                
+
                 <div class="mb-3">
                   <label for="id_carrier" class="form-label">Carrier</label>
                   {{ form.carrier }}
                 </div>
-                
+
                 <div class="mb-3">
                   <label for="id_vessel_name" class="form-label">Vessel/Barge Name</label>
                   {{ form.vessel_name }}
                 </div>
-                
+
                 <div class="mb-3">
                   <label for="id_container_number" class="form-label">Container Number</label>
                   {{ form.container_number }}
                 </div>
-                
+
                 <div class="mb-3">
                   <label for="id_seal_number" class="form-label">Seal Number</label>
                   {{ form.seal_number }}
                 </div>
-                
+
                 <div class="mb-3">
                   <label for="id_freight_charges" class="form-label">Freight Charges ($)</label>
                   {{ form.freight_charges }}
                 </div>
-                
+
                 <div class="mb-3">
                   <label for="id_delivery_date" class="form-label">Expected Delivery Date *</label>
                   {{ form.delivery_date }}
                   <small class="form-text text-muted">Orders will be scheduled for this date</small>
                 </div>
-                
+
                 <div class="mb-3">
                   <label for="id_notes" class="form-label">Notes</label>
                   {{ form.notes }}

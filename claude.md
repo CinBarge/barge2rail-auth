@@ -7,7 +7,7 @@
 
 **Business Domain:** Authentication system for small logistics company (barge2rail.com)
 **Primary Users:** Office staff, field technicians, future: suppliers/customers
-**Operational Reality:** 
+**Operational Reality:**
 - Interrupt-driven environment (operational emergencies take priority)
 - ADHD-friendly design required (15-minute work blocks, clear checkpoints)
 - Seasonal patterns (river conditions affect usage patterns)
@@ -663,18 +663,18 @@ def login_view(request):
     # Edge case 1: Already authenticated
     if request.user.is_authenticated:
         return redirect('dashboard')
-    
+
     # Edge case 2: Missing OAuth state
     state = request.GET.get('state')
     if not state:
         logger.warning("OAuth callback missing state parameter")
         return JsonResponse({'error': 'Invalid authentication attempt'}, status=400)
-    
+
     # Edge case 3: Invalid/expired state
     if not validate_oauth_state(state):
         logger.warning("OAuth callback with invalid state", extra={'state': state[:20]})
         return JsonResponse({'error': 'Authentication request expired. Please try again.'}, status=400)
-    
+
     # Continue with normal flow...
 ```
 

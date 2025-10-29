@@ -12,9 +12,10 @@ Security Features:
 - No hardcoded emails (all from environment variables)
 """
 
+import logging
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +38,16 @@ def get_admin_whitelist():
         - Strips whitespace from entries
         - Filters out empty entries
     """
-    whitelist = getattr(settings, 'ADMIN_WHITELIST', '')
+    whitelist = getattr(settings, "ADMIN_WHITELIST", "")
 
     if not whitelist:
-        logger.warning("ADMIN_WHITELIST not configured - no OAuth admin access will be granted")
+        logger.warning(
+            "ADMIN_WHITELIST not configured - no OAuth admin access will be granted"
+        )
         return []
 
     # Parse comma-separated list, lowercase, strip whitespace, filter empties
-    emails = [e.strip().lower() for e in whitelist.split(',') if e.strip()]
+    emails = [e.strip().lower() for e in whitelist.split(",") if e.strip()]
 
     logger.debug(f"Admin whitelist loaded: {len(emails)} entries")
     return emails
@@ -66,23 +69,23 @@ def get_superuser_whitelist():
         - Automatically lowercases all emails
         - Strips whitespace from entries
     """
-    whitelist = getattr(settings, 'SUPERUSER_WHITELIST', '')
+    whitelist = getattr(settings, "SUPERUSER_WHITELIST", "")
 
     if not whitelist:
         logger.debug("SUPERUSER_WHITELIST not configured - no OAuth superuser access")
         return []
 
     # Parse comma-separated list, lowercase, strip whitespace, filter empties
-    emails = [e.strip().lower() for e in whitelist.split(',') if e.strip()]
+    emails = [e.strip().lower() for e in whitelist.split(",") if e.strip()]
 
     # Warn if wildcards found (not supported for superuser)
-    wildcards = [e for e in emails if e.startswith('*@')]
+    wildcards = [e for e in emails if e.startswith("*@")]
     if wildcards:
         logger.warning(
             f"Wildcards in SUPERUSER_WHITELIST are ignored (too risky): {wildcards}"
         )
         # Remove wildcards from superuser list
-        emails = [e for e in emails if not e.startswith('*@')]
+        emails = [e for e in emails if not e.startswith("*@")]
 
     logger.debug(f"Superuser whitelist loaded: {len(emails)} entries")
     return emails
@@ -129,13 +132,15 @@ def should_grant_admin_access(email):
         return True
 
     # Domain wildcard match (e.g., *@barge2rail.com)
-    if '@' in email:
-        email_domain = email.split('@')[1]
+    if "@" in email:
+        email_domain = email.split("@")[1]
         for allowed in admin_emails:
-            if allowed.startswith('*@'):
+            if allowed.startswith("*@"):
                 allowed_domain = allowed[2:]  # Remove '*@' prefix
                 if email_domain == allowed_domain:
-                    logger.debug(f"Admin access granted (wildcard match): {email} matches {allowed}")
+                    logger.debug(
+                        f"Admin access granted (wildcard match): {email} matches {allowed}"
+                    )
                     return True
 
     logger.debug(f"Admin access denied: {email} not in whitelist")
@@ -239,15 +244,13 @@ def assign_admin_permissions(user):
     if user.is_staff != new_staff:
         user.is_staff = new_staff
         changed = True
-        updates.append('is_staff')
-        logger.info(
-            f"Updated is_staff for {email}: {original_staff} -> {new_staff}"
-        )
+        updates.append("is_staff")
+        logger.info(f"Updated is_staff for {email}: {original_staff} -> {new_staff}")
 
     if user.is_superuser != new_superuser:
         user.is_superuser = new_superuser
         changed = True
-        updates.append('is_superuser')
+        updates.append("is_superuser")
         logger.info(
             f"Updated is_superuser for {email}: {original_superuser} -> {new_superuser}"
         )
@@ -304,7 +307,7 @@ def revoke_admin_permissions(user):
     if user.is_staff or user.is_superuser:
         user.is_staff = False
         user.is_superuser = False
-        user.save(update_fields=['is_staff', 'is_superuser'])
+        user.save(update_fields=["is_staff", "is_superuser"])
         changed = True
 
         logger.warning(

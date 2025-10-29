@@ -56,29 +56,29 @@
                     <td>
                       <strong>{{ product.name }}</strong><br>
                       <small class="text-muted">
-                        {{ product.supplier.name|default:'No Supplier' }} | 
+                        {{ product.supplier.name|default:'No Supplier' }} |
                         Avail: {{ product.quantity }}
                         {% if product.weight %} | {{ product.weight }} lbs{% endif %}
                       </small>
                     </td>
                     <td>
-                      <input type="number" 
-                             class="form-control form-control-sm qty-input" 
+                      <input type="number"
+                             class="form-control form-control-sm qty-input"
                              id="qty-{{ product.id }}"
-                             value="1" 
+                             value="1"
                              min="1"
                              placeholder="Qty">
                     </td>
                     <td>
-                      <input type="number" 
-                             class="form-control form-control-sm weight-input" 
+                      <input type="number"
+                             class="form-control form-control-sm weight-input"
                              id="weight-{{ product.id }}"
-                             value="{{ product.weight|default:'0' }}" 
+                             value="{{ product.weight|default:'0' }}"
                              step="0.01"
                              placeholder="lbs">
                     </td>
                     <td>
-                      <button class="btn btn-sm btn-success quick-add-btn" 
+                      <button class="btn btn-sm btn-success quick-add-btn"
                               data-product-id="{{ product.id }}"
                               data-product-name="{{ product.name }}"
                               data-product-desc="{{ product.description|default:'' }}"
@@ -127,7 +127,7 @@
                       <td>{{ item.quantity }}</td>
                       <td>{{ item.weight|default:"-" }}</td>
                       <td>
-                        <button class="btn btn-sm btn-danger remove-product-btn" 
+                        <button class="btn btn-sm btn-danger remove-product-btn"
                                 data-line-item-id="{{ item.id }}">
                           <i class="fas fa-trash"></i>
                         </button>
@@ -155,21 +155,21 @@
       <div class="card">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
           <h5 class="mb-0"><i class="fas fa-file-pdf"></i> BOL Template Reference</h5>
-          <a href="{% url 'dashboard-bol-view-template' bol.template.id %}" 
-             target="_blank" 
+          <a href="{% url 'dashboard-bol-view-template' bol.template.id %}"
+             target="_blank"
              class="btn btn-sm btn-light">
             <i class="fas fa-external-link-alt"></i> Open in New Tab
           </a>
         </div>
         <div class="card-body p-0">
-          <iframe src="{% url 'dashboard-bol-view-template' bol.template.id %}" 
-                  width="100%" 
-                  height="600px" 
+          <iframe src="{% url 'dashboard-bol-view-template' bol.template.id %}"
+                  width="100%"
+                  height="600px"
                   style="border: none;">
           </iframe>
           <div class="p-3 bg-light">
             <small class="text-muted">
-              <i class="fas fa-info-circle"></i> Use this template as reference when adding products to the BOL. 
+              <i class="fas fa-info-circle"></i> Use this template as reference when adding products to the BOL.
               If the PDF doesn't display, <a href="{% url 'dashboard-bol-view-template' bol.template.id %}" target="_blank">click here to open it</a>.
             </small>
           </div>
@@ -203,22 +203,22 @@
       <div class="modal-body">
         <form id="add-product-form">
           <input type="hidden" id="modal-product-id">
-          
+
           <div class="mb-3">
             <label class="form-label"><strong>Product:</strong></label>
             <p id="modal-product-name" class="form-control-plaintext"></p>
           </div>
-          
+
           <div class="mb-3">
             <label for="modal-quantity" class="form-label">Quantity *</label>
             <input type="number" class="form-control" id="modal-quantity" min="1" required>
           </div>
-          
+
           <div class="mb-3">
             <label for="modal-weight" class="form-label">Weight (lbs)</label>
             <input type="number" class="form-control" id="modal-weight" step="0.01">
           </div>
-          
+
           <div class="mb-3">
             <label for="modal-description" class="form-label">Description</label>
             <textarea class="form-control" id="modal-description" rows="2"></textarea>
@@ -239,28 +239,28 @@
 document.addEventListener('DOMContentLoaded', function() {
   const bolId = {{ bol.id }};
   const csrfToken = '{{ csrf_token }}';
-  
+
   const productSearch = document.getElementById('product-search');
   const supplierFilter = document.getElementById('supplier-filter');
   const productTable = document.getElementById('product-list-table');
-  
+
   // Filter products based on search and supplier
   function filterProducts() {
     const searchTerm = productSearch ? productSearch.value.toLowerCase() : '';
     const selectedSupplier = supplierFilter ? supplierFilter.value : '';
-    
+
     if (!productTable) return;
-    
+
     const rows = productTable.querySelectorAll('tbody tr');
     let visibleCount = 0;
-    
+
     rows.forEach(row => {
       const name = row.dataset.productName.toLowerCase();
       const supplier = row.dataset.supplier;
-      
+
       const matchesSearch = name.includes(searchTerm);
       const matchesSupplier = !selectedSupplier || supplier === selectedSupplier;
-      
+
       if (matchesSearch && matchesSupplier) {
         row.style.display = '';
         visibleCount++;
@@ -269,39 +269,39 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
-  
+
   // Event listeners for filtering
   if (productSearch) {
     productSearch.addEventListener('input', filterProducts);
   }
-  
+
   if (supplierFilter) {
     supplierFilter.addEventListener('change', filterProducts);
   }
-  
+
   // Handle Quick Add buttons
   document.querySelectorAll('.quick-add-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       const productId = this.dataset.productId;
       const productName = this.dataset.productName;
       const productDesc = this.dataset.productDesc;
-      
+
       const qtyInput = document.getElementById(`qty-${productId}`);
       const weightInput = document.getElementById(`weight-${productId}`);
-      
+
       const quantity = parseInt(qtyInput.value) || 1;
       const weight = parseFloat(weightInput.value) || null;
-      
+
       if (quantity < 1) {
         alert('Please enter a valid quantity');
         return;
       }
-      
+
       // Disable button and show loading
       this.disabled = true;
       const originalHtml = this.innerHTML;
       this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-      
+
       // Send request to add product
       fetch(`/bol/${bolId}/add-product/`, {
         method: 'POST',
@@ -323,10 +323,10 @@ document.addEventListener('DOMContentLoaded', function() {
           this.innerHTML = '<i class="fas fa-check"></i>';
           this.classList.remove('btn-success');
           this.classList.add('btn-secondary');
-          
+
           // Add to selected products table dynamically
           addLineItemToTable(data.line_item);
-          
+
           // Reset inputs after brief delay
           setTimeout(() => {
             qtyInput.value = 1;
@@ -335,7 +335,7 @@ document.addEventListener('DOMContentLoaded', function() {
             this.classList.add('btn-success');
             this.disabled = false;
           }, 1500);
-          
+
           // Hide "no items" message if present
           const noItemsMsg = document.getElementById('no-items-message');
           if (noItemsMsg) {
@@ -355,11 +355,11 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
   });
-  
+
   // Function to add line item to table dynamically
   function addLineItemToTable(lineItem) {
     let tbody = document.querySelector('#line-items-table tbody');
-    
+
     // If table doesn't exist, create it
     if (!tbody) {
       const container = document.getElementById('line-items-container');
@@ -380,7 +380,7 @@ document.addEventListener('DOMContentLoaded', function() {
       `;
       tbody = document.querySelector('#line-items-table tbody');
     }
-    
+
     // Add new row
     const row = document.createElement('tr');
     row.setAttribute('data-line-item-id', lineItem.id);
@@ -389,33 +389,33 @@ document.addEventListener('DOMContentLoaded', function() {
       <td>${lineItem.quantity}</td>
       <td>${lineItem.weight || '-'}</td>
       <td>
-        <button class="btn btn-sm btn-danger remove-product-btn" 
+        <button class="btn btn-sm btn-danger remove-product-btn"
                 data-line-item-id="${lineItem.id}">
           <i class="fas fa-trash"></i>
         </button>
       </td>
     `;
     tbody.appendChild(row);
-    
+
     // Attach remove handler to new button
     const removeBtn = row.querySelector('.remove-product-btn');
     removeBtn.addEventListener('click', handleRemoveProduct);
   }
-  
+
   // Handle Remove Product function
   function handleRemoveProduct() {
     if (!confirm('Remove this product from the BOL?')) {
       return;
     }
-    
+
     const lineItemId = this.dataset.lineItemId;
     const row = this.closest('tr');
-    
+
     // Disable button during request
     this.disabled = true;
     const originalHtml = this.innerHTML;
     this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    
+
     fetch(`/bol/${bolId}/remove-product/${lineItemId}/`, {
       method: 'POST',
       headers: {
@@ -430,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
         row.style.transition = 'opacity 0.3s';
         setTimeout(() => {
           row.remove();
-          
+
           // If no more items, show message
           const tbody = document.querySelector('#line-items-table tbody');
           if (tbody && tbody.children.length === 0) {
@@ -455,16 +455,16 @@ document.addEventListener('DOMContentLoaded', function() {
       this.disabled = false;
     });
   }
-  
+
   // Handle Remove Product button click
   document.querySelectorAll('.remove-product-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       if (!confirm('Remove this product from the BOL?')) {
         return;
       }
-      
+
       const lineItemId = this.dataset.lineItemId;
-      
+
       fetch(`/bol/${bolId}/remove-product/${lineItemId}/`, {
         method: 'POST',
         headers: {
@@ -477,7 +477,7 @@ document.addEventListener('DOMContentLoaded', function() {
           // Remove the row from table
           const row = document.querySelector(`tr[data-line-item-id="${lineItemId}"]`);
           row.remove();
-          
+
           // If no more items, show message
           const tbody = document.querySelector('#line-items-table tbody');
           if (tbody && tbody.children.length === 0) {

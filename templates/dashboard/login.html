@@ -6,19 +6,19 @@
 <div style="max-width: 400px; margin: 100px auto;">
     <div class="card">
         <h2 style="margin-bottom: 2rem; text-align: center; color: #005500;">Barge2Rail SSO Admin</h2>
-        
+
         <form method="post">
             {% csrf_token %}
             <div class="form-group">
                 <label for="email">Email Address</label>
                 <input type="email" id="email" name="email" required autofocus>
             </div>
-            
+
             <div class="form-group">
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required>
             </div>
-            
+
             <button type="submit" class="btn" style="width: 100%;">Sign In</button>
         </form>
     </div>

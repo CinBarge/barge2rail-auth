@@ -28,7 +28,7 @@ if curl -s http://127.0.0.1:8000/ >/dev/null; then
     echo "   http://127.0.0.1:8000/login/google-onetap/"
     echo ""
     echo "Press Ctrl+C to stop the server"
-    
+
     # Keep script running
     wait $SERVER_PID
 else

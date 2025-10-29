@@ -41,14 +41,14 @@
                             <strong>ID:</strong> {{ raw_data.id }}
                         </div>
                         <div class="col-md-3">
-                            <strong>Supplier:</strong> 
+                            <strong>Supplier:</strong>
                             <span class="badge badge-info">{{ raw_data.supplier.name }}</span>
                         </div>
                         <div class="col-md-3">
                             <strong>File Name:</strong> {{ raw_data.file_name }}
                         </div>
                         <div class="col-md-3">
-                            <strong>Uploaded By:</strong> 
+                            <strong>Uploaded By:</strong>
                             {% if raw_data.uploaded_by %}
                                 {{ raw_data.uploaded_by.username }}
                             {% else %}

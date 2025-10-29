@@ -27,7 +27,7 @@
               <span class="badge bg-warning">{{ bol.get_status_display }}</span>
             </div>
           </div>
-          
+
           <div class="row mb-3">
             <div class="col-6">
               <strong>Supplier:</strong><br>
@@ -38,9 +38,9 @@
               {{ bol.delivery_date|date:"M d, Y"|default:"Not set" }}
             </div>
           </div>
-          
+
           <hr>
-          
+
           <h6 class="text-primary">Shipping Information</h6>
           <div class="row mb-2">
             <div class="col-6">
@@ -52,7 +52,7 @@
               {{ bol.destination|default:"N/A" }}
             </div>
           </div>
-          
+
           <div class="row mb-2">
             <div class="col-12">
               <strong>Shipper:</strong><br>
@@ -60,7 +60,7 @@
               <small>{{ bol.shipper_address|default:"" }}</small>
             </div>
           </div>
-          
+
           <div class="row mb-2">
             <div class="col-12">
               <strong>Consignee:</strong><br>
@@ -68,9 +68,9 @@
               <small>{{ bol.consignee_address|default:"" }}</small>
             </div>
           </div>
-          
+
           <hr>
-          
+
           <h6 class="text-primary">Transport Details</h6>
           <div class="row mb-2">
             <div class="col-6">
@@ -82,7 +82,7 @@
               {{ bol.vessel_name|default:"N/A" }}
             </div>
           </div>
-          
+
           <div class="row mb-2">
             <div class="col-6">
               <strong>Container #:</strong><br>
@@ -93,7 +93,7 @@
               {{ bol.seal_number|default:"N/A" }}
             </div>
           </div>
-          
+
           {% if bol.freight_charges %}
           <div class="row mb-2">
             <div class="col-12">
@@ -102,7 +102,7 @@
             </div>
           </div>
           {% endif %}
-          
+
           {% if bol.notes %}
           <hr>
           <strong>Notes:</strong><br>
@@ -166,21 +166,21 @@
       <div class="card mt-3">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
           <h5 class="mb-0"><i class="fas fa-file-pdf"></i> PDF Template</h5>
-          <a href="{% url 'dashboard-bol-view-template' bol.template.id %}" 
-             target="_blank" 
+          <a href="{% url 'dashboard-bol-view-template' bol.template.id %}"
+             target="_blank"
              class="btn btn-sm btn-light">
             <i class="fas fa-external-link-alt"></i> Open in New Tab
           </a>
         </div>
         <div class="card-body p-0">
-          <iframe src="{% url 'dashboard-bol-view-template' bol.template.id %}" 
-                  width="100%" 
-                  height="500px" 
+          <iframe src="{% url 'dashboard-bol-view-template' bol.template.id %}"
+                  width="100%"
+                  height="500px"
                   style="border: none;">
           </iframe>
           <div class="p-3 bg-light">
             <small class="text-muted">
-              <i class="fas fa-info-circle"></i> This template will be used as reference for the Bill of Lading. 
+              <i class="fas fa-info-circle"></i> This template will be used as reference for the Bill of Lading.
               If the PDF doesn't display, <a href="{% url 'dashboard-bol-view-template' bol.template.id %}" target="_blank">click here to open it</a>.
             </small>
           </div>
@@ -190,7 +190,7 @@
       <div class="card mt-3">
         <div class="card-body">
           <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle"></i> No PDF template uploaded for <strong>{{ bol.supplier.name }}</strong>. 
+            <i class="fas fa-exclamation-triangle"></i> No PDF template uploaded for <strong>{{ bol.supplier.name }}</strong>.
             <a href="{% url 'dashboard-bol' %}" class="alert-link">Upload a template</a> to use it with BOLs.
           </div>
         </div>
@@ -203,7 +203,7 @@
   <div class="row mt-4 mb-4">
     <div class="col-12">
       {% if line_items %}
-        <form method="post" action="{% url 'dashboard-bol-confirm' bol.id %}" style="display:inline;" 
+        <form method="post" action="{% url 'dashboard-bol-confirm' bol.id %}" style="display:inline;"
               onsubmit="return confirm('Confirm this Bill of Lading? Orders will be created and scheduled. This action cannot be undone.');">
           {% csrf_token %}
           <button type="submit" class="btn btn-success btn-lg">
@@ -215,7 +215,7 @@
           <i class="fas fa-check-circle"></i> Confirm BOL & Create Orders
         </button>
       {% endif %}
-      
+
       <a href="{% url 'dashboard-bol-edit' bol.id %}" class="btn btn-warning btn-lg">
         <i class="fas fa-edit"></i> Edit BOL
       </a>

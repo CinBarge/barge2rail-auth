@@ -6,48 +6,56 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('sso', '0001_initial'),
+        ("sso", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='application',
-            name='slug',
-            field=models.SlugField(default='', unique=True),
+            model_name="application",
+            name="slug",
+            field=models.SlugField(default="", unique=True),
         ),
         migrations.AddField(
-            model_name='user',
-            name='anonymous_username',
+            model_name="user",
+            name="anonymous_username",
             field=models.CharField(blank=True, max_length=50, null=True, unique=True),
         ),
         migrations.AddField(
-            model_name='user',
-            name='auth_type',
-            field=models.CharField(choices=[('email', 'Email/Password'), ('google', 'Google Sign-In'), ('anonymous', 'Anonymous PIN')], default='email', max_length=20),
+            model_name="user",
+            name="auth_type",
+            field=models.CharField(
+                choices=[
+                    ("email", "Email/Password"),
+                    ("google", "Google Sign-In"),
+                    ("anonymous", "Anonymous PIN"),
+                ],
+                default="email",
+                max_length=20,
+            ),
         ),
         migrations.AddField(
-            model_name='user',
-            name='display_name',
+            model_name="user",
+            name="display_name",
             field=models.CharField(blank=True, max_length=100),
         ),
         migrations.AddField(
-            model_name='user',
-            name='google_id',
+            model_name="user",
+            name="google_id",
             field=models.CharField(blank=True, max_length=255, null=True, unique=True),
         ),
         migrations.AddField(
-            model_name='user',
-            name='is_anonymous',
+            model_name="user",
+            name="is_anonymous",
             field=models.BooleanField(default=False),
         ),
         migrations.AddField(
-            model_name='user',
-            name='pin_code',
+            model_name="user",
+            name="pin_code",
             field=models.CharField(blank=True, max_length=6, null=True),
         ),
         migrations.AlterField(
-            model_name='user',
-            name='email',
+            model_name="user",
+            name="email",
             field=models.EmailField(blank=True, max_length=254, null=True, unique=True),
         ),
     ]

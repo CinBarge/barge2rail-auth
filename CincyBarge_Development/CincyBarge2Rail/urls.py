@@ -14,31 +14,36 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
-from django.urls import path, include
-from django.shortcuts import redirect
-from user import views as user_view
-from django.contrib.auth import views as auth_views
+
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib import admin
+from django.contrib.auth import views as auth_views
+from django.shortcuts import redirect
+from django.urls import include, path
+from user import views as user_view
+
 
 def index_redirect(request):
     """Redirect root to dashboard or SSO login"""
     if request.user.is_authenticated:
-        return redirect('dashboard-index')
-    return redirect('sso-login')
+        return redirect("dashboard-index")
+    return redirect("sso-login")
+
 
 urlpatterns = [
-    path('', index_redirect, name='index'),
-    path('admin/', admin.site.urls),
-    path('', include('dashboard.urls')),
-    path('sso-login/', user_view.sso_login, name='sso-login'),
-    path('register/', user_view.register, name='user-register'),
-    path('profile/', user_view.profile, name='user-profile'),
-    path('logout/', auth_views.LogoutView.as_view(template_name='user/logout.html'), name='user-logout'),
-
+    path("", index_redirect, name="index"),
+    path("admin/", admin.site.urls),
+    path("", include("dashboard.urls")),
+    path("sso-login/", user_view.sso_login, name="sso-login"),
+    path("register/", user_view.register, name="user-register"),
+    path("profile/", user_view.profile, name="user-profile"),
+    path(
+        "logout/",
+        auth_views.LogoutView.as_view(template_name="user/logout.html"),
+        name="user-logout",
+    ),
 ]
 
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL,
-                          document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

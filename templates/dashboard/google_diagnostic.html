@@ -6,105 +6,105 @@
     <title>Google Auth Diagnostic - Barge2Rail SSO</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body { 
+
+        body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #005500 0%, #007700 100%);
             min-height: 100vh;
-            display: flex; 
-            align-items: center; 
+            display: flex;
+            align-items: center;
             justify-content: center;
             padding: 1rem;
         }
-        
-        .container { 
-            background: white; 
-            border-radius: 12px; 
-            padding: 2rem; 
-            box-shadow: 0 20px 40px rgba(0,0,0,0.15); 
-            width: 100%; 
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            width: 100%;
             max-width: 600px;
             max-height: 90vh;
             overflow-y: auto;
         }
-        
-        .logo { 
-            text-align: center; 
-            margin-bottom: 2rem; 
+
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
         }
-        
-        .logo h1 { 
-            color: #005500; 
-            margin: 0 0 0.5rem 0; 
-            font-size: 2rem; 
+
+        .logo h1 {
+            color: #005500;
+            margin: 0 0 0.5rem 0;
+            font-size: 2rem;
         }
-        
-        .btn { 
-            width: 100%; 
-            padding: 0.875rem; 
-            background: #005500; 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 1rem; 
+
+        .btn {
+            width: 100%;
+            padding: 0.875rem;
+            background: #005500;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s; 
+            transition: all 0.2s;
             margin: 0.5rem 0;
         }
-        
-        .btn:hover { 
-            background: #007700; 
+
+        .btn:hover {
+            background: #007700;
         }
-        
+
         .btn-small {
             padding: 0.5rem;
             font-size: 0.875rem;
         }
-        
-        .alert { 
-            padding: 1rem; 
-            border-radius: 8px; 
-            margin: 1rem 0; 
+
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
             border: 1px solid transparent;
         }
-        
+
         .alert-info {
             background: #e6f7ff;
             color: #0050b3;
             border-color: #91d5ff;
         }
-        
-        .alert-error { 
-            background: #fee; 
-            color: #c53030; 
-            border-color: #feb2b2; 
+
+        .alert-error {
+            background: #fee;
+            color: #c53030;
+            border-color: #feb2b2;
         }
-        
-        .alert-success { 
-            background: #f0fff4; 
-            color: #22543d; 
-            border-color: #9ae6b4; 
+
+        .alert-success {
+            background: #f0fff4;
+            color: #22543d;
+            border-color: #9ae6b4;
         }
-        
+
         .alert-warning {
             background: #fffbf0;
             color: #b7791f;
             border-color: #fed7aa;
         }
-        
+
         .diagnostic-section {
             margin: 1rem 0;
             padding: 1rem;
             border: 1px solid #e1e5e9;
             border-radius: 8px;
         }
-        
+
         .diagnostic-section h3 {
             color: #005500;
             margin-bottom: 0.5rem;
         }
-        
+
         pre {
             background: #f5f5f5;
             padding: 1rem;
@@ -113,14 +113,14 @@
             font-size: 0.875rem;
             white-space: pre-wrap;
         }
-        
+
         .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 1rem;
             margin: 1rem 0;
         }
-        
+
         @media (max-width: 600px) {
             .grid {
                 grid-template-columns: 1fr;
@@ -134,18 +134,18 @@
             <h1>🔧 Google Auth Diagnostic</h1>
             <p>Comprehensive testing for Google Sign-In issues</p>
         </div>
-        
+
         <div class="diagnostic-section">
             <h3>Environment Check</h3>
             <div id="environmentInfo">Checking environment...</div>
         </div>
-        
+
         <div class="diagnostic-section">
             <h3>Google Library Status</h3>
             <div id="googleLibraryStatus">Loading Google library...</div>
             <button onclick="checkGoogleLibrary()" class="btn btn-small">Recheck Library</button>
         </div>
-        
+
         <div class="diagnostic-section">
             <h3>Authentication Tests</h3>
             <div class="grid">
@@ -155,13 +155,13 @@
                 <button onclick="testRedirect()" class="btn">Test Redirect Flow</button>
             </div>
         </div>
-        
+
         <div class="diagnostic-section">
             <h3>Google Button Render</h3>
             <div id="googleButtonDiv" style="text-align: center; margin: 1rem 0;"></div>
             <button onclick="renderGoogleButton()" class="btn btn-small">Re-render Button</button>
         </div>
-        
+
         <div class="diagnostic-section">
             <h3>Console Logs</h3>
             <div id="consoleLogs">
@@ -169,7 +169,7 @@
             </div>
             <button onclick="clearLogs()" class="btn btn-small">Clear Logs</button>
         </div>
-        
+
         <div id="alert" class="alert" style="display: none;"></div>
     </div>
 
@@ -178,13 +178,13 @@
         const CLIENT_ID = '{{ google_client_id }}';
         let googleLibraryLoaded = false;
         let logs = [];
-        
+
         function log(message, type = 'info') {
             const timestamp = new Date().toLocaleTimeString();
             const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
             logs.push(logEntry);
             console.log(logEntry);
-            
+
             // Update log display
             const logOutput = document.getElementById('logOutput');
             if (logOutput) {
@@ -192,19 +192,19 @@
                 logOutput.scrollTop = logOutput.scrollHeight;
             }
         }
-        
+
         function showAlert(message, type) {
             const alert = document.getElementById('alert');
             alert.className = `alert alert-${type}`;
             alert.textContent = message;
             alert.style.display = 'block';
         }
-        
+
         function clearLogs() {
             logs = [];
             document.getElementById('logOutput').textContent = 'Logs cleared.';
         }
-        
+
         function checkEnvironment() {
             const info = {
                 userAgent: navigator.userAgent,
@@ -218,7 +218,7 @@
                 thirdPartyCookies: 'unknown',
                 popupBlocked: false
             };
-            
+
             // Test popup blocking
             try {
                 const popup = window.open('', '_blank', 'width=1,height=1');
@@ -230,14 +230,14 @@
             } catch (e) {
                 info.popupBlocked = true;
             }
-            
+
             return info;
         }
-        
+
         function displayEnvironmentInfo() {
             const info = checkEnvironment();
             const envDiv = document.getElementById('environmentInfo');
-            
+
             let html = '<ul style="margin-left: 1rem;">';
             html += `<li><strong>Browser:</strong> ${info.userAgent.substring(0, 50)}...</li>`;
             html += `<li><strong>URL:</strong> ${info.location}</li>`;
@@ -245,33 +245,33 @@
             html += `<li><strong>Cookies:</strong> ${info.cookiesEnabled ? '✅ Enabled' : '❌ Disabled'}</li>`;
             html += `<li><strong>Popup Blocking:</strong> ${info.popupBlocked ? '❌ Blocked' : '✅ Allowed'}</li>`;
             html += '</ul>';
-            
+
             if (!info.isSecure && info.domain !== 'localhost' && info.domain !== '127.0.0.1') {
                 html += '<div class="alert alert-warning" style="margin-top: 1rem;">⚠️ Google Sign-In requires HTTPS for non-localhost domains</div>';
             }
-            
+
             if (info.popupBlocked) {
                 html += '<div class="alert alert-warning" style="margin-top: 1rem;">⚠️ Popup blocking detected - this may prevent Google authentication</div>';
             }
-            
+
             envDiv.innerHTML = html;
-            
+
             log(`Environment check: ${info.isSecure ? 'Secure' : 'Insecure'}, Popups: ${info.popupBlocked ? 'Blocked' : 'Allowed'}`);
         }
-        
+
         function onGoogleLibraryLoaded() {
             googleLibraryLoaded = true;
             log('Google library loaded successfully');
             updateGoogleLibraryStatus();
             initializeGoogle();
         }
-        
+
         function onGoogleLibraryError() {
             googleLibraryLoaded = false;
             log('ERROR: Google library failed to load', 'error');
             updateGoogleLibraryStatus();
         }
-        
+
         function updateGoogleLibraryStatus() {
             const statusDiv = document.getElementById('googleLibraryStatus');
             if (googleLibraryLoaded) {
@@ -280,7 +280,7 @@
                 statusDiv.innerHTML = '<div class="alert alert-error">❌ Google Sign-In library failed to load</div>';
             }
         }
-        
+
         function checkGoogleLibrary() {
             if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
                 googleLibraryLoaded = true;
@@ -291,13 +291,13 @@
             }
             updateGoogleLibraryStatus();
         }
-        
+
         function initializeGoogle() {
             if (!googleLibraryLoaded) {
                 log('ERROR: Cannot initialize - Google library not loaded', 'error');
                 return;
             }
-            
+
             try {
                 google.accounts.id.initialize({
                     client_id: CLIENT_ID,
@@ -312,17 +312,17 @@
                 log('ERROR initializing Google Sign-In: ' + error.message, 'error');
             }
         }
-        
+
         function renderGoogleButton() {
             if (!googleLibraryLoaded) {
                 log('ERROR: Cannot render button - Google library not loaded', 'error');
                 return;
             }
-            
+
             try {
                 const buttonDiv = document.getElementById('googleButtonDiv');
                 buttonDiv.innerHTML = ''; // Clear existing button
-                
+
                 google.accounts.id.renderButton(buttonDiv, {
                     theme: "outline",
                     size: "large",
@@ -335,16 +335,16 @@
                 log('ERROR rendering Google button: ' + error.message, 'error');
             }
         }
-        
+
         function testOneTap() {
             if (!googleLibraryLoaded) {
                 showAlert('Google library not loaded', 'error');
                 return;
             }
-            
+
             log('Testing One Tap authentication...');
             showAlert('Testing One Tap...', 'info');
-            
+
             try {
                 google.accounts.id.prompt((notification) => {
                     if (notification.isNotDisplayed()) {
@@ -366,58 +366,58 @@
                 showAlert('One Tap test failed: ' + error.message, 'error');
             }
         }
-        
+
         function testButton() {
             showAlert('Click the Google Sign-In button above', 'info');
             log('Button test: waiting for user to click Google button');
         }
-        
+
         function testPopup() {
             log('Testing popup authentication...');
             showAlert('Popup test not implemented (would require additional setup)', 'info');
         }
-        
+
         function testRedirect() {
             const redirectUri = encodeURIComponent(window.location.origin);
             const scope = encodeURIComponent('openid email profile');
             const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&state=${Date.now()}`;
-            
+
             log('Testing redirect authentication...');
             showAlert('Redirect URL generated (check console)', 'info');
             console.log('Redirect URL:', authUrl);
-            
+
             if (confirm('Open redirect URL in new tab? (This will require backend callback handler)')) {
                 window.open(authUrl, '_blank');
             }
         }
-        
+
         function handleCredentialResponse(response) {
             log('🎉 Credential response received!');
             log(`Token length: ${response.credential ? response.credential.length : 'N/A'}`);
-            
+
             try {
                 // Parse JWT token
                 const parts = response.credential.split('.');
                 const header = JSON.parse(atob(parts[0]));
                 const payload = JSON.parse(atob(parts[1]));
-                
+
                 log(`User: ${payload.email}`);
                 log(`Token expires: ${new Date(payload.exp * 1000).toLocaleString()}`);
-                
+
                 showAlert(`✅ Success! Signed in as ${payload.email}`, 'success');
-                
+
                 // Send to backend
                 sendTokenToBackend(response.credential);
-                
+
             } catch (error) {
                 log('ERROR parsing credential response: ' + error.message, 'error');
                 showAlert('Error parsing response: ' + error.message, 'error');
             }
         }
-        
+
         function sendTokenToBackend(token) {
             log('Sending token to Django backend...');
-            
+
             fetch('/api/auth/login/google/', {
                 method: 'POST',
                 headers: {
@@ -431,12 +431,12 @@
                 if (data.access_token) {
                     log('✅ Backend authentication successful!');
                     showAlert('Backend authentication successful!', 'success');
-                    
+
                     // Store tokens
                     localStorage.setItem('barge2rail_access_token', data.access_token);
                     localStorage.setItem('barge2rail_refresh_token', data.refresh_token);
                     localStorage.setItem('barge2rail_user', JSON.stringify(data.user));
-                    
+
                 } else {
                     log('❌ Backend authentication failed: ' + (data.error || 'Unknown error'), 'error');
                     showAlert('Backend error: ' + (data.error || 'Unknown error'), 'error');
@@ -447,7 +447,7 @@
                 showAlert('Network error: ' + error.message, 'error');
             });
         }
-        
+
         function getCookie(name) {
             let cookieValue = null;
             if (document.cookie && document.cookie !== '') {
@@ -462,12 +462,12 @@
             }
             return cookieValue;
         }
-        
+
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
             log('🚀 Google Auth Diagnostic started');
             displayEnvironmentInfo();
-            
+
             // Check if Google library is already loaded
             if (typeof google !== 'undefined') {
                 onGoogleLibraryLoaded();

@@ -71,16 +71,16 @@
                     <td><small>{{ template.uploaded_at|date:"M d, Y" }}</small></td>
                     <td>
                       {% if template.is_configured %}
-                        <a href="{% url 'dashboard-bol-create-from-template' template.id %}" 
+                        <a href="{% url 'dashboard-bol-create-from-template' template.id %}"
                            class="btn btn-sm btn-primary" title="Create BOL from this template">
                           <i class="fas fa-bolt"></i> Quick Create
                         </a>
                       {% endif %}
-                      <a href="{% url 'dashboard-bol-view-template' template.id %}" target="_blank" 
+                      <a href="{% url 'dashboard-bol-view-template' template.id %}" target="_blank"
                          class="btn btn-sm btn-success" title="Preview PDF">
                         <i class="fas fa-eye"></i>
                       </a>
-                      <form method="post" action="{% url 'dashboard-bol-delete-template' template.id %}" 
+                      <form method="post" action="{% url 'dashboard-bol-delete-template' template.id %}"
                             style="display:inline;" onsubmit="return confirm('Delete this template?');">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-sm btn-danger" title="Delete">
@@ -112,7 +112,7 @@
       </a>
       <p class="text-muted mt-2 mb-0">
         <small>
-          <strong>New!</strong> Upload a BOL PDF and automatically extract data using pdfplumber + regex parsing. 
+          <strong>New!</strong> Upload a BOL PDF and automatically extract data using pdfplumber + regex parsing.
           Review and correct before saving.
         </small>
       </p>
@@ -161,7 +161,7 @@
                       <a href="{% url 'dashboard-bol-preview' bol.id %}" class="btn btn-sm btn-info">
                         <i class="fas fa-eye"></i> Preview
                       </a>
-                      <form method="post" action="{% url 'dashboard-bol-delete' bol.id %}" 
+                      <form method="post" action="{% url 'dashboard-bol-delete' bol.id %}"
                             style="display:inline;" onsubmit="return confirm('Delete this draft BOL?');">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-sm btn-danger">

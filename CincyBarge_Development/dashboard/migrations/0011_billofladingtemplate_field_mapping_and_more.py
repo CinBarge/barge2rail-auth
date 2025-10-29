@@ -6,23 +6,34 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('dashboard', '0010_billofladingtemplate'),
+        ("dashboard", "0010_billofladingtemplate"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='billofladingtemplate',
-            name='field_mapping',
-            field=models.JSONField(blank=True, help_text='Field mapping for spreadsheet templates (JSON)', null=True),
+            model_name="billofladingtemplate",
+            name="field_mapping",
+            field=models.JSONField(
+                blank=True,
+                help_text="Field mapping for spreadsheet templates (JSON)",
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='billofladingtemplate',
-            name='template_type',
-            field=models.CharField(blank=True, help_text='Type of template: document or spreadsheet', max_length=20),
+            model_name="billofladingtemplate",
+            name="template_type",
+            field=models.CharField(
+                blank=True,
+                help_text="Type of template: document or spreadsheet",
+                max_length=20,
+            ),
         ),
         migrations.AlterField(
-            model_name='billofladingtemplate',
-            name='template_file',
-            field=models.FileField(help_text='Upload template file (PDF, DOCX, HTML, CSV, or XLSX)', upload_to='bol_templates/'),
+            model_name="billofladingtemplate",
+            name="template_file",
+            field=models.FileField(
+                help_text="Upload template file (PDF, DOCX, HTML, CSV, or XLSX)",
+                upload_to="bol_templates/",
+            ),
         ),
     ]

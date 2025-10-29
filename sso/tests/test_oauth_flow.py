@@ -4,13 +4,15 @@ Tests all OAuth-related functionality including state parameter validation,
 token exchange, and error handling.
 """
 
-import pytest
-from django.test import TestCase, Client
-from django.urls import reverse
-from unittest.mock import patch, MagicMock
-from sso.models import User, TokenExchangeSession
-from sso.views import generate_oauth_state, validate_oauth_state
 import time
+from unittest.mock import MagicMock, patch
+
+import pytest
+from django.test import Client, TestCase
+from django.urls import reverse
+
+from sso.models import TokenExchangeSession, User
+from sso.views import generate_oauth_state, validate_oauth_state
 
 
 class OAuthStateTests(TestCase):
@@ -21,7 +23,7 @@ class OAuthStateTests(TestCase):
         state = generate_oauth_state()
 
         # Should be in format: random_token:timestamp
-        parts = state.split(':')
+        parts = state.split(":")
         self.assertEqual(len(parts), 2, "State should have token:timestamp format")
 
         # Token part should be non-empty
@@ -30,7 +32,9 @@ class OAuthStateTests(TestCase):
         # Timestamp should be numeric and recent
         timestamp = int(parts[1])
         current_time = int(time.time())
-        self.assertLessEqual(abs(current_time - timestamp), 2, "Timestamp should be current")
+        self.assertLessEqual(
+            abs(current_time - timestamp), 2, "Timestamp should be current"
+        )
 
     def test_validate_oauth_state_success(self):
         """Valid state should pass validation"""
@@ -90,32 +94,34 @@ class OAuthURLGenerationTests(TestCase):
 
     def test_oauth_url_generation(self):
         """OAuth URL endpoint should return valid authorization URL"""
-        response = self.client.get('/api/auth/oauth/google/url/')
+        response = self.client.get("/api/auth/oauth/google/url/")
 
         self.assertEqual(response.status_code, 200)
 
         data = response.json()
-        self.assertIn('auth_url', data)
-        self.assertIn('redirect_uri', data)
-        self.assertIn('client_id', data)
+        self.assertIn("auth_url", data)
+        self.assertIn("redirect_uri", data)
+        self.assertIn("client_id", data)
 
         # Verify URL structure
-        auth_url = data['auth_url']
-        self.assertTrue(auth_url.startswith('https://accounts.google.com/o/oauth2/v2/auth'))
-        self.assertIn('state=', auth_url)
-        self.assertIn('client_id=', auth_url)
-        self.assertIn('redirect_uri=', auth_url)
+        auth_url = data["auth_url"]
+        self.assertTrue(
+            auth_url.startswith("https://accounts.google.com/o/oauth2/v2/auth")
+        )
+        self.assertIn("state=", auth_url)
+        self.assertIn("client_id=", auth_url)
+        self.assertIn("redirect_uri=", auth_url)
 
     def test_oauth_url_stores_state_in_session(self):
         """OAuth URL generation should store state in session"""
-        response = self.client.get('/api/auth/oauth/google/url/')
+        response = self.client.get("/api/auth/oauth/google/url/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('oauth_state', self.client.session)
+        self.assertIn("oauth_state", self.client.session)
 
-        stored_state = self.client.session['oauth_state']
+        stored_state = self.client.session["oauth_state"]
         self.assertIsNotNone(stored_state)
-        self.assertIn(':', stored_state)  # Should have token:timestamp format
+        self.assertIn(":", stored_state)  # Should have token:timestamp format
 
 
 class TokenExchangeSessionTests(TestCase):
@@ -123,36 +129,38 @@ class TokenExchangeSessionTests(TestCase):
 
     def test_token_exchange_session_creation(self):
         """TokenExchangeSession should be created with all required fields"""
-        from django.utils import timezone
         from datetime import timedelta
 
+        from django.utils import timezone
+
         session = TokenExchangeSession.objects.create(
-            access_token='test_access_token',
-            refresh_token='test_refresh_token',
-            user_email='test@example.com',
-            expires_at=timezone.now() + timedelta(seconds=60)
+            access_token="test_access_token",
+            refresh_token="test_refresh_token",
+            user_email="test@example.com",
+            expires_at=timezone.now() + timedelta(seconds=60),
         )
 
         self.assertIsNotNone(session.session_id)
         self.assertFalse(session.used)
-        self.assertEqual(session.user_email, 'test@example.com')
+        self.assertEqual(session.user_email, "test@example.com")
 
     def test_token_exchange_single_use(self):
         """TokenExchangeSession should be marked as used after retrieval"""
-        from django.utils import timezone
         from datetime import timedelta
 
+        from django.utils import timezone
+
         session = TokenExchangeSession.objects.create(
-            access_token='test_access_token',
-            refresh_token='test_refresh_token',
-            user_email='test@example.com',
-            expires_at=timezone.now() + timedelta(seconds=60)
+            access_token="test_access_token",
+            refresh_token="test_refresh_token",
+            user_email="test@example.com",
+            expires_at=timezone.now() + timedelta(seconds=60),
         )
 
         session_id = session.session_id
 
         # First retrieval should work
-        response = self.client.get(f'/api/auth/session/{session_id}/tokens/')
+        response = self.client.get(f"/api/auth/session/{session_id}/tokens/")
         self.assertEqual(response.status_code, 200)
 
         # Session should now be marked as used
@@ -160,55 +168,59 @@ class TokenExchangeSessionTests(TestCase):
         self.assertTrue(session.used)
 
         # Second retrieval should fail
-        response = self.client.get(f'/api/auth/session/{session_id}/tokens/')
+        response = self.client.get(f"/api/auth/session/{session_id}/tokens/")
         self.assertEqual(response.status_code, 404)
 
     def test_token_exchange_expiry(self):
         """Expired TokenExchangeSession should return 404"""
-        from django.utils import timezone
         from datetime import timedelta
+
+        from django.utils import timezone
 
         # Create expired session
         session = TokenExchangeSession.objects.create(
-            access_token='test_access_token',
-            refresh_token='test_refresh_token',
-            user_email='test@example.com',
-            expires_at=timezone.now() - timedelta(seconds=1)  # Already expired
+            access_token="test_access_token",
+            refresh_token="test_refresh_token",
+            user_email="test@example.com",
+            expires_at=timezone.now() - timedelta(seconds=1),  # Already expired
         )
 
         session_id = session.session_id
 
         # Should return 404 for expired session
-        response = self.client.get(f'/api/auth/session/{session_id}/tokens/')
+        response = self.client.get(f"/api/auth/session/{session_id}/tokens/")
         self.assertEqual(response.status_code, 404)
 
     def test_token_exchange_cleanup_on_retrieval(self):
         """Expired sessions should be cleaned up during retrieval"""
-        from django.utils import timezone
         from datetime import timedelta
+
+        from django.utils import timezone
 
         # Create multiple expired sessions
         for i in range(5):
             TokenExchangeSession.objects.create(
-                access_token=f'test_token_{i}',
-                refresh_token=f'refresh_token_{i}',
-                user_email=f'test{i}@example.com',
-                expires_at=timezone.now() - timedelta(seconds=10)
+                access_token=f"test_token_{i}",
+                refresh_token=f"refresh_token_{i}",
+                user_email=f"test{i}@example.com",
+                expires_at=timezone.now() - timedelta(seconds=10),
             )
 
         # Create one valid session
         valid_session = TokenExchangeSession.objects.create(
-            access_token='valid_token',
-            refresh_token='valid_refresh',
-            user_email='valid@example.com',
-            expires_at=timezone.now() + timedelta(seconds=60)
+            access_token="valid_token",
+            refresh_token="valid_refresh",
+            user_email="valid@example.com",
+            expires_at=timezone.now() + timedelta(seconds=60),
         )
 
         initial_count = TokenExchangeSession.objects.count()
         self.assertEqual(initial_count, 6)
 
         # Retrieve valid session (should trigger cleanup)
-        response = self.client.get(f'/api/auth/session/{valid_session.session_id}/tokens/')
+        response = self.client.get(
+            f"/api/auth/session/{valid_session.session_id}/tokens/"
+        )
         self.assertEqual(response.status_code, 200)
 
         # Expired sessions should be deleted
@@ -220,84 +232,86 @@ class TokenExchangeSessionTests(TestCase):
 class OAuthCallbackMockedTests(TestCase):
     """Test OAuth callback with mocked Google responses."""
 
-    @patch('sso.views.exchange_google_code_for_tokens')
-    @patch('sso.views.verify_google_id_token')
+    @patch("sso.views.exchange_google_code_for_tokens")
+    @patch("sso.views.verify_google_id_token")
     def test_oauth_callback_creates_new_user(self, mock_verify, mock_exchange):
         """OAuth callback should create new user for first-time Google login"""
         # Mock Google responses
         mock_exchange.return_value = {
-            'access_token': 'google_access_token',
-            'refresh_token': 'google_refresh_token',
-            'id_token': 'google_id_token'
+            "access_token": "google_access_token",
+            "refresh_token": "google_refresh_token",
+            "id_token": "google_id_token",
         }
 
         mock_verify.return_value = {
-            'google_id': '123456789',
-            'email': 'newuser@example.com',
-            'name': 'New User',
-            'picture': 'https://example.com/photo.jpg',
-            'email_verified': True
+            "google_id": "123456789",
+            "email": "newuser@example.com",
+            "name": "New User",
+            "picture": "https://example.com/photo.jpg",
+            "email_verified": True,
         }
 
         # Simulate OAuth callback
         state = generate_oauth_state()
         session = self.client.session
-        session['oauth_state'] = state
+        session["oauth_state"] = state
         session.save()
 
-        response = self.client.post('/api/auth/login/google/oauth/', {
-            'code': 'auth_code_12345',
-            'state': state
-        }, content_type='application/json')
+        response = self.client.post(
+            "/api/auth/login/google/oauth/",
+            {"code": "auth_code_12345", "state": state},
+            content_type="application/json",
+        )
 
         self.assertEqual(response.status_code, 200)
 
         # Verify user was created
-        user = User.objects.get(email='newuser@example.com')
-        self.assertEqual(user.google_id, '123456789')
-        self.assertEqual(user.auth_type, 'google')
+        user = User.objects.get(email="newuser@example.com")
+        self.assertEqual(user.google_id, "123456789")
+        self.assertEqual(user.auth_type, "google")
         self.assertTrue(user.is_active)
 
-    @patch('sso.views.exchange_google_code_for_tokens')
-    @patch('sso.views.verify_google_id_token')
+    @patch("sso.views.exchange_google_code_for_tokens")
+    @patch("sso.views.verify_google_id_token")
     def test_oauth_callback_updates_existing_user(self, mock_verify, mock_exchange):
         """OAuth callback should update existing user on subsequent logins"""
         # Create existing user
         existing_user = User.objects.create(
-            email='existing@example.com',
-            google_id='987654321',
-            auth_type='google',
-            display_name='Old Name',
-            username='existing@example.com'
+            email="existing@example.com",
+            google_id="987654321",
+            auth_type="google",
+            display_name="Old Name",
+            username="existing@example.com",
         )
 
         # Mock Google responses with updated name
         mock_exchange.return_value = {
-            'access_token': 'google_access_token',
-            'id_token': 'google_id_token'
+            "access_token": "google_access_token",
+            "id_token": "google_id_token",
         }
 
         mock_verify.return_value = {
-            'google_id': '987654321',
-            'email': 'existing@example.com',
-            'name': 'Updated Name',
-            'picture': 'https://example.com/photo.jpg',
-            'email_verified': True
+            "google_id": "987654321",
+            "email": "existing@example.com",
+            "name": "Updated Name",
+            "picture": "https://example.com/photo.jpg",
+            "email_verified": True,
         }
 
         # Simulate OAuth callback
         state = generate_oauth_state()
         session = self.client.session
-        session['oauth_state'] = state
+        session["oauth_state"] = state
         session.save()
 
-        response = self.client.post('/api/auth/login/google/oauth/', {
-            'code': 'auth_code_12345',
-            'state': state
-        }, content_type='application/json')
+        response = self.client.post(
+            "/api/auth/login/google/oauth/",
+            {"code": "auth_code_12345", "state": state},
+            content_type="application/json",
+        )
 
         self.assertEqual(response.status_code, 200)
 
         # Verify user was updated
         existing_user.refresh_from_db()
-        self.assertEqual(existing_user.display_name, 'Updated Name')
+        self.assertEqual(existing_user.display_name, "Updated Name")

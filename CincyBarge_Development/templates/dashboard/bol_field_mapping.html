@@ -44,9 +44,9 @@
       {% if headers %}
         <form method="post">
           {% csrf_token %}
-          
+
           <div class="alert alert-info">
-            <i class="fas fa-lightbulb"></i> <strong>Instructions:</strong> Map each column from your spreadsheet template to the corresponding system field. 
+            <i class="fas fa-lightbulb"></i> <strong>Instructions:</strong> Map each column from your spreadsheet template to the corresponding system field.
             This allows the system to understand which column represents which data when generating bills of lading.
           </div>
 
@@ -71,7 +71,7 @@
                       <select name="mapping_{{ header }}" class="form-select">
                         <option value="">-- Select System Field --</option>
                         {% for field in system_fields %}
-                          <option value="{{ field }}" 
+                          <option value="{{ field }}"
                                   {% if current_mapping %}
                                     {% for key, value in current_mapping.items %}
                                       {% if key == header and value == field %}selected{% endif %}
@@ -91,7 +91,7 @@
           <div class="d-flex justify-content-between align-items-center mt-4">
             <div>
               <p class="text-muted mb-0">
-                <i class="fas fa-info-circle"></i> 
+                <i class="fas fa-info-circle"></i>
                 <small>You don't need to map all columns. Only map the ones you'll use for bill generation.</small>
               </p>
             </div>
@@ -107,8 +107,8 @@
         </form>
       {% else %}
         <div class="alert alert-warning">
-          <i class="fas fa-exclamation-triangle"></i> 
-          <strong>No headers found in the template.</strong> 
+          <i class="fas fa-exclamation-triangle"></i>
+          <strong>No headers found in the template.</strong>
           Please ensure your spreadsheet file has a header row.
         </div>
         <a href="{% url 'dashboard-bol' %}" class="btn btn-secondary">
@@ -174,11 +174,11 @@
   .table td {
     vertical-align: middle;
   }
-  
+
   .form-select {
     border: 2px solid #dee2e6;
   }
-  
+
   .form-select:focus {
     border-color: #0d6efd;
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);

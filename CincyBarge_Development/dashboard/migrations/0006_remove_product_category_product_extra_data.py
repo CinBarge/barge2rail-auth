@@ -6,17 +6,17 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('dashboard', '0005_rename_customer_supplier_and_more'),
+        ("dashboard", "0005_rename_customer_supplier_and_more"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='product',
-            name='category',
+            model_name="product",
+            name="category",
         ),
         migrations.AddField(
-            model_name='product',
-            name='extra_data',
+            model_name="product",
+            name="extra_data",
             field=models.JSONField(blank=True, default=dict),
         ),
     ]

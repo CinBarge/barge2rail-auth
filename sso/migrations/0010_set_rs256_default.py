@@ -5,8 +5,8 @@ from django.db import migrations, models
 
 def update_existing_applications(apps, schema_editor):
     """Set algorithm to RS256 for all existing applications that have no algorithm set."""
-    Application = apps.get_model('sso', 'Application')
-    updated = Application.objects.filter(algorithm='').update(algorithm='RS256')
+    Application = apps.get_model("sso", "Application")
+    updated = Application.objects.filter(algorithm="").update(algorithm="RS256")
     if updated:
         print(f"✅ Updated {updated} application(s) to use RS256 algorithm")
 
@@ -14,14 +14,26 @@ def update_existing_applications(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('sso', '0009_rename_created_at_application_created_and_more'),
+        ("sso", "0009_rename_created_at_application_created_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='application',
-            name='algorithm',
-            field=models.CharField(blank=True, choices=[('', 'No OIDC support'), ('RS256', 'RSA with SHA-2 256'), ('HS256', 'HMAC with SHA-2 256')], default='RS256', help_text='RS256 uses global OIDC_RSA_PRIVATE_KEY for signing ID tokens', max_length=5),
+            model_name="application",
+            name="algorithm",
+            field=models.CharField(
+                blank=True,
+                choices=[
+                    ("", "No OIDC support"),
+                    ("RS256", "RSA with SHA-2 256"),
+                    ("HS256", "HMAC with SHA-2 256"),
+                ],
+                default="RS256",
+                help_text="RS256 uses global OIDC_RSA_PRIVATE_KEY for signing ID tokens",
+                max_length=5,
+            ),
         ),
-        migrations.RunPython(update_existing_applications, reverse_code=migrations.RunPython.noop),
+        migrations.RunPython(
+            update_existing_applications, reverse_code=migrations.RunPython.noop
+        ),
     ]

@@ -9,12 +9,14 @@ Creates or updates the PrimeTrade OAuth application with proper configuration:
 """
 
 import os
+
 import django
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 django.setup()
 
 from sso.models import Application
+
 
 def setup_primetrade_oauth():
     """Create or update PrimeTrade OAuth application."""
@@ -35,15 +37,15 @@ def setup_primetrade_oauth():
     app, created = Application.objects.get_or_create(
         name=app_name,
         defaults={
-            'client_type': Application.CLIENT_CONFIDENTIAL,
-            'authorization_grant_type': Application.GRANT_AUTHORIZATION_CODE,
-            'redirect_uris': '\n'.join(redirect_uris),
-            'skip_authorization': True,  # First-party app - no consent screen
-            'algorithm': 'RS256',  # Required for OpenID Connect signed tokens
-            'slug': 'primetrade',
-            'description': 'PrimeTrade Logistics Application - First-party app for B2R operations',
-            'is_active': True,
-        }
+            "client_type": Application.CLIENT_CONFIDENTIAL,
+            "authorization_grant_type": Application.GRANT_AUTHORIZATION_CODE,
+            "redirect_uris": "\n".join(redirect_uris),
+            "skip_authorization": True,  # First-party app - no consent screen
+            "algorithm": "RS256",  # Required for OpenID Connect signed tokens
+            "slug": "primetrade",
+            "description": "PrimeTrade Logistics Application - First-party app for B2R operations",
+            "is_active": True,
+        },
     )
 
     if created:
@@ -58,9 +60,9 @@ def setup_primetrade_oauth():
         print(f"   OAUTH_CLIENT_SECRET={app.client_secret}")
     else:
         # Update existing application
-        app.redirect_uris = '\n'.join(redirect_uris)
+        app.redirect_uris = "\n".join(redirect_uris)
         app.skip_authorization = True
-        app.algorithm = 'RS256'
+        app.algorithm = "RS256"
         app.client_type = Application.CLIENT_CONFIDENTIAL
         app.authorization_grant_type = Application.GRANT_AUTHORIZATION_CODE
         app.save()
@@ -90,5 +92,6 @@ def setup_primetrade_oauth():
     print(f"      - Userinfo: https://sso.barge2rail.com/o/userinfo/")
     print(f"   3. Request scopes: openid email profile")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     setup_primetrade_oauth()

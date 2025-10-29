@@ -54,7 +54,7 @@ Reviewed `core/settings.py` for security-critical settings.
 ```python
 DEBUG = config('DEBUG', default=False, cast=bool)
 ```
-**Analysis:** 
+**Analysis:**
 - ✅ Defaults to `False` (safe for production)
 - ✅ Loaded from environment variable
 - ✅ Properly typed as boolean
@@ -229,7 +229,7 @@ X-Content-Type-Options: nosniff (Django default)
 
 ## Notes
 
-Django configuration demonstrates **excellent security posture**. All critical security settings are properly configured for production use. The HSTS configuration is particularly strong (1-year duration with subdomains and preload). 
+Django configuration demonstrates **excellent security posture**. All critical security settings are properly configured for production use. The HSTS configuration is particularly strong (1-year duration with subdomains and preload).
 
 **Only requirement:** Generate and set production SECRET_KEY before deployment.
 

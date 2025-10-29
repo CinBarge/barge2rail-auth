@@ -480,7 +480,7 @@ memory search "rollback" --since "month" --limit 10
 **Compare to previous months:**
 
 **Questions to ask:**
-1. **Escaped Defects:** 
+1. **Escaped Defects:**
    - Increasing or decreasing over time?
    - Which gates are weakest?
    - Are severity patterns changing?

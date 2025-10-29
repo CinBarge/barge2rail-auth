@@ -6,17 +6,25 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('dashboard', '0006_remove_product_category_product_extra_data'),
+        ("dashboard", "0006_remove_product_category_product_extra_data"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='product',
-            name='extra_data',
+            model_name="product",
+            name="extra_data",
         ),
         migrations.AddField(
-            model_name='product',
-            name='category',
-            field=models.CharField(choices=[('Supersacs', 'Supersacs'), ('Metals', 'Metals'), ('Misc', 'Misc')], max_length=20, null=True),
+            model_name="product",
+            name="category",
+            field=models.CharField(
+                choices=[
+                    ("Supersacs", "Supersacs"),
+                    ("Metals", "Metals"),
+                    ("Misc", "Misc"),
+                ],
+                max_length=20,
+                null=True,
+            ),
         ),
     ]

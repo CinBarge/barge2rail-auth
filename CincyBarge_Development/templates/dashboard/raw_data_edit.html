@@ -42,7 +42,7 @@
 
                     <form method="POST">
                         {% csrf_token %}
-                        
+
                         <div class="form-group">
                             <label for="supplier"><strong>Change Supplier:</strong></label>
                             <select name="supplier" id="supplier" class="form-control">
@@ -64,8 +64,8 @@
                         </div>
 
                         <div class="alert alert-warning">
-                            <i class="fas fa-exclamation-triangle"></i> <strong>Warning:</strong> 
-                            Editing this data will update all product entries associated with this raw data file. 
+                            <i class="fas fa-exclamation-triangle"></i> <strong>Warning:</strong>
+                            Editing this data will update all product entries associated with this raw data file.
                             Make sure your JSON is valid before saving.
                         </div>
 
@@ -85,7 +85,7 @@
 
                 <div class="card-footer">
                     <small class="text-muted">
-                        <i class="fas fa-info-circle"></i> 
+                        <i class="fas fa-info-circle"></i>
                         Tip: Use an online JSON validator or editor if you need help formatting the data.
                     </small>
                 </div>
@@ -98,7 +98,7 @@
     function validateJSON() {
         const dataTextarea = document.getElementById('data');
         const jsonString = dataTextarea.value;
-        
+
         try {
             JSON.parse(jsonString);
             alert('✓ JSON is valid!');
@@ -114,14 +114,14 @@
     // Add syntax highlighting helper
     document.addEventListener('DOMContentLoaded', function() {
         const textarea = document.getElementById('data');
-        
+
         // Add tab support for better JSON editing
         textarea.addEventListener('keydown', function(e) {
             if (e.key === 'Tab') {
                 e.preventDefault();
                 const start = this.selectionStart;
                 const end = this.selectionEnd;
-                
+
                 // Insert 2 spaces for tab
                 this.value = this.value.substring(0, start) + '  ' + this.value.substring(end);
                 this.selectionStart = this.selectionEnd = start + 2;
