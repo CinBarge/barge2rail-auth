@@ -285,6 +285,7 @@ OAUTH2_PROVIDER = {
     },
     "DEFAULT_SCOPES": ["openid", "profile", "email", "roles"],
     "OIDC_EXTRA_SCOPE_CLAIMS": "sso.oidc_claims.CustomScopeClaims",
+    "OIDC_ID_TOKEN_INCLUDE_CLAIMS": True,
     # Token lifetimes (align with SIMPLE_JWT)
     "ACCESS_TOKEN_EXPIRE_SECONDS": 900,  # 15 minutes
     "REFRESH_TOKEN_EXPIRE_SECONDS": 604800,  # 7 days
