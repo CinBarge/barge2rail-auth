@@ -198,6 +198,12 @@ class CustomOAuth2Validator(OAuth2Validator):
 
         return claims
 
+    # DOT/OIDC compatibility: some versions call this method instead
+    # of get_additional_claims when building id_token claims.
+    def get_additional_id_token_claims(self, request):
+        """Return additional ID token claims (delegates to get_additional_claims)."""
+        return self.get_additional_claims(request)
+
     def validate_bearer_token(self, token, scopes, request):
         """
         Validate a bearer token for API access.
