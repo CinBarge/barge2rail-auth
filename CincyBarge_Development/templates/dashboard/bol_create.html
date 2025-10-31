@@ -9,66 +9,62 @@
     </div>
   </div>
 
-  <!-- Supplier Selection Section -->
-  <div class="row mt-4">
+  <!-- Step 1: Supplier Selection -->
+  <div class="row mt-4" id="supplierSelectionStep">
     <div class="col-md-10">
       <div class="card border-info">
         <div class="card-header bg-info text-white">
-          <h5><i class="fas fa-building"></i> Quick Access: View Existing BOLs by Supplier</h5>
+          <h5><i class="fas fa-building"></i> Step 1: Select Supplier</h5>
         </div>
         <div class="card-body">
-          <p class="mb-3">Select a supplier to view their existing Bills of Lading and supplier-specific information:</p>
-          <div class="row">
-            {% if suppliers %}
+          <p class="mb-3">Select an existing supplier or create a new one:</p>
+          <div class="form-group">
+            <label for="supplierDropdown" class="font-weight-bold">Supplier *</label>
+            <select id="supplierDropdown" class="form-control form-control-lg" onchange="toggleNewSupplierInput()">
+              <option value="" disabled selected>-- Select a Supplier --</option>
               {% for supplier in suppliers %}
-              <div class="col-md-4 mb-3">
-                <a href="{% url 'dashboard-bol' %}?supplier={{ supplier.id }}" class="btn btn-outline-info btn-block w-100">
-                  <i class="fas fa-folder-open"></i> {{ supplier.name }}
-                  {% if supplier.bol_count %}
-                    <span class="badge bg-secondary">{{ supplier.bol_count }} BOL{{ supplier.bol_count|pluralize }}</span>
-                  {% endif %}
-                </a>
-              </div>
+                <option value="{{ supplier.id }}">{{ supplier.name }}</option>
               {% endfor %}
-            {% else %}
-              <div class="col-12">
-                <p class="text-muted">No suppliers available. Please add suppliers first.</p>
-              </div>
-            {% endif %}
+              <option value="new">+ Add New Supplier</option>
+            </select>
           </div>
+          
+          <!-- New Supplier Input (hidden by default) -->
+          <div class="form-group mt-3" id="newSupplierGroup" style="display: none;">
+            <label for="newSupplierName" class="font-weight-bold">New Supplier Name *</label>
+            <input type="text" id="newSupplierName" class="form-control form-control-lg" placeholder="Enter new supplier name">
+            <small class="form-text text-muted">This will create a new supplier in the system</small>
+          </div>
+          
+          <button type="button" class="btn btn-info btn-lg mt-3" onclick="proceedToForm()">
+            <i class="fas fa-arrow-right"></i> Continue to BOL Form
+          </button>
+          <a href="{% url 'dashboard-bol' %}" class="btn btn-secondary btn-lg mt-3">
+            <i class="fas fa-times"></i> Cancel
+          </a>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Divider -->
-  <div class="row mt-4">
-    <div class="col-md-10">
-      <hr class="my-4">
-      <h4 class="text-center text-muted">OR</h4>
-      <hr class="my-4">
-    </div>
-  </div>
-
-  <!-- Create New BOL Form -->
-  <div class="row mt-2">
+  <!-- Step 2: Create New BOL Form (Hidden initially) -->
+  <div class="row mt-4" id="bolFormStep" style="display: none;">
     <div class="col-md-10">
       <div class="card">
-        <div class="card-header bg-primary text-white">
-          <h5><i class="fas fa-file-alt"></i> Create New BOL from Scratch</h5>
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="fas fa-file-alt"></i> Step 2: Create BOL for <span id="selectedSupplierName"></span></h5>
+          <button type="button" class="btn btn-sm btn-light" onclick="backToSupplierSelection()">
+            <i class="fas fa-arrow-left"></i> Change Supplier
+          </button>
         </div>
         <div class="card-body">
-          <form method="post">
+          <form method="post" id="bolForm">
             {% csrf_token %}
+            <input type="hidden" name="supplier" id="selectedSupplierId">
             
             <div class="row">
               <div class="col-md-6">
                 <h6 class="border-bottom pb-2 mb-3">Shipping Details</h6>
-                
-                <div class="mb-3">
-                  <label for="id_supplier" class="form-label">Supplier *</label>
-                  {{ form.supplier }}
-                </div>
                 
                 <div class="mb-3">
                   <label for="id_shipper_name" class="form-label">Shipper Name</label>
@@ -115,13 +111,13 @@
                 </div>
                 
                 <div class="mb-3">
-                  <label for="id_container_number" class="form-label">Container Number</label>
-                  {{ form.container_number }}
+                  <label for="id_truck_number" class="form-label">Truck Number</label>
+                  {{ form.truck_number }}
                 </div>
                 
                 <div class="mb-3">
-                  <label for="id_seal_number" class="form-label">Seal Number</label>
-                  {{ form.seal_number }}
+                  <label for="id_container_number" class="form-label">Container Number</label>
+                  {{ form.container_number }}
                 </div>
                 
                 <div class="mb-3">
@@ -139,12 +135,12 @@
 
             <div class="row mt-4">
               <div class="col-12">
-                <button type="submit" class="btn btn-primary btn-lg">
+                <button type="submit" class="btn btn-info btn-lg">
                   <i class="fas fa-arrow-right"></i> Create BOL & Add Products
                 </button>
-                <a href="{% url 'dashboard-bol' %}" class="btn btn-secondary btn-lg">
-                  <i class="fas fa-times"></i> Cancel
-                </a>
+                <button type="button" class="btn btn-secondary btn-lg" onclick="backToSupplierSelection()">
+                  <i class="fas fa-arrow-left"></i> Back
+                </button>
               </div>
             </div>
           </form>
@@ -153,4 +149,89 @@
     </div>
   </div>
 </div>
+
+<script>
+function toggleNewSupplierInput() {
+  const supplierDropdown = document.getElementById('supplierDropdown');
+  const newSupplierGroup = document.getElementById('newSupplierGroup');
+  const newSupplierInput = document.getElementById('newSupplierName');
+  
+  if (supplierDropdown.value === 'new') {
+    newSupplierGroup.style.display = 'block';
+    newSupplierInput.required = true;
+  } else {
+    newSupplierGroup.style.display = 'none';
+    newSupplierInput.required = false;
+    newSupplierInput.value = '';
+  }
+}
+
+function proceedToForm() {
+  const supplierDropdown = document.getElementById('supplierDropdown');
+  const selectedValue = supplierDropdown.value;
+  const newSupplierInput = document.getElementById('newSupplierName');
+  
+  if (!selectedValue) {
+    alert('Please select a supplier');
+    return;
+  }
+  
+  // If creating a new supplier, validate the name
+  if (selectedValue === 'new') {
+    const newSupplierName = newSupplierInput.value.trim();
+    if (!newSupplierName) {
+      alert('Please enter a supplier name');
+      newSupplierInput.focus();
+      return;
+    }
+    // Set the supplier name as the value and display text
+    document.getElementById('selectedSupplierId').value = 'new';
+    document.getElementById('selectedSupplierName').textContent = newSupplierName;
+    
+    // Add hidden field for new supplier name
+    let newSupplierField = document.getElementById('newSupplierNameField');
+    if (!newSupplierField) {
+      newSupplierField = document.createElement('input');
+      newSupplierField.type = 'hidden';
+      newSupplierField.id = 'newSupplierNameField';
+      newSupplierField.name = 'new_supplier_name';
+      document.getElementById('bolForm').appendChild(newSupplierField);
+    }
+    newSupplierField.value = newSupplierName;
+  } else {
+    const selectedText = supplierDropdown.options[supplierDropdown.selectedIndex].text;
+    document.getElementById('selectedSupplierId').value = selectedValue;
+    document.getElementById('selectedSupplierName').textContent = selectedText;
+    
+    // Remove new supplier field if it exists
+    const newSupplierField = document.getElementById('newSupplierNameField');
+    if (newSupplierField) {
+      newSupplierField.remove();
+    }
+  }
+  
+  // Hide supplier selection, show form
+  document.getElementById('supplierSelectionStep').style.display = 'none';
+  document.getElementById('bolFormStep').style.display = 'block';
+  
+  // Scroll to top
+  window.scrollTo(0, 0);
+}
+
+function backToSupplierSelection() {
+  // Show supplier selection, hide form
+  document.getElementById('supplierSelectionStep').style.display = 'block';
+  document.getElementById('bolFormStep').style.display = 'none';
+  
+  // Clear form
+  document.getElementById('bolForm').reset();
+  
+  // Reset supplier dropdown
+  document.getElementById('supplierDropdown').value = '';
+  toggleNewSupplierInput();
+  
+  // Scroll to top
+  window.scrollTo(0, 0);
+}
+</script>
 {% endblock %}

@@ -395,7 +395,23 @@ def bol(request):
 def create_bol(request):
     """Create a new Bill of Lading"""
     if request.method == 'POST':
-        form = BillOfLadingForm(request.POST)
+        # Check if creating a new supplier
+        supplier_id = request.POST.get('supplier')
+        new_supplier_name = request.POST.get('new_supplier_name', '').strip()
+        
+        if supplier_id == 'new' and new_supplier_name:
+            # Create new supplier
+            supplier, created = Supplier.objects.get_or_create(name=new_supplier_name)
+            if created:
+                messages.info(request, f"Created new supplier: {new_supplier_name}")
+            
+            # Update the POST data to use the new supplier ID
+            post_data = request.POST.copy()
+            post_data['supplier'] = supplier.id
+            form = BillOfLadingForm(post_data)
+        else:
+            form = BillOfLadingForm(request.POST)
+        
         if form.is_valid():
             bol = form.save(commit=False)
             bol.created_by = request.user
@@ -411,8 +427,12 @@ def create_bol(request):
     else:
         form = BillOfLadingForm()
     
+    # Get all suppliers ordered by name
+    suppliers = Supplier.objects.all().order_by('name')
+    
     context = {
         'form': form,
+        'suppliers': suppliers,
     }
     return render(request, 'dashboard/bol_create.html', context)
 
@@ -425,8 +445,8 @@ def edit_bol(request, bol_id):
         messages.warning(request, "This BOL has been confirmed and cannot be edited")
         return redirect('dashboard-bol')
     
-    # Get ALL products from database with their suppliers for filtering
-    products = Product.objects.all().select_related('supplier').order_by('name')
+    # Filter products to only show those from the BOL's supplier
+    products = Product.objects.filter(supplier=bol.supplier).select_related('supplier').order_by('name')
     line_items = bol.line_items.select_related('product').all()
     
     # Get unique suppliers for the filter dropdown
@@ -458,6 +478,13 @@ def add_product_to_bol(request, bol_id):
         description = data.get('description', '')
         
         product = get_object_or_404(Product, id=product_id)
+        
+        # Validate that product supplier matches BOL supplier
+        if product.supplier != bol.supplier:
+            return JsonResponse({
+                'success': False, 
+                'error': f'Product supplier ({product.supplier.name if product.supplier else "None"}) does not match BOL supplier ({bol.supplier.name})'
+            }, status=400)
         
         # Create line item
         line_item = BillOfLadingLineItem.objects.create(

@@ -54,7 +54,7 @@
                     </div>
 
                     <!-- Submit Button -->
-                    <input class="btn btn-primary btn-block mt-3" type="submit" value="Upload File">
+                    <input class="btn btn-info btn-block mt-3" type="submit" value="Upload File">
                 </form>
 
                 <!-- View Raw Data Button -->
@@ -65,7 +65,7 @@
                 <!-- Sync Raw Data to Products -->
                 <form method="POST" action="{% url 'sync-raw-data' %}" class="mt-2">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-success btn-block"
+                    <button type="submit" class="btn btn-info btn-block"
                             onclick="return confirm('This will convert all uploaded raw data (CSV/JSON) into structured Product records. Continue?');">
                         <i class="fas fa-sync-alt"></i> Sync Uploaded Data to Products
                     </button>

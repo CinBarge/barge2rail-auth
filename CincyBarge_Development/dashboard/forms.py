@@ -33,7 +33,7 @@ class BillOfLadingForm(forms.ModelForm):
         fields = [
             'supplier', 'shipper_name', 'shipper_address', 'consignee_name', 
             'consignee_address', 'origin', 'destination', 'carrier', 
-            'vessel_name', 'container_number', 'seal_number', 
+            'vessel_name', 'truck_number', 'container_number', 'seal_number', 
             'delivery_date', 'notes'
         ]
         widgets = {
@@ -46,6 +46,7 @@ class BillOfLadingForm(forms.ModelForm):
             'destination': forms.TextInput(attrs={'class': 'form-control'}),
             'carrier': forms.TextInput(attrs={'class': 'form-control'}),
             'vessel_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'truck_number': forms.TextInput(attrs={'class': 'form-control'}),
             'container_number': forms.TextInput(attrs={'class': 'form-control'}),
             'seal_number': forms.TextInput(attrs={'class': 'form-control'}),
             'delivery_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),

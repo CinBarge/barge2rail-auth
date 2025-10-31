@@ -12,7 +12,7 @@
   <!-- Create New BOL Button -->
   <div class="row mt-4">
     <div class="col-12">
-      <a href="{% url 'dashboard-bol-create' %}" class="btn btn-success btn-lg">
+      <a href="{% url 'dashboard-bol-create' %}" class="btn btn-info btn-lg">
         <i class="fas fa-plus"></i> Create New Bill of Lading
       </a>
     </div>
@@ -54,7 +54,7 @@
                     </td>
                     <td><small>{{ bol.created_at|date:"M d, Y H:i" }}</small></td>
                     <td>
-                      <a href="{% url 'dashboard-bol-edit' bol.id %}" class="btn btn-sm btn-primary">
+                      <a href="{% url 'dashboard-bol-edit' bol.id %}" class="btn btn-sm btn-info">
                         <i class="fas fa-edit"></i> Edit
                       </a>
                       <a href="{% url 'dashboard-bol-preview' bol.id %}" class="btn btn-sm btn-info">
@@ -74,7 +74,7 @@
               </table>
             </div>
           {% else %}
-            <p class="text-muted">No draft BOLs. <a href="{% url 'dashboard-bol-create' %}">Create one now</a>.</p>
+            <p class="text-muted">No draft BOLs. <a href="{% url 'dashboard-bol-create' %}">Create New Bill of Lading</a>.</p>
           {% endif %}
         </div>
       </div>
@@ -85,7 +85,7 @@
   <div class="row mt-4">
     <div class="col-12">
       <div class="card">
-        <div class="card-header bg-success text-white">
+        <div class="card-header bg-info text-white">
           <h5><i class="fas fa-check-circle"></i> Recent Confirmed Bills of Lading</h5>
         </div>
         <div class="card-body">

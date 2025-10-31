@@ -3,7 +3,7 @@
 <div class="container mt-5">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="fw-semibold text-dark"> Staff Orders Dashboard</h2>
-        <span class="badge bg-primary fs-6">{{ orders|length }} Orders</span>
+        <span class="badge bg-info fs-6">{{ orders|length }} Orders</span>
     </div>
 
     {% if orders %}
@@ -28,7 +28,7 @@
                                     {% if order.status == 'Pending' %}
                                         bg-warning text-dark
                                     {% elif order.status == 'Completed' %}
-                                        bg-success
+                                        bg-info
                                     {% elif order.status == 'Cancelled' %}
                                         bg-danger
                                     {% else %}
