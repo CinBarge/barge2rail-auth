@@ -63,6 +63,10 @@
                                             <td>{{ order.staff.username|default:"N/A" }}</td>
                                             <td class="text-muted">{{ order.date|date:"h:i A" }}</td>
                                             <td>
+                                                <a href="{% url 'dashboard-order-detail' order.id %}" 
+                                                   class="btn btn-sm btn-info" title="View Order Details">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
                                                 {% if order.status in 'pending,scheduled,in_progress' %}
                                                     <a href="{% url 'dashboard-order-edit' order.id %}" 
                                                        class="btn btn-sm btn-primary" title="Edit Order">
@@ -145,6 +149,10 @@
                                             <td>{{ order.staff.username|default:"N/A" }}</td>
                                             <td class="text-muted">{{ order.date|date:"M d, Y" }}</td>
                                             <td>
+                                                <a href="{% url 'dashboard-order-detail' order.id %}" 
+                                                   class="btn btn-sm btn-info" title="View Order Details">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
                                                 {% if order.status in 'pending,scheduled,in_progress' %}
                                                     <a href="{% url 'dashboard-order-edit' order.id %}" 
                                                        class="btn btn-sm btn-primary" title="Edit Order">
@@ -201,6 +209,7 @@
                                         <th>Ordered By</th>
                                         <th>Date</th>
                                         <th>Completed</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -232,6 +241,12 @@
                                                 {% else %}
                                                     <span class="text-muted">-</span>
                                                 {% endif %}
+                                            </td>
+                                            <td>
+                                                <a href="{% url 'dashboard-order-detail' order.id %}" 
+                                                   class="btn btn-sm btn-info" title="View Order Details">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
                                             </td>
                                         </tr>
                                     {% endfor %}

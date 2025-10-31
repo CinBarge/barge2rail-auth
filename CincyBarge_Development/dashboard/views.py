@@ -2,9 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
-from .models import Product, Order, RawProductData, Supplier, BillOfLadingTemplate, BillOfLading, BillOfLadingLineItem
-from .forms import BillOfLadingTemplateForm, BillOfLadingForm, BillOfLadingLineItemForm, BOLPDFUploadForm
-from utilities.pdf_extractor import extract_bol_from_pdf
+from .models import Product, Order, RawProductData, Supplier, BillOfLading, BillOfLadingLineItem
+from .forms import BillOfLadingForm, BillOfLadingLineItemForm
 from utilities.googlesheet import get_sheet_data, update_sheet_row, update_sheet_cell, sync_sheet_to_database
 from urllib.parse import urlparse, parse_qs
 from django.contrib import messages 
@@ -264,6 +263,18 @@ def order(request):
 
 
 @login_required
+def view_order_detail(request, order_id):
+    """View detailed information for a specific order"""
+    order_obj = get_object_or_404(Order, id=order_id)
+    
+    context = {
+        'order': order_obj,
+    }
+    
+    return render(request, 'dashboard/order_detail.html', context)
+
+
+@login_required
 def edit_order(request, order_id):
     """Edit an existing order"""
     order_obj = get_object_or_404(Order, id=order_id)
@@ -367,80 +378,18 @@ def update_order_status(request, order_id):
 
 @login_required
 def bol(request):
-    """Main BOL page with template upload and BOL creation"""
-    templates = BillOfLadingTemplate.objects.select_related('supplier', 'uploaded_by').all()
+    """Main BOL page"""
     bols_draft = BillOfLading.objects.filter(status='draft').select_related('supplier', 'created_by').order_by('-created_at')
     bols_confirmed = BillOfLading.objects.exclude(status='draft').select_related('supplier', 'created_by').order_by('-created_at')[:10]
     suppliers = Supplier.objects.all()
     
-    template_form = BillOfLadingTemplateForm()
-    
     context = {
-        'templates': templates,
         'bols_draft': bols_draft,
         'bols_confirmed': bols_confirmed,
         'suppliers': suppliers,
-        'template_form': template_form,
     }
     
     return render(request, 'dashboard/bol.html', context)
-
-@login_required
-@require_http_methods(["POST"])
-def upload_bol_template(request):
-    """Handle BOL template upload and extract field structure"""
-    form = BillOfLadingTemplateForm(request.POST, request.FILES)
-    
-    if form.is_valid():
-        template = form.save(commit=False)
-        template.uploaded_by = request.user
-        template.file_name = request.FILES['template_file'].name
-        
-        # Extract field structure from PDF for smart template
-        try:
-            pdf_file = request.FILES['template_file']
-            extracted_data = extract_bol_from_pdf(pdf_file)
-            
-            # Store the field mapping with metadata
-            template.field_mapping = {
-                'fields': extracted_data,
-                'extracted_at': datetime.now().isoformat(),
-                'extracted_by': request.user.username,
-            }
-            template.is_configured = True
-            
-            template.save()
-            messages.success(request, f"Template uploaded and configured successfully for {template.supplier.name}. Field structure has been extracted and saved.")
-        except Exception as e:
-            # Still save the template even if extraction fails
-            template.save()
-            messages.warning(request, f"Template uploaded for {template.supplier.name}, but field extraction failed: {str(e)}. You can configure it later.")
-    else:
-        for error in form.errors.values():
-            messages.error(request, error)
-    
-    return redirect('dashboard-bol')
-
-@login_required
-def view_bol_template(request, template_id):
-    """View/preview BOL template PDF"""
-    template = get_object_or_404(BillOfLadingTemplate, id=template_id)
-    
-    try:
-        return FileResponse(template.template_file.open('rb'), content_type='application/pdf')
-    except Exception as e:
-        messages.error(request, f"Error opening template: {str(e)}")
-        return redirect('dashboard-bol')
-
-@login_required
-@require_http_methods(["POST"])
-def delete_bol_template(request, template_id):
-    """Delete BOL template"""
-    template = get_object_or_404(BillOfLadingTemplate, id=template_id)
-    supplier_name = template.supplier.name
-    template.delete()
-    messages.success(request, f"Template for {supplier_name} deleted successfully")
-    return redirect('dashboard-bol')
 
 @login_required
 def create_bol(request):
@@ -455,13 +404,6 @@ def create_bol(request):
             from datetime import datetime
             bill_number = f"BOL-{datetime.now().strftime('%Y%m%d')}-{BillOfLading.objects.count() + 1:04d}"
             bol.bill_number = bill_number
-            
-            # Try to link template
-            try:
-                template = BillOfLadingTemplate.objects.get(supplier=bol.supplier)
-                bol.template = template
-            except BillOfLadingTemplate.DoesNotExist:
-                pass
             
             bol.save()
             messages.success(request, f"Bill of Lading {bill_number} created successfully")
@@ -568,6 +510,24 @@ def preview_bol(request, bol_id):
     }
     
     return render(request, 'dashboard/bol_preview.html', context)
+
+@login_required
+def view_bol_detail(request, bol_id):
+    """View detailed information for a confirmed BOL including associated orders"""
+    bol = get_object_or_404(BillOfLading, id=bol_id)
+    line_items = bol.line_items.select_related('product').all()
+    orders = bol.orders.select_related('product', 'staff').all()
+    
+    total_weight = bol.calculate_total_weight()
+    
+    context = {
+        'bol': bol,
+        'line_items': line_items,
+        'orders': orders,
+        'total_weight': total_weight,
+    }
+    
+    return render(request, 'dashboard/bol_detail.html', context)
 
 @login_required
 @require_http_methods(["POST"])
@@ -1009,221 +969,3 @@ def sync_raw_data_to_products(request):
         messages.error(request, f"Error during sync: {str(e)}")
     
     return redirect('dashboard-product')
-
-
-@login_required
-def upload_bol_pdf(request):
-    """Upload BOL PDF and extract data for review"""
-    if request.method == 'POST':
-        form = BOLPDFUploadForm(request.POST, request.FILES)
-        
-        if form.is_valid():
-            supplier = form.cleaned_data['supplier']
-            pdf_file = request.FILES['pdf_file']
-            
-            try:
-                # Extract data from PDF
-                extracted_data = extract_bol_from_pdf(pdf_file)
-                
-                # Store extracted data in session for review
-                request.session['extracted_bol_data'] = {
-                    'supplier_id': supplier.id,
-                    'supplier_name': supplier.name,
-                    'pdf_filename': pdf_file.name,
-                    **extracted_data
-                }
-                
-                messages.success(request, f"Successfully extracted data from {pdf_file.name}. Please review and correct if needed.")
-                return redirect('dashboard-bol-review-extracted')
-                
-            except Exception as e:
-                messages.error(request, f"Error extracting PDF data: {str(e)}")
-                return redirect('dashboard-bol')
-        else:
-            for field, errors in form.errors.items():
-                for error in errors:
-                    messages.error(request, f"{field}: {error}")
-            return redirect('dashboard-bol')
-    
-    # GET request - show upload form
-    form = BOLPDFUploadForm()
-    context = {
-        'form': form,
-    }
-    return render(request, 'dashboard/bol_pdf_upload.html', context)
-
-
-@login_required
-def create_bol_from_template(request, template_id):
-    """Create a new BOL from a saved template with pre-filled structure"""
-    template = get_object_or_404(BillOfLadingTemplate, id=template_id)
-    
-    if not template.has_field_mapping():
-        messages.warning(request, f"Template for {template.supplier.name} does not have field mapping configured. Please upload a template PDF first.")
-        return redirect('dashboard-bol')
-    
-    # Get field mapping
-    field_mapping = template.field_mapping.get('fields', {})
-    
-    # Get all products for this supplier
-    products = Product.objects.filter(supplier=template.supplier).select_related('supplier').order_by('name')
-    
-    if request.method == 'POST':
-        try:
-            with transaction.atomic():
-                # Generate unique bill number
-                bill_number = f"BOL-{datetime.now().strftime('%Y%m%d')}-{BillOfLading.objects.count() + 1:04d}"
-                
-                # Create BOL with form data
-                bol = BillOfLading.objects.create(
-                    bill_number=bill_number,
-                    supplier=template.supplier,
-                    template=template,
-                    shipper_name=request.POST.get('shipper_name', field_mapping.get('shipper_name', '')),
-                    shipper_address=request.POST.get('shipper_address', field_mapping.get('shipper_address', '')),
-                    consignee_name=request.POST.get('consignee_name', field_mapping.get('consignee_name', '')),
-                    consignee_address=request.POST.get('consignee_address', field_mapping.get('consignee_address', '')),
-                    origin=request.POST.get('origin', field_mapping.get('origin', '')),
-                    destination=request.POST.get('destination', field_mapping.get('destination', '')),
-                    carrier=request.POST.get('carrier', field_mapping.get('carrier', '')),
-                    vessel_name=request.POST.get('vessel_name', field_mapping.get('vessel_name', '')),
-                    container_number=request.POST.get('container_number', ''),
-                    seal_number=request.POST.get('seal_number', ''),
-                    freight_charges=request.POST.get('freight_charges') or None,
-                    delivery_date=request.POST.get('delivery_date') or None,
-                    notes=request.POST.get('notes', ''),
-                    status='draft',
-                    created_by=request.user
-                )
-                
-                messages.success(request, f"Bill of Lading {bill_number} created from template. You can now add products.")
-                return redirect('dashboard-bol-edit', bol_id=bol.id)
-                
-        except Exception as e:
-            messages.error(request, f"Error creating BOL: {str(e)}")
-            return redirect('dashboard-bol')
-    
-    # GET request - show form with pre-filled data from template
-    context = {
-        'template': template,
-        'field_mapping': field_mapping,
-        'products': products,
-    }
-    return render(request, 'dashboard/bol_create_from_template.html', context)
-
-
-@login_required
-def review_extracted_bol(request):
-    """Review and edit extracted BOL data before saving"""
-    extracted_data = request.session.get('extracted_bol_data')
-    
-    if not extracted_data:
-        messages.warning(request, "No extracted data found. Please upload a BOL PDF first.")
-        return redirect('dashboard-bol')
-    
-    # Get all available products (not filtered by supplier)
-    # This allows adding any product to the BOL
-    available_products = Product.objects.all().select_related('supplier').order_by('name')
-    
-    if request.method == 'POST':
-        try:
-            with transaction.atomic():
-                # Get supplier
-                supplier = get_object_or_404(Supplier, id=extracted_data['supplier_id'])
-                
-                # Create BOL with reviewed data
-                from datetime import datetime
-                bill_number = request.POST.get('bill_number') or f"BOL-{datetime.now().strftime('%Y%m%d')}-{BillOfLading.objects.count() + 1:04d}"
-                
-                bol = BillOfLading.objects.create(
-                    bill_number=bill_number,
-                    supplier=supplier,
-                    shipper_name=request.POST.get('shipper_name', ''),
-                    shipper_address=request.POST.get('shipper_address', ''),
-                    consignee_name=request.POST.get('consignee_name', ''),
-                    consignee_address=request.POST.get('consignee_address', ''),
-                    origin=request.POST.get('origin', ''),
-                    destination=request.POST.get('destination', ''),
-                    carrier=request.POST.get('carrier', ''),
-                    vessel_name=request.POST.get('vessel_name', ''),
-                    container_number=request.POST.get('container_number', ''),
-                    seal_number=request.POST.get('seal_number', ''),
-                    freight_charges=request.POST.get('freight_charges') or None,
-                    delivery_date=request.POST.get('delivery_date') or None,
-                    notes=request.POST.get('notes', ''),
-                    status='draft',
-                    created_by=request.user
-                )
-                
-                # Try to link template
-                try:
-                    template = BillOfLadingTemplate.objects.get(supplier=supplier)
-                    bol.template = template
-                    bol.save()
-                except BillOfLadingTemplate.DoesNotExist:
-                    pass
-                
-                # Create line items from extracted PDF data
-                line_items_data = extracted_data.get('line_items', [])
-                for i, item_data in enumerate(line_items_data):
-                    # Check if user wants to include this line item
-                    include_item = request.POST.get(f'include_item_{i}')
-                    if include_item == 'on':
-                        # Try to find matching product or create new one
-                        description = request.POST.get(f'item_description_{i}', item_data.get('description', ''))
-                        quantity = request.POST.get(f'item_quantity_{i}', item_data.get('quantity', 1))
-                        weight = request.POST.get(f'item_weight_{i}', item_data.get('weight', 0))
-                        
-                        # Try to find or create product
-                        product_name = description[:100] if description else f"Item {i+1}"
-                        product, created = Product.objects.get_or_create(
-                            name=product_name,
-                            supplier=supplier,
-                            defaults={
-                                'quantity': int(quantity) if quantity else 1,
-                                'description': description,
-                                'weight': float(weight) if weight else None
-                            }
-                        )
-                        
-                        # Create line item
-                        BillOfLadingLineItem.objects.create(
-                            bill_of_lading=bol,
-                            product=product,
-                            quantity=int(quantity) if quantity else 1,
-                            weight=float(weight) if weight else None,
-                            description=description
-                        )
-                
-                # Add products selected from database
-                for product in available_products:
-                    add_product_key = f'add_product_{product.id}'
-                    if request.POST.get(add_product_key):
-                        quantity = request.POST.get(f'add_product_qty_{product.id}', product.quantity)
-                        weight = request.POST.get(f'add_product_weight_{product.id}', product.weight)
-                        
-                        # Create line item for this product
-                        BillOfLadingLineItem.objects.create(
-                            bill_of_lading=bol,
-                            product=product,
-                            quantity=int(quantity) if quantity else 1,
-                            weight=float(weight) if weight else product.weight,
-                            description=product.description or ''
-                        )
-                
-                # Clear session data
-                del request.session['extracted_bol_data']
-                
-                messages.success(request, f"Bill of Lading {bill_number} created successfully from PDF!")
-                return redirect('dashboard-bol-edit', bol_id=bol.id)
-                
-        except Exception as e:
-            messages.error(request, f"Error creating BOL: {str(e)}")
-            return redirect('dashboard-bol-review-extracted')
-    
-    # GET request - show review form
-    context = {
-        'extracted_data': extracted_data,
-        'available_products': available_products,
-    }
-    return render(request, 'dashboard/bol_review_extracted.html', context)

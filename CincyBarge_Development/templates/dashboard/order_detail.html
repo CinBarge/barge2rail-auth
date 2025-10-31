@@ -1,0 +1,179 @@
+{% extends 'partials/base.html' %}
+{% block title %}Order #{{ order.id }} - Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="row mb-3">
+    <div class="col-12">
+      <h2><i class="fas fa-clipboard-list"></i> Order Details</h2>
+      <p class="text-muted">Order ID: <strong>#{{ order.id }}</strong></p>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Order Information -->
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-header bg-primary text-white">
+          <h5><i class="fas fa-info-circle"></i> Order Information</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm table-borderless">
+            <tr>
+              <th width="40%">Product:</th>
+              <td><strong>{{ order.product.name }}</strong></td>
+            </tr>
+            <tr>
+              <th>Supplier:</th>
+              <td>{{ order.product.supplier.name }}</td>
+            </tr>
+            <tr>
+              <th>Quantity:</th>
+              <td>{{ order.order_quantity }}</td>
+            </tr>
+            <tr>
+              <th>Status:</th>
+              <td><span class="badge bg-{{ order.status }}">{{ order.get_status_display }}</span></td>
+            </tr>
+            <tr>
+              <th>Created By:</th>
+              <td>{{ order.staff.username }}</td>
+            </tr>
+            <tr>
+              <th>Order Date:</th>
+              <td>{{ order.date|date:"M d, Y H:i" }}</td>
+            </tr>
+            {% if order.delivery_date %}
+            <tr>
+              <th>Delivery Date:</th>
+              <td>{{ order.delivery_date|date:"M d, Y" }}</td>
+            </tr>
+            {% endif %}
+            {% if order.completed_at %}
+            <tr>
+              <th>Completed:</th>
+              <td>{{ order.completed_at|date:"M d, Y H:i" }}</td>
+            </tr>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bill of Lading Information -->
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-header bg-info text-white">
+          <h5><i class="fas fa-file-invoice"></i> Bill of Lading</h5>
+        </div>
+        <div class="card-body">
+          {% if order.bill_of_lading %}
+            <table class="table table-sm table-borderless">
+              <tr>
+                <th width="40%">BOL Number:</th>
+                <td>
+                  <a href="{% url 'dashboard-bol-detail' order.bill_of_lading.id %}" class="text-decoration-none">
+                    <strong>{{ order.bill_of_lading.bill_number }}</strong>
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <th>BOL Status:</th>
+                <td><span class="badge bg-{{ order.bill_of_lading.status|lower }}">{{ order.bill_of_lading.get_status_display }}</span></td>
+              </tr>
+              <tr>
+                <th>Destination:</th>
+                <td>{{ order.bill_of_lading.destination|default:"N/A" }}</td>
+              </tr>
+              <tr>
+                <th>Origin:</th>
+                <td>{{ order.bill_of_lading.origin|default:"N/A" }}</td>
+              </tr>
+              <tr>
+                <th>Carrier:</th>
+                <td>{{ order.bill_of_lading.carrier|default:"N/A" }}</td>
+              </tr>
+              {% if order.bill_of_lading.vessel_name %}
+              <tr>
+                <th>Vessel:</th>
+                <td>{{ order.bill_of_lading.vessel_name }}</td>
+              </tr>
+              {% endif %}
+            </table>
+            <div class="mt-2">
+              <a href="{% url 'dashboard-bol-detail' order.bill_of_lading.id %}" class="btn btn-sm btn-info">
+                <i class="fas fa-eye"></i> View Full BOL
+              </a>
+            </div>
+          {% else %}
+            <p class="text-muted">This order is not associated with a Bill of Lading yet.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product Details -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card mb-3">
+        <div class="card-header bg-success text-white">
+          <h5><i class="fas fa-box"></i> Product Details</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tr>
+              <th width="20%">Product Name:</th>
+              <td>{{ order.product.name }}</td>
+            </tr>
+            <tr>
+              <th>Available Quantity:</th>
+              <td>{{ order.product.quantity }}</td>
+            </tr>
+            {% if order.product.weight %}
+            <tr>
+              <th>Unit Weight:</th>
+              <td>{{ order.product.weight }} lbs</td>
+            </tr>
+            <tr>
+              <th>Total Weight:</th>
+              <td>{{ order.product.weight|floatformat:2 }} lbs × {{ order.order_quantity }} = <strong>{{ order.product.weight|floatformat:2 }}×{{ order.order_quantity }} = {{ order.total_weight|floatformat:2 }} lbs</strong></td>
+            </tr>
+            {% endif %}
+            {% if order.product.description %}
+            <tr>
+              <th>Description:</th>
+              <td>{{ order.product.description }}</td>
+            </tr>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <a href="{% url 'dashboard-order' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Orders
+      </a>
+      {% if order.status not in 'completed,cancelled' %}
+        <a href="{% url 'dashboard-order-edit' order.id %}" class="btn btn-primary">
+          <i class="fas fa-edit"></i> Edit Order
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+.badge.bg-pending { background-color: #6c757d !important; }
+.badge.bg-scheduled { background-color: #0dcaf0 !important; }
+.badge.bg-in_progress { background-color: #17a2b8 !important; }
+.badge.bg-completed { background-color: #28a745 !important; }
+.badge.bg-cancelled { background-color: #dc3545 !important; }
+.badge.bg-confirmed { background-color: #28a745 !important; }
+.badge.bg-draft { background-color: #ffc107 !important; color: #000 !important; }
+</style>
+{% endblock %}

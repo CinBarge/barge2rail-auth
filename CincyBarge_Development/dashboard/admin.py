@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Product, Order, Supplier, RawProductData, BillOfLadingTemplate, BillOfLading, BillOfLadingLineItem
+from .models import Product, Order, Supplier, RawProductData, BillOfLading, BillOfLadingLineItem
 from django.contrib.auth.models import Group
 from django import forms
 
@@ -130,17 +130,6 @@ class RawProductDataAdmin(AdminMediaMixin, admin.ModelAdmin):
         return queryset.select_related('supplier', 'uploaded_by')
 
 
-class BillOfLadingTemplateAdmin(AdminMediaMixin, admin.ModelAdmin):
-    """Admin configuration for Bill of Lading Template model"""
-    list_display = ('id', 'supplier', 'file_name', 'uploaded_by', 'uploaded_at')
-    list_filter = ('supplier', 'uploaded_at')
-    search_fields = ('supplier__name', 'file_name', 'uploaded_by__username')
-    readonly_fields = ('uploaded_at',)
-    date_hierarchy = 'uploaded_at'
-    list_per_page = 25
-    ordering = ('-uploaded_at',)
-
-
 class BillOfLadingLineItemInline(admin.TabularInline):
     """Inline admin for BOL line items"""
     model = BillOfLadingLineItem
@@ -162,7 +151,7 @@ class BillOfLadingAdmin(AdminMediaMixin, admin.ModelAdmin):
     
     fieldsets = (
         ('BOL Information', {
-            'fields': ('bill_number', 'supplier', 'template', 'status')
+            'fields': ('bill_number', 'supplier', 'status')
         }),
         ('Shipping Details', {
             'fields': ('shipper_name', 'shipper_address', 'consignee_name', 'consignee_address', 'origin', 'destination')
@@ -171,7 +160,7 @@ class BillOfLadingAdmin(AdminMediaMixin, admin.ModelAdmin):
             'fields': ('carrier', 'vessel_name', 'container_number', 'seal_number')
         }),
         ('Financial', {
-            'fields': ('freight_charges', 'total_value')
+            'fields': ('total_value',)
         }),
         ('Dates', {
             'fields': ('delivery_date', 'created_at', 'confirmed_at', 'completed_at')
@@ -197,6 +186,5 @@ admin.site.register(Product, ProductAdmin)
 admin.site.register(Order, OrderAdmin)
 admin.site.register(Supplier, SupplierAdmin)
 admin.site.register(RawProductData, RawProductDataAdmin)
-admin.site.register(BillOfLadingTemplate, BillOfLadingTemplateAdmin)
 admin.site.register(BillOfLading, BillOfLadingAdmin)
 admin.site.register(BillOfLadingLineItem, BillOfLadingLineItemAdmin)

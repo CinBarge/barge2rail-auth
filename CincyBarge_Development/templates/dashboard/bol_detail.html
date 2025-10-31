@@ -1,0 +1,238 @@
+{% extends 'partials/base.html' %}
+{% block title %}BOL {{ bol.bill_number }} - Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="row mb-3">
+    <div class="col-12">
+      <h2><i class="fas fa-file-invoice"></i> Bill of Lading Details</h2>
+      <p class="text-muted">BOL Number: <strong>{{ bol.bill_number }}</strong></p>
+    </div>
+  </div>
+
+  <!-- BOL Information -->
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-header bg-primary text-white">
+          <h5><i class="fas fa-info-circle"></i> BOL Information</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm table-borderless">
+            <tr>
+              <th width="40%">Supplier:</th>
+              <td>{{ bol.supplier.name }}</td>
+            </tr>
+            <tr>
+              <th>Status:</th>
+              <td><span class="badge bg-{{ bol.status|lower }}">{{ bol.get_status_display }}</span></td>
+            </tr>
+            <tr>
+              <th>Created:</th>
+              <td>{{ bol.created_at|date:"M d, Y H:i" }}</td>
+            </tr>
+            <tr>
+              <th>Created By:</th>
+              <td>{{ bol.created_by.username }}</td>
+            </tr>
+            {% if bol.confirmed_at %}
+            <tr>
+              <th>Confirmed:</th>
+              <td>{{ bol.confirmed_at|date:"M d, Y H:i" }}</td>
+            </tr>
+            {% endif %}
+            {% if bol.delivery_date %}
+            <tr>
+              <th>Delivery Date:</th>
+              <td>{{ bol.delivery_date|date:"M d, Y" }}</td>
+            </tr>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-header bg-info text-white">
+          <h5><i class="fas fa-shipping-fast"></i> Shipping Details</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm table-borderless">
+            <tr>
+              <th width="40%">Origin:</th>
+              <td>{{ bol.origin|default:"N/A" }}</td>
+            </tr>
+            <tr>
+              <th>Destination:</th>
+              <td>{{ bol.destination|default:"N/A" }}</td>
+            </tr>
+            <tr>
+              <th>Carrier:</th>
+              <td>{{ bol.carrier|default:"N/A" }}</td>
+            </tr>
+            <tr>
+              <th>Vessel:</th>
+              <td>{{ bol.vessel_name|default:"N/A" }}</td>
+            </tr>
+            {% if bol.container_number %}
+            <tr>
+              <th>Container #:</th>
+              <td>{{ bol.container_number }}</td>
+            </tr>
+            {% endif %}
+            {% if bol.seal_number %}
+            <tr>
+              <th>Seal #:</th>
+              <td>{{ bol.seal_number }}</td>
+            </tr>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Line Items -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card mb-3">
+        <div class="card-header bg-success text-white">
+          <h5><i class="fas fa-boxes"></i> Line Items</h5>
+        </div>
+        <div class="card-body">
+          {% if line_items %}
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Quantity</th>
+                    <th>Weight (lbs)</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in line_items %}
+                  <tr>
+                    <td><strong>{{ item.product.name }}</strong></td>
+                    <td>{{ item.quantity }}</td>
+                    <td>{{ item.weight|default:"N/A" }}</td>
+                    <td>{{ item.description|default:"N/A" }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+                <tfoot>
+                  <tr class="table-active">
+                    <th>Total</th>
+                    <th>{{ line_items|length }} item{{ line_items|length|pluralize }}</th>
+                    <th>{{ total_weight|floatformat:2 }} lbs</th>
+                    <th></th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted">No line items.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Associated Orders -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card mb-3">
+        <div class="card-header bg-warning">
+          <h5><i class="fas fa-clipboard-list"></i> Associated Orders</h5>
+        </div>
+        <div class="card-body">
+          {% if orders %}
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Order ID</th>
+                    <th>Product</th>
+                    <th>Quantity</th>
+                    <th>Staff</th>
+                    <th>Status</th>
+                    <th>Order Date</th>
+                    <th>Delivery Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for order in orders %}
+                  <tr>
+                    <td><strong>#{{ order.id }}</strong></td>
+                    <td>{{ order.product.name }}</td>
+                    <td>{{ order.order_quantity }}</td>
+                    <td>{{ order.staff.username }}</td>
+                    <td>
+                      <span class="badge bg-{{ order.status }}">
+                        {{ order.get_status_display }}
+                      </span>
+                    </td>
+                    <td>{{ order.date|date:"M d, Y H:i" }}</td>
+                    <td>
+                      {% if order.delivery_date %}
+                        {{ order.delivery_date|date:"M d, Y" }}
+                      {% else %}
+                        <span class="text-muted">N/A</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted">No orders have been created from this BOL yet.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notes -->
+  {% if bol.notes %}
+  <div class="row">
+    <div class="col-12">
+      <div class="card mb-3">
+        <div class="card-header">
+          <h5><i class="fas fa-sticky-note"></i> Notes</h5>
+        </div>
+        <div class="card-body">
+          <p class="mb-0">{{ bol.notes }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Actions -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <a href="{% url 'dashboard-bol' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to BOL List
+      </a>
+      {% if bol.status == 'draft' %}
+        <a href="{% url 'dashboard-bol-edit' bol.id %}" class="btn btn-primary">
+          <i class="fas fa-edit"></i> Edit BOL
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+.badge.bg-pending { background-color: #6c757d !important; }
+.badge.bg-scheduled { background-color: #0dcaf0 !important; }
+.badge.bg-in_progress { background-color: #17a2b8 !important; }
+.badge.bg-completed { background-color: #28a745 !important; }
+.badge.bg-cancelled { background-color: #dc3545 !important; }
+.badge.bg-confirmed { background-color: #28a745 !important; }
+.badge.bg-draft { background-color: #ffc107 !important; color: #000 !important; }
+</style>
+{% endblock %}
