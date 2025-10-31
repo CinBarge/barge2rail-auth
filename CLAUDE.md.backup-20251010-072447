@@ -7,7 +7,7 @@
 
 **Business Domain:** Authentication system for small logistics company (barge2rail.com)
 **Primary Users:** Office staff, field technicians, future: suppliers/customers
-**Operational Reality:** 
+**Operational Reality:**
 - Interrupt-driven environment (operational emergencies take priority)
 - ADHD-friendly design required (15-minute work blocks, clear checkpoints)
 - Seasonal patterns (river conditions affect usage patterns)

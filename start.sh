@@ -17,7 +17,7 @@ if db_url:
     # Handle both postgresql:// and postgres:// schemes
     if db_url.startswith('postgres://'):
         db_url = db_url.replace('postgres://', 'postgresql://', 1)
-    
+
     result = urlparse(db_url)
     max_retries = 30
     for i in range(max_retries):

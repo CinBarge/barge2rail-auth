@@ -44,7 +44,7 @@ for i in {1..10}; do
         echo "⏳ Waiting for server... (attempt $i/10)"
         sleep 2
     fi
-    
+
     if [ $i -eq 10 ]; then
         echo "❌ Server failed to start properly"
         echo "Manual start command: python manage.py runserver 127.0.0.1:8000"

@@ -19,7 +19,7 @@
 <body>
     <h1>Django SSO Integration for Admin Dashboard</h1>
     <p><strong>Purpose:</strong> Authenticate with Django SSO and return to Admin Dashboard</p>
-    
+
     <div class="step">
         <h3>Step 1: Complete Google Authentication</h3>
         <div id="g_id_onload"
@@ -28,22 +28,22 @@
         </div>
         <div class="g_id_signin" data-type="standard"></div>
     </div>
-    
+
     <div id="step2" class="step" style="display:none;">
         <h3>Step 2: Authentication Results</h3>
         <div id="auth-results"></div>
     </div>
-    
+
     <div id="step3" class="step" style="display:none;">
         <h3>Step 3: Return to Admin Dashboard</h3>
         <div id="return-options"></div>
     </div>
-    
+
     <script>
         async function handleCredentialResponse(response) {
             console.log("=== STARTING DJANGO SSO INTEGRATION ===");
             document.getElementById('step2').style.display = 'block';
-            
+
             try {
                 // Send Google credential to Django SSO
                 const authResponse = await fetch('http://127.0.0.1:8000/api/auth/login/google/', {
@@ -55,18 +55,18 @@
                         token: response.credential
                     })
                 });
-                
+
                 if (!authResponse.ok) {
                     throw new Error(`HTTP ${authResponse.status}`);
                 }
-                
+
                 const data = await authResponse.json();
                 console.log('Django SSO Response:', data);
-                
+
                 // CRITICAL: Store tokens to localStorage for Admin Dashboard
                 localStorage.setItem('django_sso_access_token', data.access_token);
                 localStorage.setItem('django_sso_refresh_token', data.refresh_token);
-                
+
                 // Show success message
                 document.getElementById('auth-results').innerHTML = `
                     <div class="success">
@@ -77,7 +77,7 @@
                         <p><strong>Tokens Stored:</strong> ✅ Access Token, ✅ Refresh Token</p>
                     </div>
                 `;
-                
+
                 // Show return options
                 document.getElementById('step3').style.display = 'block';
                 document.getElementById('return-options').innerHTML = `
@@ -90,14 +90,14 @@
                         <p><small>The Admin Dashboard will automatically detect your authentication tokens and log you in.</small></p>
                     </div>
                 `;
-                
+
                 // Optional: Auto-redirect after 3 seconds
                 setTimeout(() => {
                     if (confirm('Authentication successful! Redirect to Admin Dashboard now?')) {
                         window.location.href = 'http://localhost:3000';
                     }
                 }, 2000);
-                
+
             } catch (error) {
                 console.error('Django SSO Error:', error);
                 document.getElementById('auth-results').innerHTML = `
@@ -109,16 +109,16 @@
                 `;
             }
         }
-        
+
         // Debug: Show current localStorage state
         window.addEventListener('load', () => {
             const accessToken = localStorage.getItem('django_sso_access_token');
             const refreshToken = localStorage.getItem('django_sso_refresh_token');
-            
+
             if (accessToken && refreshToken) {
                 document.getElementById('step2').style.display = 'block';
                 document.getElementById('step3').style.display = 'block';
-                
+
                 document.getElementById('auth-results').innerHTML = `
                     <div class="warning">
                         <h4>⚠️ Existing Authentication Detected</h4>
@@ -127,7 +127,7 @@
                         <p><strong>Refresh Token:</strong> ${refreshToken.substring(0, 50)}...</p>
                     </div>
                 `;
-                
+
                 document.getElementById('return-options').innerHTML = `
                     <div class="success">
                         <p><strong>You're already authenticated!</strong></p>
@@ -141,7 +141,7 @@
                 `;
             }
         });
-        
+
         function clearTokensAndReauth() {
             localStorage.removeItem('django_sso_access_token');
             localStorage.removeItem('django_sso_refresh_token');

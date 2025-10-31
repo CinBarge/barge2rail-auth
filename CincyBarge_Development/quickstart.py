@@ -1,7 +1,7 @@
+import hashlib
 import os.path
 import sys
 import time
-import hashlib
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -20,8 +20,9 @@ SAMPLE_RANGE_NAME = "CoilScans!A1:D5"
 # ========== New: Hash Function ==========
 def hash_values(values):
     """Generate a simple hash from spreadsheet data to detect changes."""
-    flat_data = str(values).encode('utf-8')
+    flat_data = str(values).encode("utf-8")
     return hashlib.md5(flat_data).hexdigest()
+
 
 # ========== Optional: Force Reauth ==========
 def refresh_token():
@@ -30,6 +31,7 @@ def refresh_token():
         print("Deleting existing token...")
         os.remove("token.json")
     print("Token deleted. Next run will require re-authentication.")
+
 
 # ========== Main App ==========
 def main():
@@ -43,17 +45,16 @@ def main():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-            "credentials.json", SCOPES
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(
+                port=8000, access_type="offline", prompt="consent"
             )
-            creds = flow.run_local_server(port=8000, access_type='offline', prompt='consent')
-
 
         with open("token.json", "w") as token:
             token.write(creds.to_json())
 
     try:
-        
+
         service = build("sheets", "v4", credentials=creds)
         sheet = service.spreadsheets()
 

@@ -17,32 +17,34 @@ Usage:
    python test_google_oauth.py ACCESS_TOKEN REFRESH_TOKEN
 """
 
-import sys
-import requests
 import json
+import sys
 import time
 from datetime import datetime
-from typing import Dict, Any, Tuple
+from typing import Any, Dict, Tuple
+
+import requests
 
 # Test configuration
 BASE_URL = "http://localhost:8000"
 ENDPOINTS = {
-    'verify': f'{BASE_URL}/api/auth/validate/',
-    'refresh': f'{BASE_URL}/api/auth/refresh/',
-    'profile': f'{BASE_URL}/api/auth/me/',
-    'logout': f'{BASE_URL}/api/auth/logout/',
+    "verify": f"{BASE_URL}/api/auth/validate/",
+    "refresh": f"{BASE_URL}/api/auth/refresh/",
+    "profile": f"{BASE_URL}/api/auth/me/",
+    "logout": f"{BASE_URL}/api/auth/logout/",
 }
 
 # ANSI color codes for terminal output
-GREEN = '\033[92m'
-RED = '\033[91m'
-YELLOW = '\033[93m'
-BLUE = '\033[94m'
-RESET = '\033[0m'
+GREEN = "\033[92m"
+RED = "\033[91m"
+YELLOW = "\033[93m"
+BLUE = "\033[94m"
+RESET = "\033[0m"
 
 
 class TestResult:
     """Track test results"""
+
     def __init__(self, name: str):
         self.name = name
         self.passed = False
@@ -89,30 +91,30 @@ class GoogleOAuthTester:
 
         try:
             response = requests.post(
-                ENDPOINTS['verify'],
-                json={'token': self.access_token},
-                headers={'Content-Type': 'application/json'}
+                ENDPOINTS["verify"],
+                json={"token": self.access_token},
+                headers={"Content-Type": "application/json"},
             )
 
             if response.status_code == 200:
                 data = response.json()
-                if data.get('valid'):
-                    user = data.get('user', {})
+                if data.get("valid"):
+                    user = data.get("user", {})
                     result.success(
                         "Access token is valid",
                         {
-                            'email': user.get('email'),
-                            'auth_type': user.get('auth_type'),
-                            'is_sso_admin': user.get('is_sso_admin'),
-                            'claims': data.get('claims', {})
-                        }
+                            "email": user.get("email"),
+                            "auth_type": user.get("auth_type"),
+                            "is_sso_admin": user.get("is_sso_admin"),
+                            "claims": data.get("claims", {}),
+                        },
                     )
                 else:
                     result.failure("Token marked as invalid", data)
             else:
                 result.failure(
                     f"Unexpected status code: {response.status_code}",
-                    {'response': response.text}
+                    {"response": response.text},
                 )
 
         except Exception as e:
@@ -128,32 +130,32 @@ class GoogleOAuthTester:
 
         try:
             response = requests.post(
-                ENDPOINTS['refresh'],
-                json={'refresh': self.refresh_token},
-                headers={'Content-Type': 'application/json'}
+                ENDPOINTS["refresh"],
+                json={"refresh": self.refresh_token},
+                headers={"Content-Type": "application/json"},
             )
 
             if response.status_code == 200:
                 data = response.json()
-                new_access = data.get('access')
-                new_refresh = data.get('refresh')
+                new_access = data.get("access")
+                new_refresh = data.get("refresh")
 
                 if new_access and new_refresh:
                     result.success(
                         "Refresh token successfully generated new tokens",
                         {
-                            'new_access_token_prefix': new_access[:20] + '...',
-                            'new_refresh_token_prefix': new_refresh[:20] + '...',
-                            'access_token_changed': new_access != self.access_token,
-                            'refresh_token_changed': new_refresh != self.refresh_token
-                        }
+                            "new_access_token_prefix": new_access[:20] + "...",
+                            "new_refresh_token_prefix": new_refresh[:20] + "...",
+                            "access_token_changed": new_access != self.access_token,
+                            "refresh_token_changed": new_refresh != self.refresh_token,
+                        },
                     )
                 else:
                     result.failure("Response missing tokens", data)
             else:
                 result.failure(
                     f"Unexpected status code: {response.status_code}",
-                    {'response': response.text}
+                    {"response": response.text},
                 )
 
         except Exception as e:
@@ -168,8 +170,8 @@ class GoogleOAuthTester:
 
         try:
             response = requests.get(
-                ENDPOINTS['profile'],
-                headers={'Authorization': f'Bearer {token_to_use}'}
+                ENDPOINTS["profile"],
+                headers={"Authorization": f"Bearer {token_to_use}"},
             )
 
             if response.status_code == 200:
@@ -177,19 +179,22 @@ class GoogleOAuthTester:
                 result.success(
                     "Successfully retrieved user profile",
                     {
-                        'email': data.get('email'),
-                        'display_name': data.get('display_name'),
-                        'auth_type': data.get('auth_type'),
-                        'is_sso_admin': data.get('is_sso_admin'),
-                        'roles': data.get('roles', {})
-                    }
+                        "email": data.get("email"),
+                        "display_name": data.get("display_name"),
+                        "auth_type": data.get("auth_type"),
+                        "is_sso_admin": data.get("is_sso_admin"),
+                        "roles": data.get("roles", {}),
+                    },
                 )
             elif response.status_code == 401:
-                result.failure("Unauthorized - token invalid or expired", {'response': response.text})
+                result.failure(
+                    "Unauthorized - token invalid or expired",
+                    {"response": response.text},
+                )
             else:
                 result.failure(
                     f"Unexpected status code: {response.status_code}",
-                    {'response': response.text}
+                    {"response": response.text},
                 )
 
         except Exception as e:
@@ -204,24 +209,24 @@ class GoogleOAuthTester:
 
         try:
             response = requests.post(
-                ENDPOINTS['logout'],
-                json={'refresh': token_to_blacklist},
+                ENDPOINTS["logout"],
+                json={"refresh": token_to_blacklist},
                 headers={
-                    'Content-Type': 'application/json',
-                    'Authorization': f'Bearer {self.access_token}'
-                }
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.access_token}",
+                },
             )
 
             if response.status_code == 200:
                 data = response.json()
                 result.success(
                     "Successfully logged out and blacklisted token",
-                    {'message': data.get('message')}
+                    {"message": data.get("message")},
                 )
             else:
                 result.failure(
                     f"Unexpected status code: {response.status_code}",
-                    {'response': response.text}
+                    {"response": response.text},
                 )
 
         except Exception as e:
@@ -235,22 +240,24 @@ class GoogleOAuthTester:
 
         try:
             response = requests.post(
-                ENDPOINTS['refresh'],
-                json={'refresh': blacklisted_token},
-                headers={'Content-Type': 'application/json'}
+                ENDPOINTS["refresh"],
+                json={"refresh": blacklisted_token},
+                headers={"Content-Type": "application/json"},
             )
 
             if response.status_code == 401 or response.status_code == 400:
                 result.success(
                     "Blacklisted token correctly rejected",
-                    {'status_code': response.status_code}
+                    {"status_code": response.status_code},
                 )
             elif response.status_code == 200:
-                result.failure("ERROR: Blacklisted token was accepted!", response.json())
+                result.failure(
+                    "ERROR: Blacklisted token was accepted!", response.json()
+                )
             else:
                 result.failure(
                     f"Unexpected status code: {response.status_code}",
-                    {'response': response.text}
+                    {"response": response.text},
                 )
 
         except Exception as e:
@@ -265,18 +272,18 @@ class GoogleOAuthTester:
         try:
             # Verify token to get expiry claims
             response = requests.post(
-                ENDPOINTS['verify'],
-                json={'token': self.access_token},
-                headers={'Content-Type': 'application/json'}
+                ENDPOINTS["verify"],
+                json={"token": self.access_token},
+                headers={"Content-Type": "application/json"},
             )
 
             if response.status_code == 200:
                 data = response.json()
-                claims = data.get('claims', {})
+                claims = data.get("claims", {})
 
                 # Check if exp and iat are present
-                exp = claims.get('exp')
-                iat = claims.get('iat')
+                exp = claims.get("exp")
+                iat = claims.get("iat")
 
                 if exp and iat:
                     lifetime_seconds = exp - iat
@@ -287,15 +294,15 @@ class GoogleOAuthTester:
                         result.success(
                             f"Token expiry correctly configured: {lifetime_minutes:.1f} minutes",
                             {
-                                'lifetime_minutes': lifetime_minutes,
-                                'issued_at': datetime.fromtimestamp(iat).isoformat(),
-                                'expires_at': datetime.fromtimestamp(exp).isoformat()
-                            }
+                                "lifetime_minutes": lifetime_minutes,
+                                "issued_at": datetime.fromtimestamp(iat).isoformat(),
+                                "expires_at": datetime.fromtimestamp(exp).isoformat(),
+                            },
                         )
                     else:
                         result.failure(
                             f"Token lifetime is {lifetime_minutes:.1f} minutes (expected ~15 minutes)",
-                            {'lifetime_minutes': lifetime_minutes}
+                            {"lifetime_minutes": lifetime_minutes},
                         )
                 else:
                     result.failure("Token missing exp or iat claims", claims)
@@ -388,13 +395,16 @@ class GoogleOAuthTester:
             print(f"{GREEN}✅ ALL TESTS PASSED{RESET}")
 
         print("\n" + "=" * 80)
-        print(f"{GREEN if failed == 0 else RED}Google OAuth: {'WORKING' if failed == 0 else 'NEEDS ATTENTION'}{RESET}")
+        print(
+            f"{GREEN if failed == 0 else RED}Google OAuth: {'WORKING' if failed == 0 else 'NEEDS ATTENTION'}{RESET}"
+        )
         print("=" * 80 + "\n")
 
 
 def print_usage():
     """Print usage instructions"""
-    print(f"""
+    print(
+        f"""
 {BLUE}Google OAuth Testing Script{RESET}
 
 {YELLOW}STEP 1: Get Tokens from Manual Google Login{RESET}
@@ -435,7 +445,8 @@ $ python test_google_oauth.py eyJ0eXAiOiJKV1QiLCJhbGc... eyJ0eXAiOiJKV1QiLCJhbGc
 ✗ Anonymous authentication
 
 {GREEN}This is Google OAuth ONLY testing{RESET}
-""")
+"""
+    )
 
 
 def main():
@@ -462,5 +473,5 @@ def main():
     sys.exit(0 if failed == 0 else 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

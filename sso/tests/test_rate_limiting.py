@@ -3,8 +3,8 @@ Rate Limiting Tests
 Dedicated tests for rate limiting functionality.
 """
 
-from django.test import TestCase, Client, override_settings
 from django.core.cache import cache
+from django.test import Client, TestCase, override_settings
 
 
 class RateLimitConfigurationTests(TestCase):
@@ -20,10 +20,12 @@ class RateLimitConfigurationTests(TestCase):
         """Rate limiting should be disabled when DEBUG=True"""
         # Make 10 rapid attempts (would normally be rate limited)
         for i in range(10):
-            response = self.client.post('/api/auth/login/email/', {
-                'email': 'test@example.com',
-                'password': 'wrong'
-            }, content_type='application/json')
+            response = self.client.post(
+                "/api/auth/login/email/",
+                # pragma: allowlist secret
+                {"email": "test@example.com", "password": "wrong"},
+                content_type="application/json",
+            )
 
             # Should get 401 (invalid credentials), not 429 (rate limit)
             self.assertEqual(response.status_code, 401)
@@ -33,10 +35,12 @@ class RateLimitConfigurationTests(TestCase):
         """Rate limiting should be enabled when DEBUG=False"""
         # Make 6 rapid attempts
         for i in range(6):
-            response = self.client.post('/api/auth/login/email/', {
-                'email': 'test@example.com',
-                'password': 'wrong'
-            }, content_type='application/json')
+            response = self.client.post(
+                "/api/auth/login/email/",
+                # pragma: allowlist secret
+                {"email": "test@example.com", "password": "wrong"},
+                content_type="application/json",
+            )
 
         # Last response should be rate limited
         self.assertEqual(response.status_code, 429)
@@ -58,13 +62,14 @@ class RateLimitEndpointTests(TestCase):
         for i in range(20):
             state = generate_oauth_state()
             session = self.client.session
-            session['oauth_state'] = state
+            session["oauth_state"] = state
             session.save()
 
-            response = self.client.post('/api/auth/login/google/oauth/', {
-                'code': f'code_{i}',
-                'state': state
-            }, content_type='application/json')
+            response = self.client.post(
+                "/api/auth/login/google/oauth/",
+                {"code": f"code_{i}", "state": state},
+                content_type="application/json",
+            )
 
             # May get 400/401 (invalid code) but not 429 (rate limit)
             self.assertNotEqual(response.status_code, 429)
@@ -72,13 +77,14 @@ class RateLimitEndpointTests(TestCase):
         # 21st attempt should be rate limited
         state = generate_oauth_state()
         session = self.client.session
-        session['oauth_state'] = state
+        session["oauth_state"] = state
         session.save()
 
-        response = self.client.post('/api/auth/login/google/oauth/', {
-            'code': 'code_21',
-            'state': state
-        }, content_type='application/json')
+        response = self.client.post(
+            "/api/auth/login/google/oauth/",
+            {"code": "code_21", "state": state},
+            content_type="application/json",
+        )
 
         self.assertEqual(response.status_code, 429)
 
@@ -87,16 +93,20 @@ class RateLimitEndpointTests(TestCase):
         """Token validation should allow 100 requests per hour"""
         # Make 100 validation attempts (should all succeed/fail normally)
         for i in range(100):
-            response = self.client.post('/api/auth/validate/', {
-                'token': f'fake_token_{i}'
-            }, content_type='application/json')
+            response = self.client.post(
+                "/api/auth/validate/",
+                {"token": f"fake_token_{i}"},
+                content_type="application/json",
+            )
 
             # Should get 401 (invalid token), not 429
             self.assertIn(response.status_code, [400, 401])
 
         # 101st attempt should be rate limited
-        response = self.client.post('/api/auth/validate/', {
-            'token': 'fake_token_101'
-        }, content_type='application/json')
+        response = self.client.post(
+            "/api/auth/validate/",
+            {"token": "fake_token_101"},
+            content_type="application/json",
+        )
 
         self.assertEqual(response.status_code, 429)

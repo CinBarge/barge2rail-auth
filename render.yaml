@@ -5,17 +5,17 @@ services:
     region: ohio  # Columbus region
     plan: starter
     healthCheckPath: /api/auth/health/
-    
+
     envVars:
       # CRITICAL: Security settings
       - key: SECRET_KEY
         generateValue: true  # Render will generate a secure key
-      
+
       # CRITICAL: Neon PostgreSQL Database
       # You'll paste your Neon connection string in Render dashboard
       - key: DATABASE_URL
         sync: false  # Set manually in Render dashboard with your Neon connection string
-      
+
       # Django settings
       - key: DEBUG
         value: "False"
@@ -25,21 +25,21 @@ services:
         value: "sso.barge2rail.com,barge2rail-sso.onrender.com,*.onrender.com"
       - key: CSRF_TRUSTED_ORIGINS
         value: "https://sso.barge2rail.com,https://barge2rail-sso.onrender.com"
-      
+
       # Google OAuth (set manually in Render dashboard)
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
-      
+
       # CORS configuration
       - key: CORS_ALLOWED_ORIGINS
         value: "https://sso.barge2rail.com,https://admin.barge2rail.com,https://barge2rail-sso.onrender.com,http://localhost:3000,http://localhost:8000"
-      
+
       # Logging
       - key: DJANGO_LOG_LEVEL
         value: "INFO"
-      
+
       # Optional: Admin user creation on first deploy
       - key: DJANGO_SUPERUSER_EMAIL
         sync: false  # Set if you want auto-creation

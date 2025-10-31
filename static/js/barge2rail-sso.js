@@ -5,7 +5,7 @@
 
 (function(window) {
     'use strict';
-    
+
     const Barge2RailSSO = {
         config: {
             ssoUrl: 'https://sso.barge2rail.com',
@@ -13,14 +13,14 @@
             refreshKey: 'barge2rail_refresh_token',
             userKey: 'barge2rail_user'
         },
-        
+
         /**
          * Initialize SSO with custom configuration
          */
         init: function(options) {
             Object.assign(this.config, options);
         },
-        
+
         /**
          * Login with email and password
          */
@@ -33,23 +33,23 @@
                     },
                     body: JSON.stringify({ email, password })
                 });
-                
+
                 if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.message || 'Login failed');
                 }
-                
+
                 const data = await response.json();
                 this.saveTokens(data.tokens);
                 this.saveUser(data.user);
-                
+
                 return data;
             } catch (error) {
                 console.error('Login error:', error);
                 throw error;
             }
         },
-        
+
         /**
          * Register new user
          */
@@ -62,29 +62,29 @@
                     },
                     body: JSON.stringify(userData)
                 });
-                
+
                 if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.message || 'Registration failed');
                 }
-                
+
                 const data = await response.json();
                 this.saveTokens(data.tokens);
                 this.saveUser(data.user);
-                
+
                 return data;
             } catch (error) {
                 console.error('Registration error:', error);
                 throw error;
             }
         },
-        
+
         /**
          * Logout and clear tokens
          */
         logout: async function() {
             const refreshToken = this.getRefreshToken();
-            
+
             if (refreshToken) {
                 try {
                     await fetch(`${this.config.ssoUrl}/api/auth/logout/`, {
@@ -99,20 +99,20 @@
                     console.error('Logout error:', error);
                 }
             }
-            
+
             this.clearAuth();
         },
-        
+
         /**
          * Refresh access token
          */
         refreshToken: async function() {
             const refreshToken = this.getRefreshToken();
-            
+
             if (!refreshToken) {
                 throw new Error('No refresh token available');
             }
-            
+
             try {
                 const response = await fetch(`${this.config.ssoUrl}/api/auth/refresh/`, {
                     method: 'POST',
@@ -121,14 +121,14 @@
                     },
                     body: JSON.stringify({ refresh: refreshToken })
                 });
-                
+
                 if (!response.ok) {
                     throw new Error('Token refresh failed');
                 }
-                
+
                 const data = await response.json();
                 this.saveTokens(data);
-                
+
                 return data.access;
             } catch (error) {
                 console.error('Token refresh error:', error);
@@ -136,17 +136,17 @@
                 throw error;
             }
         },
-        
+
         /**
          * Validate current token
          */
         validateToken: async function() {
             const token = this.getAccessToken();
-            
+
             if (!token) {
                 return { valid: false };
             }
-            
+
             try {
                 const response = await fetch(`${this.config.ssoUrl}/api/auth/validate/`, {
                     method: 'POST',
@@ -155,20 +155,20 @@
                     },
                     body: JSON.stringify({ token })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.valid) {
                     this.saveUser(data.user);
                 }
-                
+
                 return data;
             } catch (error) {
                 console.error('Token validation error:', error);
                 return { valid: false };
             }
         },
-        
+
         /**
          * Get current user profile
          */
@@ -181,19 +181,19 @@
                 throw error;
             }
         },
-        
+
         /**
          * Make authenticated request
          */
         authenticatedRequest: async function(url, options = {}) {
             const token = this.getAccessToken();
-            
+
             if (!token) {
                 throw new Error('Not authenticated');
             }
-            
+
             const fullUrl = url.startsWith('http') ? url : `${this.config.ssoUrl}${url}`;
-            
+
             const requestOptions = {
                 ...options,
                 headers: {
@@ -202,9 +202,9 @@
                     'Content-Type': 'application/json'
                 }
             };
-            
+
             let response = await fetch(fullUrl, requestOptions);
-            
+
             // If token expired, try to refresh
             if (response.status === 401) {
                 try {
@@ -217,35 +217,35 @@
                     throw new Error('Session expired');
                 }
             }
-            
+
             if (!response.ok) {
                 throw new Error(`Request failed: ${response.statusText}`);
             }
-            
+
             return response.json();
         },
-        
+
         /**
          * Check if user is authenticated
          */
         isAuthenticated: function() {
             return !!this.getAccessToken();
         },
-        
+
         /**
          * Get access token
          */
         getAccessToken: function() {
             return localStorage.getItem(this.config.tokenKey);
         },
-        
+
         /**
          * Get refresh token
          */
         getRefreshToken: function() {
             return localStorage.getItem(this.config.refreshKey);
         },
-        
+
         /**
          * Get current user
          */
@@ -253,7 +253,7 @@
             const userStr = localStorage.getItem(this.config.userKey);
             return userStr ? JSON.parse(userStr) : null;
         },
-        
+
         /**
          * Save tokens
          */
@@ -265,14 +265,14 @@
                 localStorage.setItem(this.config.refreshKey, tokens.refresh);
             }
         },
-        
+
         /**
          * Save user data
          */
         saveUser: function(user) {
             localStorage.setItem(this.config.userKey, JSON.stringify(user));
         },
-        
+
         /**
          * Clear authentication data
          */
@@ -281,7 +281,7 @@
             localStorage.removeItem(this.config.refreshKey);
             localStorage.removeItem(this.config.userKey);
         },
-        
+
         /**
          * Decode JWT token
          */
@@ -292,14 +292,14 @@
                 const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
                     return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
                 }).join(''));
-                
+
                 return JSON.parse(jsonPayload);
             } catch (error) {
                 console.error('Token decode error:', error);
                 return null;
             }
         },
-        
+
         /**
          * Check if token is expired
          */
@@ -308,11 +308,11 @@
             if (!decoded || !decoded.exp) {
                 return true;
             }
-            
+
             const currentTime = Date.now() / 1000;
             return decoded.exp < currentTime;
         },
-        
+
         /**
          * Setup automatic token refresh
          */
@@ -329,7 +329,7 @@
             }, 60000); // Check every minute
         }
     };
-    
+
     // Export for different module systems
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = Barge2RailSSO;

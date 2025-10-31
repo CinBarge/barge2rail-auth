@@ -64,11 +64,11 @@ def sso_callback(request):
     # Get authorization code
     code = request.GET.get('code')
     state = request.GET.get('state')
-    
+
     # Verify state for CSRF protection
     if not verify_state(state):
         return HttpResponse("Invalid state", status=400)
-    
+
     # Exchange code for tokens
     token_response = requests.post(
         settings.SSO_TOKEN_URL,
@@ -80,12 +80,12 @@ def sso_callback(request):
             'client_secret': settings.SSO_CLIENT_SECRET
         }
     )
-    
+
     tokens = token_response.json()
     access_token = tokens['access_token']
     refresh_token = tokens['refresh_token']
     user_data = tokens['user']
-    
+
     # Create/update local user session
     # Store tokens securely
     # Redirect to PrimeTrade dashboard

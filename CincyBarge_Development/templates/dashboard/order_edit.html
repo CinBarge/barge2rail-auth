@@ -25,14 +25,14 @@
         <div class="card-body">
           <form method="post">
             {% csrf_token %}
-            
+
             <div class="mb-3">
               <label for="product" class="form-label">Product <span class="text-danger">*</span></label>
               <select class="form-select" id="product" name="product" required>
                 <option value="">Select a product...</option>
                 {% for product in products %}
                   <option value="{{ product.id }}" {% if product.id == order.product.id %}selected{% endif %}>
-                    {{ product.name }} 
+                    {{ product.name }}
                     {% if product.supplier %}({{ product.supplier.name }}){% endif %}
                     - Qty: {{ product.quantity }}
                   </option>
@@ -42,14 +42,14 @@
 
             <div class="mb-3">
               <label for="order_quantity" class="form-label">Order Quantity <span class="text-danger">*</span></label>
-              <input type="number" class="form-control" id="order_quantity" name="order_quantity" 
+              <input type="number" class="form-control" id="order_quantity" name="order_quantity"
                      value="{{ order.order_quantity }}" min="1" required>
               <small class="form-text text-muted">Number of units to order</small>
             </div>
 
             <div class="mb-3">
               <label for="delivery_date" class="form-label">Delivery Date</label>
-              <input type="date" class="form-control" id="delivery_date" name="delivery_date" 
+              <input type="date" class="form-control" id="delivery_date" name="delivery_date"
                      value="{{ order.delivery_date|date:'Y-m-d' }}">
               <small class="form-text text-muted">Expected delivery date</small>
             </div>
@@ -91,14 +91,14 @@
           {% endif %}
           <p><strong>Created:</strong> {{ order.date|date:"M d, Y H:i" }}</p>
           <p><strong>Created By:</strong> {{ order.staff.username|default:"N/A" }}</p>
-          <p><strong>Current Status:</strong> 
+          <p><strong>Current Status:</strong>
             <span class="badge bg-{{ order.status }}">{{ order.get_status_display }}</span>
           </p>
           {% if order.completed_at %}
           <p><strong>Completed:</strong> {{ order.completed_at|date:"M d, Y H:i" }}</p>
           {% endif %}
           {% if order.bill_of_lading %}
-          <p><strong>BOL:</strong> 
+          <p><strong>BOL:</strong>
             <a href="{% url 'dashboard-bol-preview' order.bill_of_lading.id %}">
               {{ order.bill_of_lading.bill_number }}
             </a>

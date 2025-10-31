@@ -16,31 +16,34 @@ Security Features:
 - Session-based token storage for middleware
 """
 
-from django.shortcuts import redirect
-from django.contrib.auth import authenticate, login
-from django.contrib import messages
-from django.conf import settings
-from django.http import HttpResponse
-from django.views.decorators.http import require_http_methods
-from urllib.parse import urlencode
+import logging
 import secrets
 import time
-import logging
+from urllib.parse import urlencode
+
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import authenticate, login
+from django.http import HttpResponse
+from django.shortcuts import redirect
+from django.views.decorators.http import require_http_methods
 
 # Import OAuth utilities from existing infrastructure
 try:
-    from google.oauth2 import id_token
     from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token
+
     GOOGLE_AUTH_AVAILABLE = True
 except ImportError:
     GOOGLE_AUTH_AVAILABLE = False
 
-logger = logging.getLogger('sso')
+logger = logging.getLogger("sso")
 
 
 # ===========================================================================
 # OAuth State Parameter Helpers (CSRF Protection)
 # ===========================================================================
+
 
 def generate_oauth_state():
     """
@@ -86,11 +89,13 @@ def validate_oauth_state(state_from_callback, state_from_session, timeout=300):
 
     # Check timestamp to prevent replay attacks
     try:
-        _, timestamp_str = state_from_session.split(':')
+        _, timestamp_str = state_from_session.split(":")
         timestamp = int(timestamp_str)
         age = int(time.time()) - timestamp
         if age > timeout:
-            logger.warning(f"OAuth state validation failed: State expired (age: {age}s)")
+            logger.warning(
+                f"OAuth state validation failed: State expired (age: {age}s)"
+            )
             return False
     except (ValueError, AttributeError) as e:
         logger.warning(f"OAuth state validation failed: Invalid format - {e}")
@@ -102,6 +107,7 @@ def validate_oauth_state(state_from_callback, state_from_session, timeout=300):
 # ===========================================================================
 # Admin OAuth Views
 # ===========================================================================
+
 
 @require_http_methods(["GET"])
 def admin_oauth_login(request):
@@ -139,48 +145,56 @@ def admin_oauth_login(request):
     # Check if Google OAuth is configured
     if not GOOGLE_AUTH_AVAILABLE:
         logger.error("admin_oauth_login: Google auth libraries not installed")
-        messages.error(request, "Google authentication is not available. Please contact support.")
-        return redirect('/admin/login/')
+        messages.error(
+            request, "Google authentication is not available. Please contact support."
+        )
+        return redirect("/admin/login/")
 
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
         logger.error("admin_oauth_login: Google OAuth not configured")
-        messages.error(request, "Google OAuth is not configured. Please contact support.")
-        return redirect('/admin/login/')
+        messages.error(
+            request, "Google OAuth is not configured. Please contact support."
+        )
+        return redirect("/admin/login/")
 
     # Generate and store state parameter for CSRF protection
     state = generate_oauth_state()
-    
+
     # CRITICAL: Force session creation before redirect
     # Without this, session cookie won't be set and state will be lost
     if not request.session.session_key:
         request.session.create()
-    
-    request.session['admin_oauth_state'] = state
-    request.session['admin_oauth_next'] = request.GET.get('next', '/admin/')
-    
+
+    request.session["admin_oauth_state"] = state
+    request.session["admin_oauth_next"] = request.GET.get("next", "/admin/")
+
     # Mark session as modified to ensure cookie is set
     request.session.modified = True
 
-    logger.info(f"admin_oauth_login: Generated OAuth state token (length: {len(state)})")
+    logger.info(
+        f"admin_oauth_login: Generated OAuth state token (length: {len(state)})"
+    )
 
     # Build redirect URI (where Google will send user after authentication)
     redirect_uri = f"{settings.BASE_URL}/sso/admin/oauth/callback/"
 
     # Build Google OAuth authorization URL
     google_oauth_params = {
-        'client_id': settings.GOOGLE_CLIENT_ID,
-        'redirect_uri': redirect_uri,
-        'response_type': 'code',
-        'scope': 'openid email profile',
-        'access_type': 'offline',
-        'prompt': 'select_account',
-        'state': state  # CSRF protection
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "select_account",
+        "state": state,  # CSRF protection
     }
 
-    google_auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(google_oauth_params)}"
+    google_auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(google_oauth_params)}"
+    )
 
     logger.info("admin_oauth_login: Redirecting to Google OAuth consent screen")
-    
+
     # Create response and explicitly save session before redirect
     response = redirect(google_auth_url)
     request.session.save()
@@ -232,36 +246,40 @@ def admin_oauth_callback(request):
     logger.info("admin_oauth_callback: Processing OAuth callback")
 
     # Check for OAuth errors (user denied access, etc.)
-    error = request.GET.get('error')
+    error = request.GET.get("error")
     if error:
         logger.warning(f"admin_oauth_callback: OAuth error: {error}")
-        messages.warning(request, "Google authentication was cancelled. Please try again.")
-        return redirect('/admin/login/')
+        messages.warning(
+            request, "Google authentication was cancelled. Please try again."
+        )
+        return redirect("/admin/login/")
 
     # Extract parameters
-    code = request.GET.get('code')
-    state_from_callback = request.GET.get('state')
+    code = request.GET.get("code")
+    state_from_callback = request.GET.get("state")
 
     if not code:
         logger.error("admin_oauth_callback: Missing authorization code")
         messages.error(request, "Authentication failed: Missing authorization code.")
-        return redirect('/admin/login/')
+        return redirect("/admin/login/")
 
     # Validate state parameter (CSRF protection)
-    state_from_session = request.session.get('admin_oauth_state')
+    state_from_session = request.session.get("admin_oauth_state")
 
     if not validate_oauth_state(state_from_callback, state_from_session):
-        logger.error("admin_oauth_callback: State validation failed - possible CSRF attack")
+        logger.error(
+            "admin_oauth_callback: State validation failed - possible CSRF attack"
+        )
         messages.error(request, "Authentication failed: Security validation failed.")
         # Clear session state
-        if 'admin_oauth_state' in request.session:
-            del request.session['admin_oauth_state']
-        if 'admin_oauth_next' in request.session:
-            del request.session['admin_oauth_next']
-        return redirect('/admin/login/')
+        if "admin_oauth_state" in request.session:
+            del request.session["admin_oauth_state"]
+        if "admin_oauth_next" in request.session:
+            del request.session["admin_oauth_next"]
+        return redirect("/admin/login/")
 
     # Clear state from session (one-time use)
-    del request.session['admin_oauth_state']
+    del request.session["admin_oauth_state"]
     logger.info("admin_oauth_callback: State validated and cleared")
 
     try:
@@ -269,17 +287,19 @@ def admin_oauth_callback(request):
         logger.info("admin_oauth_callback: Exchanging authorization code for tokens")
         token_data = exchange_google_code_for_tokens(code)
 
-        if 'error' in token_data:
+        if "error" in token_data:
             logger.error(f"admin_oauth_callback: Token exchange error: {token_data}")
-            messages.error(request, "Authentication failed: Could not exchange authorization code.")
-            return redirect('/admin/login/')
+            messages.error(
+                request, "Authentication failed: Could not exchange authorization code."
+            )
+            return redirect("/admin/login/")
 
         # Extract ID token
-        id_token_str = token_data.get('id_token')
+        id_token_str = token_data.get("id_token")
         if not id_token_str:
             logger.error("admin_oauth_callback: No ID token in response")
             messages.error(request, "Authentication failed: Invalid token response.")
-            return redirect('/admin/login/')
+            return redirect("/admin/login/")
 
         logger.info("admin_oauth_callback: ID token received, validating with Google")
 
@@ -289,9 +309,11 @@ def admin_oauth_callback(request):
         if not user_info:
             logger.error("admin_oauth_callback: ID token validation failed")
             messages.error(request, "Authentication failed: Token validation failed.")
-            return redirect('/admin/login/')
+            return redirect("/admin/login/")
 
-        logger.info(f"admin_oauth_callback: ID token validated for {user_info.get('email')}")
+        logger.info(
+            f"admin_oauth_callback: ID token validated for {user_info.get('email')}"
+        )
 
         # Authenticate user via OAuthBackend
         # This will:
@@ -308,9 +330,9 @@ def admin_oauth_callback(request):
             messages.error(
                 request,
                 "Authentication failed: You do not have permission to access the admin interface. "
-                "Please contact an administrator if you believe this is an error."
+                "Please contact an administrator if you believe this is an error.",
             )
-            return redirect('/admin/login/')
+            return redirect("/admin/login/")
 
         # Check if user has admin permissions
         if not user.is_staff:
@@ -320,12 +342,12 @@ def admin_oauth_callback(request):
             messages.error(
                 request,
                 "You do not have permission to access the admin interface. "
-                "Please contact an administrator."
+                "Please contact an administrator.",
             )
-            return redirect('/admin/login/')
+            return redirect("/admin/login/")
 
         # Log user in via Django session
-        login(request, user, backend='sso.backends.OAuthBackend')
+        login(request, user, backend="sso.backends.OAuthBackend")
         logger.info(
             f"admin_oauth_callback: User {user.email} logged in successfully "
             f"(is_staff={user.is_staff}, is_superuser={user.is_superuser})"
@@ -333,11 +355,11 @@ def admin_oauth_callback(request):
 
         # Store ID token in session for OAuthAdminMiddleware
         # This allows middleware to validate on subsequent requests
-        request.session['oauth_token'] = id_token_str
+        request.session["oauth_token"] = id_token_str
         logger.info("admin_oauth_callback: Stored OAuth token in session")
 
         # Get next URL from session (or default to /admin/)
-        next_url = request.session.pop('admin_oauth_next', '/admin/')
+        next_url = request.session.pop("admin_oauth_next", "/admin/")
         logger.info(f"admin_oauth_callback: Redirecting to {next_url}")
 
         # Success message
@@ -346,24 +368,22 @@ def admin_oauth_callback(request):
         return redirect(next_url)
 
     except Exception as e:
-        logger.error(
-            f"admin_oauth_callback: Unexpected error: {str(e)}",
-            exc_info=True
-        )
+        logger.error(f"admin_oauth_callback: Unexpected error: {str(e)}", exc_info=True)
         messages.error(request, "Authentication failed: An unexpected error occurred.")
 
         # Clear session state
-        if 'admin_oauth_state' in request.session:
-            del request.session['admin_oauth_state']
-        if 'admin_oauth_next' in request.session:
-            del request.session['admin_oauth_next']
+        if "admin_oauth_state" in request.session:
+            del request.session["admin_oauth_state"]
+        if "admin_oauth_next" in request.session:
+            del request.session["admin_oauth_next"]
 
-        return redirect('/admin/login/')
+        return redirect("/admin/login/")
 
 
 # ===========================================================================
 # Token Exchange Helpers
 # ===========================================================================
+
 
 def exchange_google_code_for_tokens(code):
     """
@@ -394,26 +414,27 @@ def exchange_google_code_for_tokens(code):
         - Client secret never exposed to client
         - Tokens returned to server only (not to browser)
     """
-    token_url = 'https://oauth2.googleapis.com/token'
+    token_url = "https://oauth2.googleapis.com/token"
 
     redirect_uri = f"{settings.BASE_URL}/sso/admin/oauth/callback/"
 
     data = {
-        'client_id': settings.GOOGLE_CLIENT_ID,
-        'client_secret': settings.GOOGLE_CLIENT_SECRET,
-        'code': code,
-        'redirect_uri': redirect_uri,
-        'grant_type': 'authorization_code',
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "client_secret": settings.GOOGLE_CLIENT_SECRET,
+        "code": code,
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code",
     }
 
     try:
         import requests
+
         response = requests.post(token_url, data=data, timeout=10)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
         logger.error(f"exchange_google_code_for_tokens: Error - {str(e)}")
-        return {'error': 'token_exchange_failed', 'error_description': str(e)}
+        return {"error": "token_exchange_failed", "error_description": str(e)}
 
 
 def validate_google_id_token(id_token_str):
@@ -448,29 +469,27 @@ def validate_google_id_token(id_token_str):
     try:
         # Verify the ID token with Google
         idinfo = id_token.verify_oauth2_token(
-            id_token_str,
-            google_requests.Request(),
-            settings.GOOGLE_CLIENT_ID
+            id_token_str, google_requests.Request(), settings.GOOGLE_CLIENT_ID
         )
 
         # Extract user information
         user_info = {
-            'email': idinfo.get('email'),
-            'email_verified': idinfo.get('email_verified', False),
-            'given_name': idinfo.get('given_name', ''),
-            'family_name': idinfo.get('family_name', ''),
-            'picture': idinfo.get('picture', ''),
-            'sub': idinfo.get('sub'),  # Google user ID
+            "email": idinfo.get("email"),
+            "email_verified": idinfo.get("email_verified", False),
+            "given_name": idinfo.get("given_name", ""),
+            "family_name": idinfo.get("family_name", ""),
+            "picture": idinfo.get("picture", ""),
+            "sub": idinfo.get("sub"),  # Google user ID
         }
 
         # Security: Ensure email is verified
-        if not user_info.get('email_verified'):
+        if not user_info.get("email_verified"):
             logger.warning(
                 f"validate_google_id_token: Unverified email: {user_info.get('email')}"
             )
             return None
 
-        if not user_info.get('email'):
+        if not user_info.get("email"):
             logger.error("validate_google_id_token: Missing email in token")
             return None
 
@@ -484,7 +503,6 @@ def validate_google_id_token(id_token_str):
     except Exception as e:
         # Unexpected error
         logger.error(
-            f"validate_google_id_token: Unexpected error - {str(e)}",
-            exc_info=True
+            f"validate_google_id_token: Unexpected error - {str(e)}", exc_info=True
         )
         return None

@@ -104,7 +104,7 @@
 <script>
 function openCincyBarge(event) {
     event.preventDefault();
-    
+
     // Get user data from current session
     const userData = {
         email: '{{ user.email }}',
@@ -114,20 +114,20 @@ function openCincyBarge(event) {
         is_staff: {{ user.is_staff|yesno:"true,false" }},
         is_superuser: {{ user.is_superuser|yesno:"true,false" }}
     };
-    
+
     // Create a form to POST the SSO data
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = 'http://127.0.0.1:8001/sso-login/';
     form.target = '_blank';
-    
+
     // Add CSRF bypass (handled in sso_login view)
     const csrfInput = document.createElement('input');
     csrfInput.type = 'hidden';
     csrfInput.name = 'csrfmiddlewaretoken';
     csrfInput.value = 'sso-bypass';
     form.appendChild(csrfInput);
-    
+
     // Add user data
     for (const [key, value] of Object.entries(userData)) {
         const input = document.createElement('input');
@@ -136,14 +136,14 @@ function openCincyBarge(event) {
         input.value = value;
         form.appendChild(input);
     }
-    
+
     // Add SSO signature for verification
     const signatureInput = document.createElement('input');
     signatureInput.type = 'hidden';
     signatureInput.name = 'sso_signature';
     signatureInput.value = btoa('{{ user.email }}:{{ user.id }}');
     form.appendChild(signatureInput);
-    
+
     document.body.appendChild(form);
     form.submit();
     document.body.removeChild(form);

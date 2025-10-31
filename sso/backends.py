@@ -12,11 +12,13 @@ Security Features:
 - Comprehensive audit logging
 """
 
-from django.contrib.auth.backends import BaseBackend
-from django.contrib.auth import get_user_model
-from .utils.session import validate_oauth_token, get_user_from_token
-from .utils.permissions import assign_admin_permissions
 import logging
+
+from django.contrib.auth import get_user_model
+from django.contrib.auth.backends import BaseBackend
+
+from .utils.permissions import assign_admin_permissions
+from .utils.session import get_user_from_token, validate_oauth_token
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +129,7 @@ class OAuthBackend(BaseBackend):
                 return None
 
             # Step 2: Extract email
-            email = user_info.get('email')
+            email = user_info.get("email")
             if not email:
                 logger.error("No email in OAuth user info")
                 return None
@@ -163,7 +165,7 @@ class OAuthBackend(BaseBackend):
             # Catch any unexpected errors
             logger.error(
                 f"Unexpected error in OAuthBackend.authenticate: {str(e)}",
-                exc_info=True
+                exc_info=True,
             )
             return None
 
@@ -220,8 +222,7 @@ class OAuthBackend(BaseBackend):
 
         except Exception as e:
             logger.error(
-                f"Unexpected error in OAuthBackend.get_user: {str(e)}",
-                exc_info=True
+                f"Unexpected error in OAuthBackend.get_user: {str(e)}", exc_info=True
             )
             return None
 
@@ -255,5 +256,5 @@ class OAuthBackend(BaseBackend):
             True
         """
         # Default behavior: only active users can authenticate
-        is_active = getattr(user, 'is_active', None)
+        is_active = getattr(user, "is_active", None)
         return is_active or is_active is None

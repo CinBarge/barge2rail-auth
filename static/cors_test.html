@@ -17,19 +17,19 @@
     <p><strong>Simulates:</strong> Admin Dashboard (different port) → Django SSO (port 8000)</p>
     <p><strong>Current Domain:</strong> <span id="current-domain"></span></p>
     <p><strong>Target Domain:</strong> http://127.0.0.1:8000 (Django SSO)</p>
-    
+
     <div class="result">
         <h3>Step 1: CORS Preflight Test</h3>
         <button onclick="testCORSPreflight()">Test CORS Options Request</button>
         <div id="cors-results"></div>
     </div>
-    
+
     <div class="result">
         <h3>Step 2: Cross-Domain API Test</h3>
         <button onclick="testCrossDomainAPI()">Test Health Endpoint</button>
         <div id="api-results"></div>
     </div>
-    
+
     <div class="result">
         <h3>Step 3: Full Cross-Domain Google Auth Test</h3>
         <div id="g_id_onload"
@@ -39,14 +39,14 @@
         <div class="g_id_signin" data-type="standard"></div>
         <div id="google-auth-results"></div>
     </div>
-    
+
     <script>
         // Display current domain
         document.getElementById('current-domain').textContent = window.location.origin;
-        
+
         async function testCORSPreflight() {
             console.log("=== TESTING CORS PREFLIGHT ===");
-            
+
             try {
                 const response = await fetch('http://127.0.0.1:8000/api/auth/login/google/', {
                     method: 'OPTIONS',
@@ -56,16 +56,16 @@
                         'Access-Control-Request-Headers': 'Content-Type'
                     }
                 });
-                
+
                 console.log('CORS Preflight Response:', response.status, response.headers);
-                
+
                 const corsHeaders = {
                     'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
                     'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
                     'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers'),
                     'Access-Control-Allow-Credentials': response.headers.get('Access-Control-Allow-Credentials')
                 };
-                
+
                 document.getElementById('cors-results').innerHTML = `
                     <div class="${response.ok ? 'success' : 'error'}">
                         <p><strong>${response.ok ? '✅' : '❌'} CORS Preflight ${response.ok ? 'Success' : 'Failed'}</strong></p>
@@ -74,7 +74,7 @@
                         <pre>${JSON.stringify(corsHeaders, null, 2)}</pre>
                     </div>
                 `;
-                
+
             } catch (error) {
                 console.error('CORS Preflight Error:', error);
                 document.getElementById('cors-results').innerHTML = `
@@ -85,18 +85,18 @@
                 `;
             }
         }
-        
+
         async function testCrossDomainAPI() {
             console.log("=== TESTING CROSS-DOMAIN API ===");
-            
+
             try {
                 const response = await fetch('http://127.0.0.1:8000/api/auth/health/', {
                     method: 'GET'
                 });
-                
+
                 const data = await response.json();
                 console.log('Cross-domain API Response:', response.status, data);
-                
+
                 document.getElementById('api-results').innerHTML = `
                     <div class="${response.ok ? 'success' : 'error'}">
                         <p><strong>${response.ok ? '✅' : '❌'} Cross-Domain API ${response.ok ? 'Success' : 'Failed'}</strong></p>
@@ -104,7 +104,7 @@
                         <pre>${JSON.stringify(data, null, 2)}</pre>
                     </div>
                 `;
-                
+
             } catch (error) {
                 console.error('Cross-domain API Error:', error);
                 document.getElementById('api-results').innerHTML = `
@@ -116,10 +116,10 @@
                 `;
             }
         }
-        
+
         async function testCrossDomainGoogleAuth(response) {
             console.log("=== TESTING CROSS-DOMAIN GOOGLE AUTH ===");
-            
+
             try {
                 const authResponse = await fetch('http://127.0.0.1:8000/api/auth/login/google/', {
                     method: 'POST',
@@ -130,10 +130,10 @@
                         token: response.credential
                     })
                 });
-                
+
                 const data = await authResponse.json();
                 console.log('Cross-domain Google Auth Response:', authResponse.status, data);
-                
+
                 if (authResponse.ok) {
                     document.getElementById('google-auth-results').innerHTML = `
                         <div class="success">
@@ -145,7 +145,7 @@
                             <pre>${JSON.stringify(data, null, 2)}</pre>
                         </div>
                     `;
-                    
+
                     // Test token validation cross-domain
                     await testCrossDomainTokenValidation(data.access_token);
                 } else {
@@ -157,7 +157,7 @@
                         </div>
                     `;
                 }
-                
+
             } catch (error) {
                 console.error('Cross-domain Google Auth Error:', error);
                 document.getElementById('google-auth-results').innerHTML = `
@@ -169,7 +169,7 @@
                 `;
             }
         }
-        
+
         async function testCrossDomainTokenValidation(token) {
             try {
                 const response = await fetch('http://127.0.0.1:8000/api/auth/status/', {
@@ -177,9 +177,9 @@
                         'Authorization': 'Bearer ' + token
                     }
                 });
-                
+
                 const data = await response.json();
-                
+
                 document.getElementById('google-auth-results').innerHTML += `
                     <div class="${response.ok ? 'success' : 'error'}">
                         <p><strong>${response.ok ? '✅' : '❌'} Cross-Domain Token Validation</strong></p>
@@ -187,7 +187,7 @@
                         <pre>${JSON.stringify(data, null, 2)}</pre>
                     </div>
                 `;
-                
+
             } catch (error) {
                 document.getElementById('google-auth-results').innerHTML += `
                     <div class="error">

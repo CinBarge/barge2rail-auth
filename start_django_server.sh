@@ -58,7 +58,7 @@ for attempt in {1..15}; do
         echo "Attempt $attempt: Server not ready, waiting..."
         sleep 2
     fi
-    
+
     if [ $attempt -eq 15 ]; then
         echo "ERROR: Server failed to start after 15 attempts"
         echo "Check the Django terminal for error messages"
@@ -77,7 +77,7 @@ for endpoint in "${endpoints[@]}"; do
     echo "Testing /api/auth/$endpoint/..."
     response=$(curl -s -w "HTTP:%{http_code}" "http://127.0.0.1:8000/api/auth/$endpoint/" 2>/dev/null)
     http_code=$(echo "$response" | sed -n 's/.*HTTP:\([0-9]*\).*/\1/p')
-    
+
     if [ "$http_code" = "200" ]; then
         echo "  ✅ $endpoint: Working (200)"
     else
@@ -106,18 +106,18 @@ cat > /tmp/test_django.html << 'EOF'
     <h1>Django API Test</h1>
     <button onclick="testAPI()">Test API Connection</button>
     <div id="results"></div>
-    
+
     <script>
     async function testAPI() {
         const results = document.getElementById('results');
         results.innerHTML = 'Testing...<br>';
-        
+
         const endpoints = [
             'http://127.0.0.1:8000/api/auth/health/',
             'http://127.0.0.1:8000/api/auth/config/google/',
             'http://127.0.0.1:8000/api/auth/oauth/google/url/'
         ];
-        
+
         for (const url of endpoints) {
             try {
                 const response = await fetch(url);

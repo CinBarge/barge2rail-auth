@@ -122,7 +122,7 @@
 
 1. **Authorization Flow:**
    - ✅ User redirected to `/auth/authorize/` with OAuth parameters
-   - ✅ Google OAuth login successful 
+   - ✅ Google OAuth login successful
    - ✅ Authorization code returned to callback URL
 
 2. **Token Exchange:**
@@ -303,7 +303,7 @@ cd /Users/cerion/Projects/barge2rail-auth
    ```bash
    # Identify last good commit
    git log --oneline
-   
+
    # Redeploy from specific commit in Render dashboard
    # Settings → Redeploy → Select commit
    ```

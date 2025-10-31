@@ -38,26 +38,26 @@ if [ "$1" = "update" ]; then
         echo "Usage: ./setup_google_oauth.sh update YOUR_CLIENT_ID YOUR_CLIENT_SECRET"
         exit 1
     fi
-    
+
     CLIENT_ID="$2"
     CLIENT_SECRET="$3"
-    
+
     echo "🔄 Updating .env file..."
-    
+
     # Backup original .env
     cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
-    
+
     # Update the .env file
     sed -i '' "s/GOOGLE_CLIENT_ID=.*/GOOGLE_CLIENT_ID=$CLIENT_ID/" .env
     sed -i '' "s/GOOGLE_CLIENT_SECRET=.*/GOOGLE_CLIENT_SECRET=$CLIENT_SECRET/" .env
-    
+
     echo "✅ Updated .env file with new Google OAuth credentials"
     echo "🔄 Restarting Django server..."
-    
+
     # Find and kill existing Django server
     pkill -f "python manage.py runserver"
     sleep 2
-    
+
     # Start Django server in background
     python manage.py runserver &
     echo "✅ Django server restarted"
@@ -65,25 +65,25 @@ if [ "$1" = "update" ]; then
     echo "🧪 Test your setup:"
     echo "   Visit: http://127.0.0.1:8000/api/auth/config/google/"
     echo "   Then try: http://127.0.0.1:8000/login/"
-    
+
 elif [ "$1" = "test" ]; then
     echo "🧪 Testing current Google OAuth configuration..."
-    
+
     # Test configuration endpoint
     echo "📋 Current configuration:"
     curl -s http://127.0.0.1:8000/api/auth/config/google/ | python -m json.tool 2>/dev/null || echo "❌ Django server not running or endpoint not accessible"
-    
+
     echo ""
     echo "🔗 OAuth URL test:"
     curl -s http://127.0.0.1:8000/api/auth/oauth/google/url/ | python -m json.tool 2>/dev/null || echo "❌ OAuth URL endpoint not accessible"
-    
+
 elif [ "$1" = "restart" ]; then
     echo "🔄 Restarting Django server..."
     pkill -f "python manage.py runserver"
     sleep 2
     python manage.py runserver &
     echo "✅ Django server restarted"
-    
+
 else
     echo "Available commands:"
     echo "  ./setup_google_oauth.sh update CLIENT_ID CLIENT_SECRET  # Update credentials"

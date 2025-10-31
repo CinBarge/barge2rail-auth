@@ -65,7 +65,7 @@ for i in {1..10}; do
         echo "Attempt $i: Waiting for server..."
         sleep 3
     fi
-    
+
     if [ $i -eq 10 ]; then
         echo "Server failed to start. Checking process..."
         if ps -p $DJANGO_PID > /dev/null; then

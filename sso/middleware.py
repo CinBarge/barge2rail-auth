@@ -5,15 +5,17 @@ Gate 7: Session Security Hardening
 OAuth Admin Integration Middleware:
 - OAuthAdminMiddleware: Validates OAuth tokens for admin access
 """
-from django.utils import timezone
-from django.contrib.auth import logout, authenticate, login
-from django.contrib import messages
-from django.http import JsonResponse
-from django.urls import resolve
+
 import logging
 
-logger = logging.getLogger('django.security')
-oauth_logger = logging.getLogger('sso')
+from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.http import JsonResponse
+from django.urls import resolve
+from django.utils import timezone
+
+logger = logging.getLogger("django.security")
+oauth_logger = logging.getLogger("sso")
 
 
 class SessionActivityMiddleware:
@@ -35,7 +37,7 @@ class SessionActivityMiddleware:
     def __call__(self, request):
         if request.user.is_authenticated:
             current_time = timezone.now()
-            last_activity = request.session.get('last_activity')
+            last_activity = request.session.get("last_activity")
 
             if last_activity:
                 try:
@@ -60,7 +62,7 @@ class SessionActivityMiddleware:
                         logout(request)
 
                         # Set message for next request (after redirect)
-                        request.session['timeout_message'] = (
+                        request.session["timeout_message"] = (
                             "Your session expired due to inactivity. "
                             "Please log in again."
                         )
@@ -77,7 +79,7 @@ class SessionActivityMiddleware:
                     )
 
             # Update last activity for this request
-            request.session['last_activity'] = current_time.isoformat()
+            request.session["last_activity"] = current_time.isoformat()
 
         response = self.get_response(request)
         return response
@@ -172,7 +174,9 @@ class OAuthAdminMiddleware:
             return self.get_response(request)
 
         # Validate and authenticate with OAuth token
-        oauth_logger.debug("OAuthAdminMiddleware: OAuth token found, attempting authentication")
+        oauth_logger.debug(
+            "OAuthAdminMiddleware: OAuth token found, attempting authentication"
+        )
         user = self._authenticate_with_oauth(request, oauth_token)
 
         if user:
@@ -184,9 +188,7 @@ class OAuthAdminMiddleware:
             # Admin access will be granted based on is_staff/is_superuser
         else:
             # Token invalid or authentication failed
-            oauth_logger.warning(
-                "OAuthAdminMiddleware: OAuth token validation failed"
-            )
+            oauth_logger.warning("OAuthAdminMiddleware: OAuth token validation failed")
 
         # Continue with request
         response = self.get_response(request)
@@ -207,7 +209,7 @@ class OAuthAdminMiddleware:
             This covers all admin URLs including login, dashboard, models, etc.
         """
         path = request.path_info
-        is_admin = path.startswith('/admin/')
+        is_admin = path.startswith("/admin/")
 
         if is_admin:
             oauth_logger.debug(f"OAuthAdminMiddleware: Admin request detected: {path}")
@@ -238,8 +240,8 @@ class OAuthAdminMiddleware:
         - Session tokens are temporary (cleared after use)
         """
         # Check Authorization header first
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if auth_header.startswith('Bearer '):
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
             token = auth_header[7:]  # Remove "Bearer " prefix
             oauth_logger.debug(
                 f"OAuthAdminMiddleware: OAuth token found in Authorization header "
@@ -248,7 +250,7 @@ class OAuthAdminMiddleware:
             return token
 
         # Check session storage
-        session_token = request.session.get('oauth_token')
+        session_token = request.session.get("oauth_token")
         if session_token:
             oauth_logger.debug(
                 f"OAuthAdminMiddleware: OAuth token found in session "
@@ -291,7 +293,7 @@ class OAuthAdminMiddleware:
 
             if user:
                 # Authentication successful - log user in
-                login(request, user, backend='sso.backends.OAuthBackend')
+                login(request, user, backend="sso.backends.OAuthBackend")
 
                 oauth_logger.info(
                     f"OAuthAdminMiddleware: User logged in: {user.email} "
@@ -299,8 +301,8 @@ class OAuthAdminMiddleware:
                 )
 
                 # Clear OAuth token from session (security best practice)
-                if 'oauth_token' in request.session:
-                    del request.session['oauth_token']
+                if "oauth_token" in request.session:
+                    del request.session["oauth_token"]
                     oauth_logger.debug(
                         "OAuthAdminMiddleware: Cleared OAuth token from session"
                     )
@@ -318,6 +320,6 @@ class OAuthAdminMiddleware:
             # Unexpected error
             oauth_logger.error(
                 f"OAuthAdminMiddleware: Unexpected error during OAuth authentication: {str(e)}",
-                exc_info=True
+                exc_info=True,
             )
             return None

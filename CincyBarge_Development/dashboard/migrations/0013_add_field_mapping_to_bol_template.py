@@ -6,18 +6,25 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('dashboard', '0012_billoflading_alter_billofladingtemplate_options_and_more'),
+        ("dashboard", "0012_billoflading_alter_billofladingtemplate_options_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='billofladingtemplate',
-            name='field_mapping',
-            field=models.JSONField(blank=True, default=dict, help_text='Extracted field structure from template PDF for quick BOL creation'),
+            model_name="billofladingtemplate",
+            name="field_mapping",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text="Extracted field structure from template PDF for quick BOL creation",
+            ),
         ),
         migrations.AddField(
-            model_name='billofladingtemplate',
-            name='is_configured',
-            field=models.BooleanField(default=False, help_text='Whether field mapping has been extracted and configured'),
+            model_name="billofladingtemplate",
+            name="is_configured",
+            field=models.BooleanField(
+                default=False,
+                help_text="Whether field mapping has been extracted and configured",
+            ),
         ),
     ]

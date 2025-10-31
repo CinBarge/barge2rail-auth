@@ -12,9 +12,10 @@ Security Features:
 - Comprehensive error logging
 """
 
-from django.contrib.auth import get_user_model
-from django.conf import settings
 import logging
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +23,9 @@ User = get_user_model()
 
 # Try to import Google OAuth libraries
 try:
-    from google.oauth2 import id_token
     from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token
+
     GOOGLE_AUTH_AVAILABLE = True
 except ImportError:
     GOOGLE_AUTH_AVAILABLE = False
@@ -79,7 +81,7 @@ def validate_oauth_token(token):
 
     try:
         # Get Google client ID from settings
-        google_client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '')
+        google_client_id = getattr(settings, "GOOGLE_CLIENT_ID", "")
         if not google_client_id:
             logger.error("GOOGLE_CLIENT_ID not configured in settings")
             return (False, None)
@@ -88,29 +90,27 @@ def validate_oauth_token(token):
         # Note: This assumes token is an ID token. For access tokens,
         # you would need to call Google's tokeninfo endpoint instead.
         idinfo = id_token.verify_oauth2_token(
-            token,
-            google_requests.Request(),
-            google_client_id
+            token, google_requests.Request(), google_client_id
         )
 
         # Extract user information
         user_info = {
-            'email': idinfo.get('email'),
-            'email_verified': idinfo.get('email_verified', False),
-            'given_name': idinfo.get('given_name', ''),
-            'family_name': idinfo.get('family_name', ''),
-            'picture': idinfo.get('picture', ''),
-            'sub': idinfo.get('sub'),  # Google user ID
+            "email": idinfo.get("email"),
+            "email_verified": idinfo.get("email_verified", False),
+            "given_name": idinfo.get("given_name", ""),
+            "family_name": idinfo.get("family_name", ""),
+            "picture": idinfo.get("picture", ""),
+            "sub": idinfo.get("sub"),  # Google user ID
         }
 
         # Security: Ensure email is verified
-        if not user_info.get('email_verified'):
+        if not user_info.get("email_verified"):
             logger.warning(
                 f"OAuth token has unverified email: {user_info.get('email')}"
             )
             return (False, None)
 
-        if not user_info.get('email'):
+        if not user_info.get("email"):
             logger.error("OAuth token missing email field")
             return (False, None)
 
@@ -124,7 +124,9 @@ def validate_oauth_token(token):
 
     except Exception as e:
         # Unexpected error
-        logger.error(f"Unexpected error validating OAuth token: {str(e)}", exc_info=True)
+        logger.error(
+            f"Unexpected error validating OAuth token: {str(e)}", exc_info=True
+        )
         return (False, None)
 
 
@@ -167,11 +169,11 @@ def get_user_from_token(user_info):
         >>> print(f"{user.first_name} {user.last_name}")
         John Doe
     """
-    if not user_info or not user_info.get('email'):
+    if not user_info or not user_info.get("email"):
         logger.error("get_user_from_token called with invalid user_info")
         return None
 
-    email = user_info['email'].lower().strip()
+    email = user_info["email"].lower().strip()
 
     try:
         # Try to get existing user
@@ -181,8 +183,8 @@ def get_user_from_token(user_info):
 
             # Update user info if it changed
             updated = False
-            given_name = user_info.get('given_name', '')
-            family_name = user_info.get('family_name', '')
+            given_name = user_info.get("given_name", "")
+            family_name = user_info.get("family_name", "")
 
             if user.first_name != given_name:
                 user.first_name = given_name
@@ -193,7 +195,7 @@ def get_user_from_token(user_info):
                 updated = True
 
             if updated:
-                user.save(update_fields=['first_name', 'last_name'])
+                user.save(update_fields=["first_name", "last_name"])
                 logger.info(f"Updated user info for {email}")
 
             return user
@@ -204,7 +206,7 @@ def get_user_from_token(user_info):
 
             # Generate username from email (since USERNAME_FIELD='email')
             # but username field still needs a value
-            username = email.split('@')[0]
+            username = email.split("@")[0]
 
             # Ensure username is unique
             base_username = username
@@ -217,9 +219,9 @@ def get_user_from_token(user_info):
             user = User.objects.create(
                 email=email,
                 username=username,
-                first_name=user_info.get('given_name', ''),
-                last_name=user_info.get('family_name', ''),
-                auth_method='google',  # Mark as Google OAuth user
+                first_name=user_info.get("given_name", ""),
+                last_name=user_info.get("family_name", ""),
+                auth_method="google",  # Mark as Google OAuth user
                 is_active=True,
             )
 
@@ -281,16 +283,17 @@ def create_admin_session(request, user):
     try:
         # Set Django session authentication keys
         # These are the keys Django uses to identify authenticated users
-        request.session['_auth_user_id'] = str(user.pk)
-        request.session['_auth_user_backend'] = 'sso.backends.OAuthBackend'
-        request.session['_auth_user_hash'] = user.get_session_auth_hash()
+        request.session["_auth_user_id"] = str(user.pk)
+        request.session["_auth_user_backend"] = "sso.backends.OAuthBackend"
+        request.session["_auth_user_hash"] = user.get_session_auth_hash()
 
         # Store OAuth indicator
-        request.session['oauth_authenticated'] = True
+        request.session["oauth_authenticated"] = True
 
         # Store timestamp
         from django.utils import timezone
-        request.session['oauth_authenticated_at'] = timezone.now().isoformat()
+
+        request.session["oauth_authenticated_at"] = timezone.now().isoformat()
 
         # Save session
         request.session.save()

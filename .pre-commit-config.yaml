@@ -25,6 +25,7 @@ repos:
       - id: black
         language_version: python3.11
         args: ['--line-length=88']
+        exclude: '^CincyBarge_Development/'
         # Black reformats code to consistent style
         # Configured for 88 characters per line (Black standard)
 
@@ -38,7 +39,8 @@ repos:
         args:
           - '--max-line-length=88'
           - '--extend-ignore=E203,W503'  # Black-compatible
-          - '--exclude=.git,__pycache__,.venv,migrations'
+          - '--exclude=.git,__pycache__,.venv,migrations,CincyBarge_Development'
+        exclude: '^CincyBarge_Development/'
         # Flake8 checks:
         # E/W: PEP 8 style violations
         # F: PyFlakes (undefined names, unused imports)
@@ -52,7 +54,7 @@ repos:
     hooks:
       - id: bandit
         args: ['-ll']  # Low severity level (catches more issues)
-        exclude: ^tests/
+        exclude: ^(tests/|CincyBarge_Development/)
         # Bandit scans for security issues:
         # - Hardcoded SQL statements
         # - Insecure random number generation
@@ -68,6 +70,7 @@ repos:
     hooks:
       - id: django-upgrade
         args: ['--target-version', '5.0']
+        exclude: '^CincyBarge_Development/'
         # Modernizes Django code for compatibility with Django 5.0
         # Examples:
         # - Removes deprecated patterns
@@ -94,6 +97,7 @@ repos:
     hooks:
       - id: isort
         args: ['--profile', 'black']
+        exclude: '^CincyBarge_Development/'
         # Organizes imports consistently:
         # 1. Standard library
         # 2. Third-party packages

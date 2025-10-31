@@ -52,7 +52,7 @@
 
 ## 🔧 Additional Implementation Details
 
-### **Models Support** ✅ 
+### **Models Support** ✅
 - User model has `google_id` field for Google OAuth
 - Anonymous authentication with PIN system
 - JWT token support with custom claims

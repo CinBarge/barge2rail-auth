@@ -6,13 +6,21 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('sso', '0007_authorizationcode'),
+        ("sso", "0007_authorizationcode"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='user',
-            name='auth_method',
-            field=models.CharField(choices=[('google', 'Google OAuth'), ('password', 'Password Authentication')], default='password', help_text='How this user authenticates', max_length=20),
+            model_name="user",
+            name="auth_method",
+            field=models.CharField(
+                choices=[
+                    ("google", "Google OAuth"),
+                    ("password", "Password Authentication"),
+                ],
+                default="password",
+                help_text="How this user authenticates",
+                max_length=20,
+            ),
         ),
     ]

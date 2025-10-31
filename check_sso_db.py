@@ -4,15 +4,17 @@ Check SSO database for applications and clean up old ones
 """
 import os
 import sys
+
 import django
 
 # Setup Django
-sys.path.insert(0, '/Users/cerion/Projects/barge2rail-auth')
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
+sys.path.insert(0, "/Users/cerion/Projects/barge2rail-auth")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 django.setup()
 
-from sso.models import Application, UserRole
 from django.contrib.auth import get_user_model
+
+from sso.models import Application, UserRole
 
 User = get_user_model()
 
@@ -21,7 +23,7 @@ print("\n=== SSO Database Check ===\n")
 # Check all applications
 print("Current Applications:")
 print("-" * 50)
-apps = Application.objects.all().order_by('created')
+apps = Application.objects.all().order_by("created")
 for app in apps:
     print(f"Name: {app.name}")
     print(f"  Client ID: {app.client_id}")
@@ -41,10 +43,12 @@ for role in roles:
 print("\nUser Check:")
 print("-" * 50)
 try:
-    user = User.objects.get(email='clif@barge2rail.com')
+    user = User.objects.get(email="clif@barge2rail.com")
     print(f"User found: {user.email}")
     print(f"  ID: {user.id}")
-    print(f"  Is SSO Admin: {user.is_sso_admin if hasattr(user, 'is_sso_admin') else 'N/A'}")
+    print(
+        f"  Is SSO Admin: {user.is_sso_admin if hasattr(user, 'is_sso_admin') else 'N/A'}"
+    )
     print(f"  Created: {user.date_joined}")
 except User.DoesNotExist:
     print("User clif@barge2rail.com not found")

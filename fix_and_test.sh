@@ -51,7 +51,7 @@ import sys, json
 try:
     data = json.load(sys.stdin)
     print('✅ Client ID configured:', data.get('google_client_id'))
-    print('✅ Client Secret configured:', data.get('google_client_secret'))  
+    print('✅ Client Secret configured:', data.get('google_client_secret'))
     print('✅ Base URL:', data.get('base_url'))
     print('✅ Redirect URI:', data.get('redirect_uri'))
     print('✅ Fully configured:', data.get('fully_configured'))

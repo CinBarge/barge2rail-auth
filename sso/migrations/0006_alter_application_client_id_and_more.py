@@ -6,18 +6,27 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('sso', '0005_loginattempt'),
+        ("sso", "0005_loginattempt"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='application',
-            name='client_id',
-            field=models.CharField(blank=True, help_text='Auto-generated if left blank. Format: app_XXXXXXXXXXXXXXXX', max_length=100, unique=True),
+            model_name="application",
+            name="client_id",
+            field=models.CharField(
+                blank=True,
+                help_text="Auto-generated if left blank. Format: app_XXXXXXXXXXXXXXXX",
+                max_length=100,
+                unique=True,
+            ),
         ),
         migrations.AlterField(
-            model_name='application',
-            name='client_secret',
-            field=models.CharField(blank=True, help_text='Auto-generated if left blank. Cryptographically secure random string.', max_length=255),
+            model_name="application",
+            name="client_secret",
+            field=models.CharField(
+                blank=True,
+                help_text="Auto-generated if left blank. Cryptographically secure random string.",
+                max_length=255,
+            ),
         ),
     ]

@@ -5,71 +5,71 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Simple Auth Test - Barge2Rail SSO</title>
     <style>
-        body { 
+        body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #005500 0%, #007700 100%);
             min-height: 100vh;
-            display: flex; 
-            align-items: center; 
+            display: flex;
+            align-items: center;
             justify-content: center;
             padding: 1rem;
         }
-        
-        .container { 
-            background: white; 
-            border-radius: 12px; 
-            padding: 2.5rem; 
-            box-shadow: 0 20px 40px rgba(0,0,0,0.15); 
-            width: 100%; 
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 2.5rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            width: 100%;
             max-width: 500px;
         }
-        
-        h1 { 
-            color: #005500; 
-            margin: 0 0 2rem 0; 
+
+        h1 {
+            color: #005500;
+            margin: 0 0 2rem 0;
             text-align: center;
         }
-        
-        .btn { 
+
+        .btn {
             display: block;
-            width: 100%; 
-            padding: 1rem; 
-            background: #005500; 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 1rem; 
+            width: 100%;
+            padding: 1rem;
+            background: #005500;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
             font-weight: 500;
             cursor: pointer;
             margin: 1rem 0;
             text-align: center;
             text-decoration: none;
         }
-        
-        .btn:hover { 
-            background: #007700; 
+
+        .btn:hover {
+            background: #007700;
         }
-        
+
         .btn-secondary {
             background: #6c757d;
         }
-        
+
         .btn-secondary:hover {
             background: #5a6268;
         }
-        
+
         .section {
             margin: 2rem 0;
             padding: 1.5rem;
             background: #f8f9fa;
             border-radius: 8px;
         }
-        
+
         h3 {
             margin-top: 0;
             color: #333;
         }
-        
+
         .success {
             color: #28a745;
             padding: 1rem;
@@ -82,26 +82,26 @@
 <body>
     <div class="container">
         <h1>Barge2Rail SSO - Working Authentication</h1>
-        
+
         <div class="section">
             <h3>✅ Email Authentication (Working)</h3>
             <p>Traditional email/password login is fully functional.</p>
             <a href="/login/" class="btn">Use Email Login</a>
         </div>
-        
+
         <div class="section">
             <h3>✅ Anonymous Authentication (Working)</h3>
             <p>Quick access with auto-generated credentials.</p>
             <button onclick="testAnonymous()" class="btn">Create Anonymous Account</button>
             <div id="anonResult"></div>
         </div>
-        
+
         <div class="section">
             <h3>⚠️ Google Sign-In Status</h3>
             <p>Google Sign-In is experiencing issues with the popup flow. This appears to be a browser/Google library compatibility issue.</p>
             <p><strong>Workaround:</strong> Use email authentication or anonymous access for now.</p>
         </div>
-        
+
         <div class="section" style="background: #fff3cd;">
             <h3>📝 Summary</h3>
             <p>Your Django SSO system is <strong>fully functional</strong> with:</p>
@@ -115,7 +115,7 @@
             </ul>
         </div>
     </div>
-    
+
     <script>
         async function testAnonymous() {
             const response = await fetch('/api/auth/login/anonymous/', {
@@ -123,7 +123,7 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({})
             });
-            
+
             const data = await response.json();
             if (data.anonymous_credentials) {
                 document.getElementById('anonResult').innerHTML = `

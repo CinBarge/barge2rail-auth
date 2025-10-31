@@ -56,16 +56,16 @@
                     <!-- Submit Button -->
                     <input class="btn btn-primary btn-block mt-3" type="submit" value="Upload File">
                 </form>
-                
+
                 <!-- View Raw Data Button -->
                 <a href="{% url 'raw-data-view' %}" class="btn btn-info btn-block mt-2">
                     View Uploaded Data
                 </a>
-                
+
                 <!-- Sync Raw Data to Products -->
                 <form method="POST" action="{% url 'sync-raw-data' %}" class="mt-2">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-success btn-block" 
+                    <button type="submit" class="btn btn-success btn-block"
                             onclick="return confirm('This will convert all uploaded raw data (CSV/JSON) into structured Product records. Continue?');">
                         <i class="fas fa-sync-alt"></i> Sync Uploaded Data to Products
                     </button>
@@ -162,7 +162,7 @@
 
                 <div class="card-footer">
                     <small class="text-muted">
-                        <strong>Total Items:</strong> {{ total_rows }} | 
+                        <strong>Total Items:</strong> {{ total_rows }} |
                         <strong>Columns:</strong> {{ all_columns|length }}
                     </small>
                 </div>
@@ -373,7 +373,7 @@
             // Only disable "organized by" when no supplier is selected
             // Search should always be enabled
             filterOrganizedBy.disabled = !isSupplierSelected;
-            
+
             // Reset "organized by" when supplier is deselected
             if (!isSupplierSelected) {
                 filterOrganizedBy.value = "";
@@ -391,7 +391,7 @@
         clearFiltersBtn.addEventListener("click", clearFilters);
 
         // Initialize
-        toggleFilterInputs(); 
+        toggleFilterInputs();
         filterTable();
     });
 </script>

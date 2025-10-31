@@ -390,16 +390,16 @@ Add screenshots for UI changes.
 # Good comments explain WHY, not WHAT
 def refresh_token(token):
     """Refresh OAuth token before expiry.
-    
+
     Google tokens expire after 1 hour. We refresh at 50 minutes
     to prevent race conditions during API calls.
-    
+
     Args:
         token: Current OAuth token object
-        
+
     Returns:
         Refreshed token object
-        
+
     Raises:
         RefreshError: If refresh fails (token revoked, network error)
     """

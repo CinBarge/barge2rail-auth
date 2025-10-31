@@ -89,7 +89,7 @@
 - Pre-work planning output template
 - Mandatory before ANY work begins
 
-**Files:** 
+**Files:**
 - `SUSTAINABLE_CTO_SYSTEM.md` (Layer 0 section)
 - `LAYER_0_CHECKLIST.md` (quick reference)
 
