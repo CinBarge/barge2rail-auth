@@ -378,41 +378,25 @@ def update_order_status(request, order_id):
 
 @login_required
 def bol(request):
-    """Main BOL page"""
-    bols_draft = BillOfLading.objects.filter(status='draft').select_related('supplier', 'created_by').order_by('-created_at')
-    bols_confirmed = BillOfLading.objects.exclude(status='draft').select_related('supplier', 'created_by').order_by('-created_at')[:10]
-    suppliers = Supplier.objects.all()
-    
-    context = {
-        'bols_draft': bols_draft,
-        'bols_confirmed': bols_confirmed,
-        'suppliers': suppliers,
-    }
-    
-    return render(request, 'dashboard/bol.html', context)
-
-@login_required
-def create_bol(request):
-    """Create a new Bill of Lading"""
-    if request.method == 'POST':
-        form = BillOfLadingForm(request.POST)
-        if form.is_valid():
-            bol = form.save(commit=False)
-            bol.created_by = request.user
-            
-            # Generate unique bill number
-            from datetime import datetime
-            bill_number = f"BOL-{datetime.now().strftime('%Y%m%d')}-{BillOfLading.objects.count() + 1:04d}"
+    """Main BOL page
+    oOis_valid():
+    bol = form.save(commit=False)
             bol.bill_number = bill_number
             
             bol.save()
             messages.success(request, f"Bill of Lading {bill_number} created successfully")
             return redirect('dashboard-bol-edit', bol_id=bol.id)
-    else:
-        form = BillOfLadingForm()
+    else: oOfLadin
+    
+    # Get all suppliers with their BOL counts
+    from django.db.models import Count
+    suppliers = Supplier.objects.annotate(
+        bol_count=Count('billoflading')
+    ).order_by('name')
     
     context = {
         'form': form,
+        'suppliers': suppliers,
     }
     return render(request, 'dashboard/bol_create.html', context)
 
