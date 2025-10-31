@@ -85,7 +85,7 @@
                 <!-- Filter Controls -->
                 <div class="card-body pb-2">
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="filterSupplier" class="small font-weight-bold">Filter by Supplier:</label>
                                 <select id="filterSupplier" class="form-control form-control-sm">
@@ -96,7 +96,16 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="filterAvailability" class="small font-weight-bold">Availability:</label>
+                                <select id="filterAvailability" class="form-control form-control-sm">
+                                    <option value="all">All</option>
+                                    <option value="available">Available</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="filterOrganizedBy" class="small font-weight-bold">Organized by:</label>
                                 <select id="filterOrganizedBy" class="form-control form-control-sm">
@@ -105,7 +114,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="filterSearch" class="small font-weight-bold">Search:</label>
                                 <input type="text" id="filterSearch" class="form-control form-control-sm" placeholder="Search in table...">
@@ -192,6 +201,7 @@
 
     document.addEventListener("DOMContentLoaded", function () {
         const filterSupplier = document.getElementById("filterSupplier");
+        const filterAvailability = document.getElementById("filterAvailability");
         const filterOrganizedBy = document.getElementById("filterOrganizedBy");
         const filterSearch = document.getElementById("filterSearch");
         const clearFiltersBtn = document.getElementById("clearFilters");
@@ -220,6 +230,7 @@
 
         function filterTable() {
             const supplierVal = filterSupplier.value.trim();
+            const availabilityVal = filterAvailability.value.trim();
             const organizedByVal = filterOrganizedBy.value.trim();
             const searchVal = filterSearch.value.toLowerCase().trim();
             let visibleCount = 0;
@@ -227,6 +238,9 @@
             const headers = document.querySelectorAll('.table-responsive thead th');
             const headerTexts = Array.from(headers).map(h => h.textContent.toLowerCase().trim());
             const isBOLFilter = organizedByVal === "Bill of Lading";
+            
+            // Find BOLNO column index
+            const bolnoIndex = headerTexts.findIndex(h => h.includes('bolno'));
 
             // Always show Supplier and Source columns
             headers.forEach((header, index) => {
@@ -247,13 +261,20 @@
                 }
             });
 
-            // ✅ If no supplier selected → show all rows but still apply search filter
+            // ✅ If no supplier selected → show all rows but still apply search and availability filters
             if (supplierVal === "") {
                 rows.forEach(row => {
                     const rowText = Array.from(row.cells).map(cell => cell.textContent.toLowerCase()).join(' ');
                     const matchSearch = searchVal === "" || rowText.includes(searchVal);
+                    
+                    // Check availability based on BOLNO field
+                    let matchAvailability = true;
+                    if (availabilityVal === "available" && bolnoIndex >= 0 && row.cells[bolnoIndex]) {
+                        const bolnoValue = row.cells[bolnoIndex].textContent.trim();
+                        matchAvailability = (bolnoValue === "" || bolnoValue === "-");
+                    }
 
-                    if (matchSearch) {
+                    if (matchSearch && matchAvailability) {
                         row.style.display = "";
 
                         Array.from(row.cells).forEach((cell, index) => {
@@ -311,8 +332,15 @@
                 }
 
                 const matchSearch = searchVal === "" || rowText.includes(searchVal);
+                
+                // Check availability based on BOLNO field
+                let matchAvailability = true;
+                if (availabilityVal === "available" && bolnoIndex >= 0 && row.cells[bolnoIndex]) {
+                    const bolnoValue = row.cells[bolnoIndex].textContent.trim();
+                    matchAvailability = (bolnoValue === "" || bolnoValue === "-");
+                }
 
-                if ((supplierSelected ? matchSupplier : true) && matchOrganizedBy && matchSearch) {
+                if ((supplierSelected ? matchSupplier : true) && matchOrganizedBy && matchSearch && matchAvailability) {
                     row.style.display = "";
 
                     Array.from(row.cells).forEach((cell, index) => {
@@ -362,6 +390,7 @@
 
         function clearFilters() {
             filterSupplier.value = "";
+            filterAvailability.value = "all";
             filterOrganizedBy.value = "";
             filterSearch.value = "";
             toggleFilterInputs(); // disable fields again
@@ -386,6 +415,7 @@
             filterTable();
         });
 
+        filterAvailability.addEventListener("change", filterTable);
         filterOrganizedBy.addEventListener("change", filterTable);
         filterSearch.addEventListener("input", filterTable);
         clearFiltersBtn.addEventListener("click", clearFilters);
