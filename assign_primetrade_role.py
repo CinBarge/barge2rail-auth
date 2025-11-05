@@ -2,13 +2,14 @@
 """Assign PrimeTrade role to users in SSO"""
 
 import os
+
 import django
 
 # Setup Django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 django.setup()
 
-from sso.models import User, ApplicationRole
+from sso.models import ApplicationRole, User
 
 
 def assign_primetrade_role(email, role="admin", permissions=None):
