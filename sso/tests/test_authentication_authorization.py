@@ -42,7 +42,7 @@ class EmailPasswordAuthenticationTests(TestCase):
     def test_successful_email_login(self):
         """Email/password login should return access and refresh tokens"""
         response = self.client.post(
-            "/api/auth/login/email/",
+            "/auth/login/email/",
             {
                 "email": "testuser@example.com",
                 "password": "securepass123456",  # pragma: allowlist secret
@@ -61,7 +61,7 @@ class EmailPasswordAuthenticationTests(TestCase):
     def test_email_login_invalid_credentials(self):
         """Email login with invalid credentials should fail"""
         response = self.client.post(
-            "/api/auth/login/email/",
+            "/auth/login/email/",
             {
                 "email": "testuser@example.com",
                 "password": "wrongpassword",  # pragma: allowlist secret
@@ -77,7 +77,7 @@ class EmailPasswordAuthenticationTests(TestCase):
     def test_email_login_missing_fields(self):
         """Email login without required fields should return 400"""
         response = self.client.post(
-            "/api/auth/login/email/",
+            "/auth/login/email/",
             {"email": "testuser@example.com"},
             content_type="application/json",
         )
@@ -89,7 +89,7 @@ class EmailPasswordAuthenticationTests(TestCase):
     def test_email_login_nonexistent_user(self):
         """Email login for nonexistent user should fail"""
         response = self.client.post(
-            "/api/auth/login/email/",
+            "/auth/login/email/",
             {
                 "email": "nonexistent@example.com",
                 "password": "password123",  # pragma: allowlist secret
@@ -120,7 +120,7 @@ class GoogleAuthenticationTests(TestCase):
         }
 
         response = self.client.post(
-            "/api/auth/login/google/",
+            "/auth/login/google/",
             {"token": "valid_google_token"},
             content_type="application/json",
         )
@@ -145,7 +145,7 @@ class GoogleAuthenticationTests(TestCase):
         mock_verify.side_effect = ValueError("Invalid token")
 
         response = self.client.post(
-            "/api/auth/login/google/",
+            "/auth/login/google/",
             {"token": "invalid_token"},
             content_type="application/json",
         )
@@ -160,7 +160,7 @@ class GoogleAuthenticationTests(TestCase):
     def test_google_login_missing_token(self):
         """Google login without token should return 400"""
         response = self.client.post(
-            "/api/auth/login/google/",
+            "/auth/login/google/",
             {},
             content_type="application/json",
         )
@@ -192,7 +192,7 @@ class GoogleAuthenticationTests(TestCase):
         }
 
         response = self.client.post(
-            "/api/auth/login/google/",
+            "/auth/login/google/",
             {"token": "valid_google_token"},
             content_type="application/json",
         )
@@ -215,7 +215,7 @@ class AnonymousAuthenticationTests(TestCase):
     def test_create_new_anonymous_user(self):
         """Anonymous login without credentials should create new user"""
         response = self.client.post(
-            "/api/auth/login/anonymous/",
+            "/auth/login/anonymous/",
             {},
             content_type="application/json",
         )
@@ -247,7 +247,7 @@ class AnonymousAuthenticationTests(TestCase):
 
         # Login with credentials
         response = self.client.post(
-            "/api/auth/login/anonymous/",
+            "/auth/login/anonymous/",
             {"username": user.anonymous_username, "pin": user.pin_code},
             content_type="application/json",
         )
@@ -260,7 +260,7 @@ class AnonymousAuthenticationTests(TestCase):
     def test_anonymous_login_invalid_credentials(self):
         """Anonymous login with invalid credentials should fail"""
         response = self.client.post(
-            "/api/auth/login/anonymous/",
+            "/auth/login/anonymous/",
             {"username": "Guest-ABC123", "pin": "123456789012"},
             content_type="application/json",
         )
@@ -319,7 +319,7 @@ class JWTTokenGenerationTests(TestCase):
     def test_token_generation_via_login(self):
         """Login endpoint should generate valid tokens"""
         response = self.client.post(
-            "/api/auth/login/email/",
+            "/auth/login/email/",
             {
                 "email": "testuser@example.com",
                 "password": "testpass123456",  # pragma: allowlist secret
@@ -358,7 +358,7 @@ class JWTTokenValidationTests(TestCase):
     def test_validate_valid_token(self):
         """Valid token should pass validation"""
         response = self.client.post(
-            "/api/auth/validate/",
+            "/auth/validate/",
             {"token": self.access_token},
             content_type="application/json",
         )
@@ -372,7 +372,7 @@ class JWTTokenValidationTests(TestCase):
     def test_validate_invalid_token(self):
         """Invalid token should fail validation"""
         response = self.client.post(
-            "/api/auth/validate/",
+            "/auth/validate/",
             {"token": "invalid.token.string"},
             content_type="application/json",
         )
@@ -384,7 +384,7 @@ class JWTTokenValidationTests(TestCase):
     def test_validate_missing_token(self):
         """Missing token should return 400"""
         response = self.client.post(
-            "/api/auth/validate/",
+            "/auth/validate/",
             {},
             content_type="application/json",
         )
@@ -400,7 +400,7 @@ class JWTTokenValidationTests(TestCase):
         expired_token = str(access)
 
         response = self.client.post(
-            "/api/auth/validate/",
+            "/auth/validate/",
             {"token": expired_token},
             content_type="application/json",
         )
@@ -410,7 +410,7 @@ class JWTTokenValidationTests(TestCase):
     def test_token_used_in_protected_endpoint(self):
         """Access token should grant access to protected endpoint"""
         response = self.client.get(
-            "/api/auth/me/",
+            "/auth/me/",
             headers={"authorization": f"Bearer {self.access_token}"},
         )
 
@@ -439,14 +439,14 @@ class ProtectedEndpointAuthorizationTests(TestCase):
 
     def test_protected_endpoint_without_token(self):
         """Protected endpoint should reject requests without token"""
-        response = self.client.get("/api/auth/me/")
+        response = self.client.get("/auth/me/")
 
         self.assertEqual(response.status_code, 401)
 
     def test_protected_endpoint_with_valid_token(self):
         """Protected endpoint should allow requests with valid token"""
         response = self.client.get(
-            "/api/auth/me/",
+            "/auth/me/",
             headers={"authorization": f"Bearer {self.access_token}"},
         )
 
@@ -457,7 +457,7 @@ class ProtectedEndpointAuthorizationTests(TestCase):
     def test_protected_endpoint_with_invalid_token(self):
         """Protected endpoint should reject requests with invalid token"""
         response = self.client.get(
-            "/api/auth/me/",
+            "/auth/me/",
             headers={"authorization": "Bearer invalid.token.here"},
         )
 
@@ -466,7 +466,7 @@ class ProtectedEndpointAuthorizationTests(TestCase):
     def test_protected_endpoint_with_malformed_header(self):
         """Protected endpoint should reject malformed authorization header"""
         response = self.client.get(
-            "/api/auth/me/",
+            "/auth/me/",
             headers={"authorization": "InvalidFormat token"},
         )
 
@@ -511,7 +511,7 @@ class RoleBasedAuthorizationTests(TestCase):
     def test_user_roles_included_in_token_response(self):
         """User roles should be included in login response"""
         response = self.client.post(
-            "/api/auth/login/email/",
+            "/auth/login/email/",
             {
                 "email": "admin@example.com",
                 "password": "adminpass123456",  # pragma: allowlist secret
@@ -528,7 +528,7 @@ class RoleBasedAuthorizationTests(TestCase):
     def test_user_without_role_has_empty_roles(self):
         """User without roles should have empty roles dict"""
         response = self.client.post(
-            "/api/auth/login/email/",
+            "/auth/login/email/",
             {
                 "email": "testuser@example.com",
                 "password": "testpass123456",
@@ -565,7 +565,7 @@ class TokenRefreshTests(TestCase):
     def test_refresh_token_generates_new_access_token(self):
         """Refresh token should generate new access token"""
         response = self.client.post(
-            "/api/auth/refresh/",
+            "/auth/refresh/",
             {"refresh": self.refresh_token},
             content_type="application/json",
         )
@@ -585,7 +585,7 @@ class TokenRefreshTests(TestCase):
     def test_refresh_with_invalid_token(self):
         """Invalid refresh token should fail"""
         response = self.client.post(
-            "/api/auth/refresh/",
+            "/auth/refresh/",
             {"refresh": "invalid.refresh.token"},
             content_type="application/json",
         )
@@ -595,7 +595,7 @@ class TokenRefreshTests(TestCase):
     def test_refresh_with_missing_token(self):
         """Missing refresh token should return 400"""
         response = self.client.post(
-            "/api/auth/refresh/",
+            "/auth/refresh/",
             {},
             content_type="application/json",
         )
@@ -606,7 +606,7 @@ class TokenRefreshTests(TestCase):
         """Refresh token should fail after logout"""
         # Logout
         self.client.post(
-            "/api/auth/logout/",
+            "/auth/logout/",
             {"refresh": self.refresh_token},
             content_type="application/json",
             headers={"authorization": f"Bearer {self.access_token}"},
@@ -614,7 +614,7 @@ class TokenRefreshTests(TestCase):
 
         # Try to refresh with blacklisted token
         response = self.client.post(
-            "/api/auth/refresh/",
+            "/auth/refresh/",
             {"refresh": self.refresh_token},
             content_type="application/json",
         )
@@ -627,7 +627,7 @@ class TokenRefreshTests(TestCase):
 
         for i in range(3):
             response = self.client.post(
-                "/api/auth/refresh/",
+                "/auth/refresh/",
                 {"refresh": current_refresh},
                 content_type="application/json",
             )
@@ -642,7 +642,7 @@ class TokenRefreshTests(TestCase):
             # Verify new access token works
             new_access = data["access"]
             profile_response = self.client.get(
-                "/api/auth/me/",
+                "/auth/me/",
                 headers={"authorization": f"Bearer {new_access}"},
             )
             self.assertEqual(profile_response.status_code, 200)
@@ -667,7 +667,7 @@ class TokenBlacklistTests(TestCase):
         """Logout should blacklist refresh token"""
         # Logout
         response = self.client.post(
-            "/api/auth/logout/",
+            "/auth/logout/",
             {"refresh": self.refresh_token},
             content_type="application/json",
             headers={"authorization": f"Bearer {self.access_token}"},
@@ -677,7 +677,7 @@ class TokenBlacklistTests(TestCase):
 
         # Try to refresh with blacklisted token
         response = self.client.post(
-            "/api/auth/refresh/",
+            "/auth/refresh/",
             {"refresh": self.refresh_token},
             content_type="application/json",
         )
@@ -700,7 +700,7 @@ class OAuth2FlowTests(TestCase):
     @patch("sso.views.verify_google_id_token")
     def test_oauth_authorization_url_generation(self, mock_verify, mock_exchange):
         """OAuth URL endpoint should return valid authorization URL"""
-        response = self.client.get("/api/auth/oauth/google/url/")
+        response = self.client.get("/auth/oauth/google/url/")
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
@@ -720,7 +720,7 @@ class OAuth2FlowTests(TestCase):
     @patch("sso.views.verify_google_id_token")
     def test_oauth_state_stored_in_session(self, mock_verify, mock_exchange):
         """OAuth initiation should store state in session"""
-        response = self.client.get("/api/auth/oauth/google/url/")
+        response = self.client.get("/auth/oauth/google/url/")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("oauth_state", self.client.session)
@@ -748,12 +748,12 @@ class OAuth2FlowTests(TestCase):
         }
 
         # Get OAuth URL to generate state
-        self.client.get("/api/auth/oauth/google/url/")
+        self.client.get("/auth/oauth/google/url/")
         state = self.client.session["oauth_state"]
 
         # Simulate OAuth callback
         response = self.client.post(
-            "/api/auth/login/google/oauth/",
+            "/auth/login/google/oauth/",
             {"code": "auth_code_12345", "state": state},
             content_type="application/json",
         )
@@ -769,11 +769,11 @@ class OAuth2FlowTests(TestCase):
     def test_oauth_callback_with_invalid_state(self, mock_verify, mock_exchange):
         """OAuth callback with invalid state should fail"""
         # Get OAuth URL to generate state
-        self.client.get("/api/auth/oauth/google/url/")
+        self.client.get("/auth/oauth/google/url/")
 
         # Simulate callback with wrong state
         response = self.client.post(
-            "/api/auth/login/google/oauth/",
+            "/auth/login/google/oauth/",
             {"code": "auth_code_12345", "state": "wrong_state"},
             content_type="application/json",
         )
@@ -799,12 +799,12 @@ class OAuth2FlowTests(TestCase):
         }
 
         # Get OAuth URL and state
-        self.client.get("/api/auth/oauth/google/url/")
+        self.client.get("/auth/oauth/google/url/")
         state = self.client.session["oauth_state"]
 
         # Simulate callback
         response = self.client.post(
-            "/api/auth/login/google/oauth/",
+            "/auth/login/google/oauth/",
             {"code": "auth_code_12345", "state": state},
             content_type="application/json",
         )
@@ -831,7 +831,7 @@ class OAuth2FlowTests(TestCase):
 
         # Use token to access protected endpoint
         response = self.client.get(
-            "/api/auth/me/",
+            "/auth/me/",
             headers={"authorization": f"Bearer {access_token}"},
         )
 
@@ -877,12 +877,12 @@ class OAuth2TokenExchangeSecurityTests(TestCase):
     def test_oauth_missing_authorization_code(self, mock_verify, mock_exchange):
         """OAuth callback without authorization code should fail"""
         # Get OAuth URL to set up session
-        self.client.get("/api/auth/oauth/google/url/")
+        self.client.get("/auth/oauth/google/url/")
         state = self.client.session["oauth_state"]
 
         # Callback without code
         response = self.client.post(
-            "/api/auth/login/google/oauth/",
+            "/auth/login/google/oauth/",
             {"state": state},  # No code
             content_type="application/json",
         )
