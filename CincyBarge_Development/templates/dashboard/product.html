@@ -96,12 +96,21 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="filterOrganizedBy" class="small font-weight-bold">Organized by:</label>
                                 <select id="filterOrganizedBy" class="form-control form-control-sm">
                                     <option value="">All Types</option>
                                     <option value="Bill of Lading">Bill of Lading</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="filterAvailability" class="small font-weight-bold">Availability:</label>
+                                <select id="filterAvailability" class="form-control form-control-sm">
+                                    <option value="">All</option>
+                                    <option value="available">Available</option>
                                 </select>
                             </div>
                         </div>
@@ -193,6 +202,7 @@
     document.addEventListener("DOMContentLoaded", function () {
         const filterSupplier = document.getElementById("filterSupplier");
         const filterOrganizedBy = document.getElementById("filterOrganizedBy");
+        const filterAvailability = document.getElementById("filterAvailability");
         const filterSearch = document.getElementById("filterSearch");
         const clearFiltersBtn = document.getElementById("clearFilters");
         const tableBody = document.querySelector(".table-responsive tbody");
@@ -201,6 +211,7 @@
         const totalRows = rows.length;
 
         const bolFields = ['tagnbr', 'ponbr', 'spec', 'coilweig', 'heatlot', 'barge', 'tag'];
+        const bolnoFields = ['bolno', 'bol', 'bol_number', 'bill_of_lading'];
 
         function isBillOfLading(row) {
             if (row.cells.length < 2) return false;
@@ -218,9 +229,34 @@
             return false;
         }
 
+        function hasBOLNO(row) {
+            if (row.cells.length < 2) return false;
+            const headers = document.querySelectorAll('.table-responsive thead th');
+            const headerTexts = Array.from(headers).map(h => h.textContent.toLowerCase().trim());
+
+            for (let i = 2; i < row.cells.length && i < headers.length; i++) {
+                const headerName = headerTexts[i];
+                const cellValue = row.cells[i].textContent.trim();
+                
+                // Check if this is a BOLNO column (case insensitive, exact match or contains)
+                const isBOLNOField = headerName === 'bolno' || 
+                                     headerName.includes('bolno') || 
+                                     headerName.includes('bol_number') ||
+                                     headerName.includes('bill_of_lading');
+                
+                // If this is a BOLNO field and it has a value (not empty and not "-"), return true
+                if (isBOLNOField && cellValue !== '' && cellValue !== '-') {
+                    return true;
+                }
+            }
+            // If we didn't find any BOLNO field with a value, return false (available)
+            return false;
+        }
+
         function filterTable() {
             const supplierVal = filterSupplier.value.trim();
             const organizedByVal = filterOrganizedBy.value.trim();
+            const availabilityVal = filterAvailability.value.trim();
             const searchVal = filterSearch.value.toLowerCase().trim();
             let visibleCount = 0;
 
@@ -247,13 +283,19 @@
                 }
             });
 
-            // ✅ If no supplier selected → show all rows but still apply search filter
+            // ✅ If no supplier selected → show all rows but still apply availability and search filters
             if (supplierVal === "") {
                 rows.forEach(row => {
                     const rowText = Array.from(row.cells).map(cell => cell.textContent.toLowerCase()).join(' ');
                     const matchSearch = searchVal === "" || rowText.includes(searchVal);
+                    
+                    // Apply availability filter even when no supplier is selected
+                    let matchAvailability = true;
+                    if (availabilityVal === "available") {
+                        matchAvailability = !hasBOLNO(row);
+                    }
 
-                    if (matchSearch) {
+                    if (matchSearch && matchAvailability) {
                         row.style.display = "";
 
                         Array.from(row.cells).forEach((cell, index) => {
@@ -310,9 +352,15 @@
                     matchOrganizedBy = source === organizedByVal;
                 }
 
+                // Availability filter: "available" means no BOLNO value
+                let matchAvailability = true;
+                if (availabilityVal === "available") {
+                    matchAvailability = !hasBOLNO(row);
+                }
+
                 const matchSearch = searchVal === "" || rowText.includes(searchVal);
 
-                if ((supplierSelected ? matchSupplier : true) && matchOrganizedBy && matchSearch) {
+                if ((supplierSelected ? matchSupplier : true) && matchOrganizedBy && matchAvailability && matchSearch) {
                     row.style.display = "";
 
                     Array.from(row.cells).forEach((cell, index) => {
@@ -363,6 +411,7 @@
         function clearFilters() {
             filterSupplier.value = "";
             filterOrganizedBy.value = "";
+            filterAvailability.value = "";
             filterSearch.value = "";
             toggleFilterInputs(); // disable fields again
             filterTable();
@@ -387,6 +436,7 @@
         });
 
         filterOrganizedBy.addEventListener("change", filterTable);
+        filterAvailability.addEventListener("change", filterTable);
         filterSearch.addEventListener("input", filterTable);
         clearFiltersBtn.addEventListener("click", clearFilters);
 
