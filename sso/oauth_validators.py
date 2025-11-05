@@ -149,9 +149,11 @@ class CustomOAuth2Validator(OAuth2Validator):
         Returns:
             dict: Additional claims to include in tokens
         """
+        logger.error("[CLAIMS DEBUG 1] get_additional_claims() called")
         claims = {}
 
         if hasattr(request, "user") and request.user:
+            logger.error(f"[CLAIMS DEBUG 2] User found: {request.user.email}")
             user = request.user
 
             # Add user profile information
@@ -183,6 +185,9 @@ class CustomOAuth2Validator(OAuth2Validator):
                 app_roles = ApplicationRole.objects.filter(user=user).only(
                     "application", "role", "permissions"
                 )
+                logger.error(
+                    f"[CLAIMS DEBUG 3] Found {app_roles.count()} ApplicationRole records"
+                )
                 claims["application_roles"] = {}
                 for ar in app_roles:
                     # ar.application is the app slug (e.g., 'primetrade')
@@ -190,12 +195,20 @@ class CustomOAuth2Validator(OAuth2Validator):
                         "role": ar.role,
                         "permissions": ar.permissions or [],
                     }
+                    logger.error(
+                        f"[CLAIMS DEBUG 4] Added role for {ar.application}: {ar.role}"
+                    )
                 if claims.get("application_roles"):
                     apps = list(claims["application_roles"].keys())
-                    logger.debug("Added application_roles for %s: %s", user.email, apps)
+                    logger.error(f"[CLAIMS DEBUG 5] Final application_roles: {apps}")
             except Exception as e:
-                logger.warning(f"Failed to build application_roles claim: {e}")
+                logger.error(
+                    f"[CLAIMS DEBUG ERROR] Failed to build application_roles claim: {e}"
+                )
 
+        logger.error(
+            f"[CLAIMS DEBUG 6] Returning claims with keys: {list(claims.keys())}"
+        )
         return claims
 
     # DOT/OIDC compatibility: some versions call this method instead
