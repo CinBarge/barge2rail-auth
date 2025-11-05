@@ -47,7 +47,7 @@ class User(AbstractUser):
     anonymous_username = models.CharField(
         max_length=50, blank=True, null=True, unique=True
     )
-    pin_code = models.CharField(max_length=6, blank=True, null=True)
+    pin_code = models.CharField(max_length=4, blank=True, null=True)
     is_anonymous = models.BooleanField(default=False)
 
     USERNAME_FIELD = "email"
@@ -83,8 +83,8 @@ class User(AbstractUser):
                 return username
 
     def generate_pin(self):
-        """Generate 12-digit PIN code (1 trillion combinations)"""
-        return "".join(random.choices(string.digits, k=12))
+        """Generate 4-digit numeric PIN for anonymous users"""
+        return "".join(random.choices(string.digits, k=4))
 
     @property
     def display_identifier(self):
@@ -125,7 +125,9 @@ class Application(AbstractApplication):
     client_secret = models.CharField(
         max_length=255,
         blank=True,
-        help_text="Auto-generated if left blank. Cryptographically secure random string.",
+        help_text=(
+            "Auto-generated if left blank. Cryptographically secure " "random string."
+        ),
     )
 
     # AbstractApplication required fields with sensible defaults
@@ -299,7 +301,11 @@ class ApplicationRole(models.Model):
         db_table = "sso_application_roles"
 
     def __str__(self):
-        return f"{self.user.email or self.user.anonymous_username} - {self.get_application_display()}: {self.get_role_display()}"
+        user_id = self.user.email or self.user.anonymous_username
+        return (
+            f"{user_id} - {self.get_application_display()}: "
+            f"{self.get_role_display()}"
+        )
 
 
 class RefreshToken(models.Model):
@@ -385,4 +391,7 @@ class LoginAttempt(models.Model):
 
     def __str__(self):
         status = "successful" if self.success else "failed"
-        return f"{status} login attempt for {self.identifier} from {self.ip_address} at {self.attempted_at}"
+        return (
+            f"{status} login attempt for {self.identifier} from "
+            f"{self.ip_address} at {self.attempted_at}"
+        )
