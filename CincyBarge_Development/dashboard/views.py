@@ -536,8 +536,12 @@ def create_bol(request):
     else:
         form = BillOfLadingForm()
 
+    # Get all suppliers for the dropdown
+    suppliers = Supplier.objects.all().order_by('name')
+
     context = {
         "form": form,
+        "suppliers": suppliers,
     }
     return render(request, "dashboard/bol_create.html", context)
 

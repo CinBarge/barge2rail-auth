@@ -27,7 +27,7 @@
                     <i class="fas fa-box fa-3x text-success mb-3"></i>
                     <h3 class="mb-2">{{ total_products }}</h3>
                     <h6 class="mb-3">Total Products</h6>
-                    <a href="{% url 'dashboard-product' %}" class="btn btn-success">
+                    <a href="{% url 'dashboard-product' %}" class="btn btn-success" style="color: white !important;">
                         <i class="fas fa-boxes me-1"></i>Manage Products
                     </a>
                 </div>
@@ -40,7 +40,7 @@
                     <i class="fas fa-clipboard-list fa-3x text-info mb-3"></i>
                     <h3 class="mb-2">{{ scheduled_deliveries|length }}</h3>
                     <h6 class="mb-3">Scheduled</h6>
-                    <a href="{% url 'dashboard-order' %}" class="btn btn-info">
+                    <a href="{% url 'dashboard-order' %}" class="btn btn-info" style="color: white !important;">
                         <i class="fas fa-list me-1"></i>View All Orders
                     </a>
                 </div>
@@ -56,7 +56,10 @@
                     <h4 class="mb-0">
                         <i class="fas fa-truck me-2"></i>Scheduled Deliveries (From Bills of Lading)
                     </h4>
-                    <span class="badge bg-light text-primary fs-6">{{ scheduled_deliveries|length }} Delivery(ies)</span>
+                    <span class="badge bg-light text-primary fs-6">
+                        {{ scheduled_deliveries|length }} 
+                        {% if scheduled_deliveries|length == 1 %}Delivery{% else %}Deliveries{% endif %}
+                    </span>
                 </div>
                 <div class="card-body">
                     {% if scheduled_deliveries %}
@@ -91,7 +94,7 @@
                                                 {% if order.status == 'scheduled' %}
                                                     <span class="badge bg-warning text-dark">Scheduled</span>
                                                 {% elif order.status == 'in_progress' %}
-                                                    <span class="badge bg-primary">In Progress</span>
+                                                    <span class="badge bg-primary text-white">In Progress</span>
                                                 {% elif order.status == 'completed' %}
                                                     <span class="badge bg-success">Completed</span>
                                                 {% else %}
@@ -123,7 +126,10 @@
                     <h4 class="mb-0">
                         <i class="fas fa-calendar-day me-2"></i>Today's Orders
                     </h4>
-                    <span class="badge bg-light text-primary fs-6">{{ todays_orders|length }} Order(s)</span>
+                    <span class="badge bg-light text-primary fs-6">
+                        {{ todays_orders|length }} 
+                        {% if todays_orders|length == 1 %}Order{% else %}Orders{% endif %}
+                    </span>
                 </div>
                 <div class="card-body">
                     {% if todays_orders %}

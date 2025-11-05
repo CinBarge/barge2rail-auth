@@ -9,113 +9,13 @@
     </div>
   </div>
 
-  <!-- Template Upload Section -->
-  <div class="row mt-4">
-    <div class="col-md-6">
-      <div class="card">
-        <div class="card-header bg-primary text-white">
-          <h5><i class="fas fa-upload"></i> Upload BOL Template (PDF)</h5>
-        </div>
-        <div class="card-body">
-          <form method="post" action="{% url 'dashboard-bol-upload-template' %}" enctype="multipart/form-data">
-            {% csrf_token %}
-            <div class="mb-3">
-              <label for="id_supplier" class="form-label">Supplier</label>
-              {{ template_form.supplier }}
-            </div>
-            <div class="mb-3">
-              <label for="id_template_file" class="form-label">PDF Template</label>
-              {{ template_form.template_file }}
-              <small class="form-text text-muted">Upload a PDF template for the Bill of Lading (Max 10MB)</small>
-            </div>
-            <div class="mb-3">
-              <label for="id_description" class="form-label">Description (Optional)</label>
-              {{ template_form.description }}
-            </div>
-            <button type="submit" class="btn btn-primary">
-              <i class="fas fa-upload"></i> Upload Template
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
 
-    <!-- Existing Templates -->
-    <div class="col-md-6">
-      <div class="card">
-        <div class="card-header bg-info text-white">
-          <h5><i class="fas fa-file-pdf"></i> BOL Templates</h5>
-        </div>
-        <div class="card-body">
-          {% if templates %}
-            <div class="table-responsive">
-              <table class="table table-sm">
-                <thead>
-                  <tr>
-                    <th>Supplier</th>
-                    <th>Uploaded</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for template in templates %}
-                  <tr>
-                    <td>
-                      <strong>{{ template.supplier.name }}</strong>
-                      {% if template.is_configured %}
-                        <span class="badge bg-success ms-1" title="Template has field mapping configured">
-                          <i class="fas fa-check"></i> Configured
-                        </span>
-                      {% endif %}
-                    </td>
-                    <td><small>{{ template.uploaded_at|date:"M d, Y" }}</small></td>
-                    <td>
-                      {% if template.is_configured %}
-                        <a href="{% url 'dashboard-bol-create-from-template' template.id %}"
-                           class="btn btn-sm btn-primary" title="Create BOL from this template">
-                          <i class="fas fa-bolt"></i> Quick Create
-                        </a>
-                      {% endif %}
-                      <a href="{% url 'dashboard-bol-view-template' template.id %}" target="_blank"
-                         class="btn btn-sm btn-success" title="Preview PDF">
-                        <i class="fas fa-eye"></i>
-                      </a>
-                      <form method="post" action="{% url 'dashboard-bol-delete-template' template.id %}"
-                            style="display:inline;" onsubmit="return confirm('Delete this template?');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-danger" title="Delete">
-                          <i class="fas fa-trash"></i>
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <p class="text-muted">No templates uploaded yet.</p>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Create New BOL Buttons -->
+  <!-- Create New BOL Button -->
   <div class="row mt-4">
     <div class="col-12">
-      <a href="{% url 'dashboard-bol-create' %}" class="btn btn-success btn-lg me-2">
+      <a href="{% url 'dashboard-bol-create' %}" class="btn btn-success btn-lg" style="color: white !important; text-decoration: none;">
         <i class="fas fa-plus"></i> Create New Bill of Lading
       </a>
-      <a href="{% url 'dashboard-bol-upload-pdf' %}" class="btn btn-primary btn-lg">
-        <i class="fas fa-file-pdf"></i> Upload BOL PDF & Extract Data
-      </a>
-      <p class="text-muted mt-2 mb-0">
-        <small>
-          <strong>New!</strong> Upload a BOL PDF and automatically extract data using pdfplumber + regex parsing.
-          Review and correct before saving.
-        </small>
-      </p>
     </div>
   </div>
 
