@@ -25,6 +25,25 @@ class CustomOAuth2Validator(OAuth2Validator):
     - Integrates with existing token management
     """
 
+    # =========================================================================
+    # OIDC Custom Claims for JWT ID Tokens
+    # =========================================================================
+
+    # Scope-to-claim mapping (security: only return claims when scope requested)
+    oidc_claim_scope = (
+        OAuth2Validator.oidc_claim_scope.copy()
+        if hasattr(OAuth2Validator, "oidc_claim_scope")
+        else {}
+    )
+    oidc_claim_scope.update(
+        {
+            "application_roles": "roles",  # Only include when 'roles' scope requested
+            "email": "email",
+            "name": "profile",
+            "is_sso_admin": "profile",
+        }
+    )
+
     def validate_client_id(self, client_id, request, *args, **kwargs):
         """
         Validate that the client_id exists and is active.
@@ -141,74 +160,108 @@ class CustomOAuth2Validator(OAuth2Validator):
 
     def get_additional_claims(self, request):
         """
-        Add custom claims to the ID token (for OpenID Connect).
+        Add custom claims to ID token for OIDC.
 
-        Includes user profile, legacy per-client role (backward compatible),
-        and application-specific roles for all apps the user can access.
+        Called by django-oauth-toolkit during ID token generation.
+        Returns dict of custom claims to include in JWT.
+
+        Args:
+            request: OAuth2 request object with user/client context
 
         Returns:
-            dict: Additional claims to include in tokens
+            dict: Custom claims to merge into ID token
         """
-        logger.error("[CLAIMS DEBUG 1] get_additional_claims() called")
+        logger.info("[CLAIMS] get_additional_claims() called")
+
         claims = {}
 
+        # Get user from request (try multiple paths for robustness)
+        user = None
         if hasattr(request, "user") and request.user:
-            logger.error(f"[CLAIMS DEBUG 2] User found: {request.user.email}")
             user = request.user
+            user_id = user.email if hasattr(user, "email") else user.username
+            logger.info(f"[CLAIMS] User found via request.user: {user_id}")
+        elif hasattr(request, "client") and hasattr(request.client, "user"):
+            user = request.client.user
+            user_id = user.email if hasattr(user, "email") else user.username
+            logger.info(f"[CLAIMS] User found via request.client.user: {user_id}")
+        else:
+            logger.warning("[CLAIMS] No user found in request")
 
-            # Add user profile information
+        # Add claims only if user is authenticated
+        if user and user.is_authenticated:
+            # Basic user profile claims
             claims.update(
                 {
-                    "email": user.email,
+                    "email": user.email or "",
                     "email_verified": bool(user.email),
-                    "name": user.display_name or user.get_full_name(),
+                    "name": user.get_full_name() or user.display_name or user.username,
                     "preferred_username": user.username,
                 }
             )
 
-            # Add SSO admin flag (global permission across all apps)
-            claims["is_sso_admin"] = user.is_sso_admin
+            logger.info(f"[CLAIMS] Added basic profile claims for {user.email}")
 
-            # Backward-compatible per-client role information (if available)
+            # Application-specific roles from ApplicationRole model
+            try:
+                from .models import ApplicationRole
+
+                app_roles_qs = ApplicationRole.objects.filter(user=user).only(
+                    "application", "role", "permissions"
+                )
+
+                logger.info(f"[CLAIMS] Querying ApplicationRole for user {user.email}")
+                logger.info(
+                    f"[CLAIMS] Found {app_roles_qs.count()} ApplicationRole records"
+                )
+
+                application_roles = {}
+                for ar in app_roles_qs:
+                    application_roles[ar.application] = {
+                        "role": ar.role,
+                        "permissions": ar.permissions or [],
+                    }
+                    logger.info(f"[CLAIMS] Added role: {ar.application} -> {ar.role}")
+
+                if application_roles:
+                    claims["application_roles"] = application_roles
+                    app_list = list(application_roles.keys())
+                    logger.info(
+                        f"[CLAIMS] application_roles claim added with "
+                        f"{len(application_roles)} apps: {app_list}"
+                    )
+                else:
+                    logger.warning(
+                        f"[CLAIMS] No ApplicationRole records found "
+                        f"for user {user.email}"
+                    )
+
+            except ImportError as e:
+                logger.error(f"[CLAIMS] Failed to import ApplicationRole model: {e}")
+            except Exception as e:
+                logger.error(f"[CLAIMS] Error building application_roles claim: {e}")
+
+            # SSO admin flag (if attribute exists)
+            if hasattr(user, "is_sso_admin"):
+                claims["is_sso_admin"] = user.is_sso_admin
+                logger.info(f"[CLAIMS] Added is_sso_admin: {user.is_sso_admin}")
+
+            # Backward compatibility: Add per-client role if available
+            # (Supports legacy clients that expect 'role' claim)
             if hasattr(request, "client") and request.client:
                 try:
                     role = UserRole.objects.get(user=user, application=request.client)
                     claims["role"] = role.role
                     claims["permissions"] = role.permissions
+                    logger.info(f"[CLAIMS] Added legacy role claim: {role.role}")
                 except UserRole.DoesNotExist:
                     pass
+                except Exception as e:
+                    logger.error(f"[CLAIMS] Error adding legacy role: {e}")
+        else:
+            logger.warning("[CLAIMS] User not authenticated, returning empty claims")
 
-            # Application-specific roles (multi-app authorization)
-            try:
-                from .models import ApplicationRole
-
-                app_roles = ApplicationRole.objects.filter(user=user).only(
-                    "application", "role", "permissions"
-                )
-                logger.error(
-                    f"[CLAIMS DEBUG 3] Found {app_roles.count()} ApplicationRole records"
-                )
-                claims["application_roles"] = {}
-                for ar in app_roles:
-                    # ar.application is the app slug (e.g., 'primetrade')
-                    claims["application_roles"][ar.application] = {
-                        "role": ar.role,
-                        "permissions": ar.permissions or [],
-                    }
-                    logger.error(
-                        f"[CLAIMS DEBUG 4] Added role for {ar.application}: {ar.role}"
-                    )
-                if claims.get("application_roles"):
-                    apps = list(claims["application_roles"].keys())
-                    logger.error(f"[CLAIMS DEBUG 5] Final application_roles: {apps}")
-            except Exception as e:
-                logger.error(
-                    f"[CLAIMS DEBUG ERROR] Failed to build application_roles claim: {e}"
-                )
-
-        logger.error(
-            f"[CLAIMS DEBUG 6] Returning claims with keys: {list(claims.keys())}"
-        )
+        logger.info(f"[CLAIMS] Returning claims with keys: {list(claims.keys())}")
         return claims
 
     # DOT/OIDC compatibility: some versions call this method instead
