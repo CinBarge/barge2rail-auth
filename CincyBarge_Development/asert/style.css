@@ -1,8 +1,161 @@
+/* Barge2Rail Color Scheme */
+:root {
+    --color-primary: #0C4A6E;
+    --color-secondary: #0EA5E9;
+    --color-accent: #38BDF8;
+    --color-background: #F0F9FF;
+    --color-surface: #FFFFFF;
+    --color-text-primary: #0F172A;
+    --color-text-secondary: #475569;
+    --color-success: #22C55E;
+    --color-warning: #F59E0B;
+    --color-error: #EF4444;
+    --color-primary-hover: #083344;
+    --color-secondary-hover: #0284c7;
+}
+
 body{
-    background: rgb(230, 227, 227);
+    background: #F0F9FF;
+    color: #0F172A;
 }
 
 .my-card:hover{
     transform: scale(1.1);
     transition: 0.2s ease-in-out;
+}
+
+/* Bootstrap Color Overrides - More Specific Selectors */
+.bg-info,
+.navbar.bg-info,
+.navbar-info.bg-info,
+.card-header.bg-info,
+.badge.bg-info,
+.alert.alert-info { 
+    background-color: #0EA5E9 !important; 
+}
+
+.text-info { color: #0EA5E9 !important; }
+.border-info { border-color: #0EA5E9 !important; }
+.btn.btn-info,
+.btn-info { 
+    background-color: #0EA5E9 !important; 
+    border-color: #0EA5E9 !important;
+    color: #FFFFFF !important;
+}
+
+.btn.btn-info:hover,
+.btn.btn-info:focus,
+.btn-info:hover, 
+.btn-info:focus { 
+    background-color: #0284c7 !important;
+    border-color: #0284c7 !important;
+    color: #FFFFFF !important;
+}
+
+.badge-info, 
+.badge.bg-info,
+.badge.badge-info { 
+    background-color: #0EA5E9 !important; 
+    color: #FFFFFF !important;
+}
+.alert-info {
+    background-color: rgba(14, 165, 233, 0.1) !important;
+    border-color: #0EA5E9 !important;
+    color: #0C4A6E !important;
+}
+
+.bg-primary { background-color: #0C4A6E !important; }
+.text-primary { color: #0C4A6E !important; }
+.border-primary { border-color: #0C4A6E !important; }
+.btn-primary { 
+    background-color: #0C4A6E !important; 
+    border-color: #0C4A6E !important;
+    color: #FFFFFF !important;
+}
+.btn-primary:hover, .btn-primary:focus { 
+    background-color: #083344 !important;
+    border-color: #083344 !important;
+}
+.badge-primary, .badge.bg-primary { background-color: #0C4A6E !important; }
+
+.bg-warning { background-color: #F59E0B !important; }
+.text-warning { color: #F59E0B !important; }
+.badge-warning, .badge.bg-warning { background-color: #F59E0B !important; }
+.alert-warning {
+    background-color: rgba(245, 158, 11, 0.1) !important;
+    border-color: #F59E0B !important;
+    color: #0F172A !important;
+}
+
+.bg-success { background-color: #22C55E !important; }
+.text-success { color: #22C55E !important; }
+.badge-success, .badge.bg-success { background-color: #22C55E !important; }
+.alert-success {
+    background-color: rgba(34, 197, 94, 0.1) !important;
+    border-color: #22C55E !important;
+    color: #0F172A !important;
+}
+
+.bg-danger { background-color: #EF4444 !important; }
+.text-danger { color: #EF4444 !important; }
+.badge-danger, .badge.bg-danger { background-color: #EF4444 !important; }
+.alert-danger {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+    border-color: #EF4444 !important;
+    color: #0F172A !important;
+}
+
+.badge.bg-light, .badge-light {
+    background-color: #F0F9FF !important;
+    color: #0C4A6E !important;
+}
+
+.table-light {
+    background-color: #F0F9FF !important;
+    color: #0F172A !important;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(14, 165, 233, 0.05) !important;
+}
+
+.card {
+    border-color: #E2E8F0 !important;
+    box-shadow: 0 1px 3px rgba(12, 74, 110, 0.1) !important;
+}
+
+.card-header {
+    background-color: #FFFFFF !important;
+    border-bottom-color: #E2E8F0 !important;
+    color: #0F172A !important;
+}
+
+a { color: #0EA5E9 !important; }
+a:hover { color: #0284c7 !important; }
+.alert-link { 
+    color: #0C4A6E !important;
+    font-weight: 600 !important;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #0EA5E9 !important;
+    box-shadow: 0 0 0 0.2rem rgba(14, 165, 233, 0.25) !important;
+}
+
+.navbar,
+.navbar.bg-info,
+.navbar-info {
+    background-color: #0C4A6E !important;
+}
+
+.navbar.navbar-info {
+    background-color: #0C4A6E !important;
+}
+
+.nav-link {
+    color: #FFFFFF !important;
+}
+
+.nav-link:hover {
+    color: #38BDF8 !important;
 }
