@@ -3,7 +3,8 @@ import secrets
 
 import requests
 from decouple import config
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, login
+from django.contrib.sessions.models import Session
 from django.shortcuts import redirect
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -47,25 +48,80 @@ def login_email(request):
             {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
         )
 
-    # Log session diagnostics for debugging cross-subdomain cookie issues
+    # CRITICAL: Create Django session for OAuth flow
+    # Without this, no session cookie is set and /o/authorize/ fails
     logger.info(
         f"[EMAIL LOGIN] User {email} authenticated. "
-        f"Session key: {request.session.session_key}"
+        f"Session key BEFORE login: {request.session.session_key}"
     )
+
+    # Login creates Django session (required for OAuth authorize endpoint)
+    login(request, user)
+
+    # Force session save to ensure cookie is set
+    request.session.save()
+
+    logger.info(
+        f"[EMAIL LOGIN] Session created. "
+        f"Session key AFTER login: {request.session.session_key}, "
+        f"Modified: {request.session.modified}"
+    )
+
+    # Verify session exists in database
+    session_exists = Session.objects.filter(
+        session_key=request.session.session_key
+    ).exists()
+    logger.info(f"[EMAIL LOGIN] Session exists in DB: {session_exists}")
 
     # Pass next_url to token response for OAuth flow continuity
     response = generate_token_response(user, next_url=next_url)
 
-    # Log cookie configuration for debugging
+    # CRITICAL FIX: DRF Response doesn't automatically include session cookies
+    # We must manually set the session cookie on the response
     from django.conf import settings
 
-    cookie_domain = getattr(settings, "SESSION_COOKIE_DOMAIN", "NOT SET")
-    logger.info(
-        f"[EMAIL LOGIN] Session saved. "
-        f"DOMAIN: {cookie_domain}, "
-        f"SAMESITE: {settings.SESSION_COOKIE_SAMESITE}, "
-        f"SECURE: {settings.SESSION_COOKIE_SECURE}"
+    cookie_domain = getattr(settings, "SESSION_COOKIE_DOMAIN", None)
+    cookie_name = settings.SESSION_COOKIE_NAME
+    cookie_age = settings.SESSION_COOKIE_AGE
+    cookie_secure = settings.SESSION_COOKIE_SECURE
+    cookie_httponly = settings.SESSION_COOKIE_HTTPONLY
+    cookie_samesite = settings.SESSION_COOKIE_SAMESITE
+
+    # Set session cookie on DRF response
+    response.set_cookie(
+        key=cookie_name,
+        value=request.session.session_key,
+        max_age=cookie_age,
+        domain=cookie_domain,
+        secure=cookie_secure,
+        httponly=cookie_httponly,
+        samesite=cookie_samesite,
     )
+
+    logger.info(
+        f"[EMAIL LOGIN] Session cookie set on response - "
+        f"DOMAIN: {cookie_domain or 'current domain'}, "
+        f"SAMESITE: {cookie_samesite}, "
+        f"SECURE: {cookie_secure}, "
+        f"MAX_AGE: {cookie_age}s"
+    )
+
+    # Check response cookies (DRF Response has cookies attribute)
+    if hasattr(response, "cookies") and cookie_name in response.cookies:
+        cookie = response.cookies[cookie_name]
+        logger.info(
+            f"[EMAIL LOGIN] Cookie confirmed in response.cookies: "
+            f"{cookie_name}={cookie.value[:20]}... "
+            f"(domain={cookie['domain']}, samesite={cookie['samesite']})"
+        )
+    else:
+        available_cookies = (
+            list(response.cookies.keys()) if hasattr(response, "cookies") else "N/A"
+        )
+        logger.error(
+            f"[EMAIL LOGIN] Cookie NOT in response.cookies! "
+            f"Available: {available_cookies}"
+        )
 
     return response
 
