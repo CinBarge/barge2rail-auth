@@ -36,6 +36,16 @@ services:
       - key: CORS_ALLOWED_ORIGINS
         value: "https://sso.barge2rail.com,https://admin.barge2rail.com,https://barge2rail-sso.onrender.com,http://localhost:3000,http://localhost:8000"
 
+      # Email Configuration (SendGrid - Phase 1)
+      - key: EMAIL_BACKEND
+        value: "sendgrid_backend.SendgridBackend"
+      - key: SENDGRID_API_KEY
+        sync: false  # Set manually in Render dashboard (secret)
+      - key: DEFAULT_FROM_EMAIL
+        value: "noreply@barge2rail.com"
+      - key: DEFAULT_FROM_NAME
+        value: "Barge2Rail SSO"
+
       # Logging
       - key: DJANGO_LOG_LEVEL
         value: "INFO"
