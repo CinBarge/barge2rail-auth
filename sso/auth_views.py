@@ -47,8 +47,27 @@ def login_email(request):
             {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
         )
 
+    # Log session diagnostics for debugging cross-subdomain cookie issues
+    logger.info(
+        f"[EMAIL LOGIN] User {email} authenticated. "
+        f"Session key: {request.session.session_key}"
+    )
+
     # Pass next_url to token response for OAuth flow continuity
-    return generate_token_response(user, next_url=next_url)
+    response = generate_token_response(user, next_url=next_url)
+
+    # Log cookie configuration for debugging
+    from django.conf import settings
+
+    cookie_domain = getattr(settings, "SESSION_COOKIE_DOMAIN", "NOT SET")
+    logger.info(
+        f"[EMAIL LOGIN] Session saved. "
+        f"DOMAIN: {cookie_domain}, "
+        f"SAMESITE: {settings.SESSION_COOKIE_SAMESITE}, "
+        f"SECURE: {settings.SESSION_COOKIE_SECURE}"
+    )
+
+    return response
 
 
 @api_view(["GET", "POST"])

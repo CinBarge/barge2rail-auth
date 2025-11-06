@@ -83,23 +83,23 @@ if not DEBUG:
 # Gate 7: Session Security Configuration
 SESSION_ENGINE = "django.contrib.sessions.backends.db"  # Database-backed sessions
 SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access
-SESSION_COOKIE_AGE = 1800  # 30 minutes in seconds
+SESSION_COOKIE_AGE = 86400  # 24 hours (increased for better UX)
+SESSION_COOKIE_NAME = "sso_session"  # Distinct session cookie name
 SESSION_SAVE_EVERY_REQUEST = True  # Update last activity on every request
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Don't persist after browser close
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Allow 24-hour persistence
 
-# OAuth-compatible session cookie settings
-# Modern browsers block cookies on cross-site redirects (OAuth callback
-# from Google) SameSite=None required for OAuth flows, Secure=True required
-# for SameSite=None in production
+# Cross-subdomain session cookie configuration
+# Required for SSO flow: sso.barge2rail.com → prt.barge2rail.com
 if DEBUG:
-    # Development: Allow OAuth redirects over HTTP
-    SESSION_COOKIE_SAMESITE = None  # Required for OAuth callbacks
+    # Development: localhost only (no subdomain)
+    SESSION_COOKIE_DOMAIN = None  # Default to current domain
+    SESSION_COOKIE_SAMESITE = "Lax"  # Allow same-site subdomain requests
     SESSION_COOKIE_SECURE = False  # HTTP allowed in development
 else:
-    # Production: Secure OAuth over HTTPS
-    # Required for OAuth callbacks (string 'None' for production)
-    SESSION_COOKIE_SAMESITE = "None"
-    SESSION_COOKIE_SECURE = True  # HTTPS required for SameSite=None
+    # Production: Cross-subdomain support
+    SESSION_COOKIE_DOMAIN = ".barge2rail.com"  # Works across all subdomains
+    SESSION_COOKIE_SAMESITE = "Lax"  # Allow same-site subdomain requests
+    SESSION_COOKIE_SECURE = True  # HTTPS required in production
 
 # Application definition
 INSTALLED_APPS = [
@@ -130,6 +130,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "sso.middleware.OAuthAdminMiddleware",  # OAuth authentication for admin
+    "sso.middleware.OAuthSessionDiagnosticMiddleware",  # Session diagnostics
     "sso.middleware.SessionActivityMiddleware",  # Gate 7: Session timeout tracking
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",

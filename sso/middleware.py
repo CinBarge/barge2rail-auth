@@ -8,14 +8,52 @@ OAuth Admin Integration Middleware:
 
 import logging
 
-from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
-from django.http import JsonResponse
-from django.urls import resolve
 from django.utils import timezone
 
 logger = logging.getLogger("django.security")
 oauth_logger = logging.getLogger("sso")
+session_logger = logging.getLogger("sso.session")
+
+
+class OAuthSessionDiagnosticMiddleware:
+    """
+    Diagnostic middleware to log session/cookie info for OAuth authorize requests.
+
+    This middleware helps debug cross-subdomain session persistence issues
+    by logging session and cookie information when OAuth authorize endpoint
+    is accessed.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        # Log diagnostics for OAuth authorize requests
+        if request.path.startswith("/o/authorize"):
+            session_logger.info(
+                f"[OAUTH AUTHORIZE] Request to {request.path} from {request.get_host()}"
+            )
+            session_logger.info(
+                f"[OAUTH AUTHORIZE] Cookies received: "
+                f"{list(request.COOKIES.keys())}"
+            )
+            session_logger.info(
+                f"[OAUTH AUTHORIZE] Session key: {request.session.session_key}"
+            )
+            session_logger.info(
+                f"[OAUTH AUTHORIZE] Is authenticated: {request.user.is_authenticated}"
+            )
+            if request.user.is_authenticated:
+                user_id = request.user.email or request.user.username
+                session_logger.info(f"[OAUTH AUTHORIZE] User: {user_id}")
+            else:
+                session_logger.warning(
+                    "[OAUTH AUTHORIZE] User NOT authenticated - " "session may be lost"
+                )
+
+        response = self.get_response(request)
+        return response
 
 
 class SessionActivityMiddleware:
@@ -156,8 +194,9 @@ class OAuthAdminMiddleware:
 
         # If user already authenticated (password or previous OAuth), allow through
         if request.user.is_authenticated:
+            user_email = request.user.email
             oauth_logger.debug(
-                f"OAuthAdminMiddleware: User already authenticated: {request.user.email}"
+                f"OAuthAdminMiddleware: User already authenticated: {user_email}"
             )
             return self.get_response(request)
 
@@ -318,8 +357,10 @@ class OAuthAdminMiddleware:
 
         except Exception as e:
             # Unexpected error
+            error_msg = str(e)
             oauth_logger.error(
-                f"OAuthAdminMiddleware: Unexpected error during OAuth authentication: {str(e)}",
+                f"OAuthAdminMiddleware: Unexpected error during OAuth "
+                f"authentication: {error_msg}",
                 exc_info=True,
             )
             return None
