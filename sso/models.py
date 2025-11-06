@@ -395,3 +395,125 @@ class LoginAttempt(models.Model):
             f"{status} login attempt for {self.identifier} from "
             f"{self.ip_address} at {self.attempted_at}"
         )
+
+
+class PasswordResetToken(models.Model):
+    """
+    Secure password reset tokens with expiration and one-time use.
+
+    Security features:
+    - Tokens are hashed before storage (never store plaintext)
+    - 32-character hex tokens (128 bits of entropy)
+    - 1-hour expiration
+    - One-time use (marked as used after successful reset)
+    - IP address tracking for audit
+    - Created timestamp for expiration validation
+    """
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="password_reset_tokens"
+    )
+    token_hash = models.CharField(
+        max_length=64, unique=True, help_text="SHA256 hash of the reset token"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(
+        help_text="Token expiration time (1 hour from creation)"
+    )
+    used_at = models.DateTimeField(
+        null=True, blank=True, help_text="When the token was used (null if unused)"
+    )
+    ip_address = models.GenericIPAddressField(
+        help_text="IP address that requested the reset"
+    )
+
+    class Meta:
+        db_table = "sso_password_reset_tokens"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["token_hash"]),
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["expires_at"]),
+        ]
+
+    def __str__(self):
+        status = (
+            "used" if self.used_at else ("expired" if self.is_expired() else "valid")
+        )
+        return f"Password reset for {self.user.email} - {status}"
+
+    def save(self, *args, **kwargs):
+        """Set expiration time on creation (1 hour from now)"""
+        if not self.pk and not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(hours=1)
+        super().save(*args, **kwargs)
+
+    def is_expired(self):
+        """Check if token has expired"""
+        return timezone.now() > self.expires_at
+
+    def is_valid(self):
+        """Check if token is valid (not expired, not used)"""
+        return not self.used_at and not self.is_expired()
+
+    def mark_as_used(self):
+        """Mark token as used (one-time use enforcement)"""
+        self.used_at = timezone.now()
+        self.save(update_fields=["used_at"])
+
+    @classmethod
+    def generate_token(cls, user, ip_address):
+        """
+        Generate a secure reset token for the user.
+
+        Returns tuple: (token_string, token_object)
+        - token_string: 32-char hex to send in email (plaintext, one-time view)
+        - token_object: PasswordResetToken instance (stores hash only)
+        """
+        import hashlib
+
+        # Generate 32-character hex token (128 bits entropy)
+        token_string = secrets.token_hex(16)  # 16 bytes = 32 hex chars
+
+        # Hash the token for storage (SHA256)
+        token_hash = hashlib.sha256(token_string.encode()).hexdigest()
+
+        # Create token record
+        token_obj = cls.objects.create(
+            user=user, token_hash=token_hash, ip_address=ip_address
+        )
+
+        return token_string, token_obj
+
+    @classmethod
+    def validate_token(cls, token_string):
+        """
+        Validate a reset token.
+
+        Returns:
+        - PasswordResetToken object if valid
+        - None if invalid/expired/used
+        """
+        import hashlib
+
+        # Hash the provided token
+        token_hash = hashlib.sha256(token_string.encode()).hexdigest()
+
+        # Find matching token
+        try:
+            token = cls.objects.get(token_hash=token_hash)
+
+            # Check if valid
+            if token.is_valid():
+                return token
+            else:
+                return None
+
+        except cls.DoesNotExist:
+            return None
+
+    @classmethod
+    def cleanup_expired(cls):
+        """Delete expired tokens (run periodically via management command)"""
+        expired_count = cls.objects.filter(expires_at__lt=timezone.now()).delete()[0]
+        return expired_count

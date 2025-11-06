@@ -423,3 +423,24 @@ LOGGING = {
         },
     },
 }
+
+# Email Configuration (SendGrid for production, console for development)
+SENDGRID_API_KEY = config("SENDGRID_API_KEY", default="")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@barge2rail.com")
+DEFAULT_FROM_NAME = config("DEFAULT_FROM_NAME", default="Barge2Rail SSO")
+
+if DEBUG:
+    # Development: Print emails to console
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+else:
+    # Production: Use SendGrid SMTP
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = "smtp.sendgrid.net"
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = "apikey"
+    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+
+# Email settings
+EMAIL_SUBJECT_PREFIX = "[Barge2Rail SSO] "
+SERVER_EMAIL = DEFAULT_FROM_EMAIL

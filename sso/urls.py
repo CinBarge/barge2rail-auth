@@ -1,9 +1,6 @@
-from urllib.parse import urlencode
+from django.urls import path
 
-from django.shortcuts import redirect
-from django.urls import path, reverse
-
-from . import admin_oauth_views, auth_views, oauth_views, views
+from . import admin_oauth_views, auth_views, password_views, views
 
 urlpatterns = [
     # Admin Google OAuth - OAuth Admin Integration (Phase 4)
@@ -41,4 +38,12 @@ urlpatterns = [
     path("logout/", views.logout, name="logout"),
     # Debug
     path("debug/google/", auth_views.debug_google_config, name="debug_google_config"),
+    # Password Management (Phase 1)
+    path("change-password/", password_views.change_password, name="change_password"),
+    path("forgot-password/", password_views.forgot_password, name="forgot_password"),
+    path(
+        "reset-password/<str:token>/",
+        password_views.reset_password,
+        name="reset_password",
+    ),
 ]
