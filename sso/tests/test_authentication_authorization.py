@@ -59,6 +59,25 @@ class EmailPasswordAuthenticationTests(TestCase):
         self.assertEqual(data["user"]["email"], "testuser@example.com")
         self.assertEqual(data["user"]["auth_type"], "email")
 
+    def test_email_login_with_next_parameter(self):
+        """Email login with next parameter should return next_url for OAuth flow"""
+        oauth_url = "/o/authorize/?client_id=test123&response_type=code"
+        response = self.client.post(
+            "/auth/login/email/",
+            {
+                "email": "testuser@example.com",
+                "password": "securepass123456",  # pragma: allowlist secret
+                "next": oauth_url,
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("access_token", data)
+        self.assertIn("next_url", data)
+        self.assertEqual(data["next_url"], oauth_url)
+
     def test_email_login_invalid_credentials(self):
         """Email login with invalid credentials should fail"""
         response = self.client.post(

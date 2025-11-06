@@ -31,9 +31,10 @@ GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login_email(request):
-    """Traditional email/password login"""
+    """Traditional email/password login with OAuth flow support"""
     email = request.data.get("email")
     password = request.data.get("password")
+    next_url = request.data.get("next")  # Extract next parameter from POST data
 
     if not email or not password:
         return Response(
@@ -46,7 +47,8 @@ def login_email(request):
             {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
         )
 
-    return generate_token_response(user)
+    # Pass next_url to token response for OAuth flow continuity
+    return generate_token_response(user, next_url=next_url)
 
 
 @api_view(["GET", "POST"])
@@ -249,8 +251,10 @@ def register_email(request):
     return generate_token_response(user, created=True)
 
 
-def generate_token_response(user, created=False, anonymous_credentials=None):
-    """Generate JWT token response"""
+def generate_token_response(
+    user, created=False, anonymous_credentials=None, next_url=None
+):
+    """Generate JWT token response with optional OAuth flow redirect URL"""
     refresh = CustomRefreshToken.for_user(user)
 
     # Get user roles
@@ -278,6 +282,11 @@ def generate_token_response(user, created=False, anonymous_credentials=None):
             "roles": roles,
         },
     }
+
+    # Include next_url for OAuth flow continuity (e.g., redirect to /o/authorize/)
+    if next_url:
+        response_data["next_url"] = next_url
+        logger.info(f"Including next_url in response: {next_url}")
 
     # Include anonymous credentials for new anonymous users
     if anonymous_credentials:
@@ -384,11 +393,14 @@ def google_auth_callback(request):
         logger.error("[GOOGLE CALLBACK] Token exchange request timed out")
         return Response(
             {
-                "error": "Authentication service temporarily unavailable. Please try again."
+                "error": (
+                    "Authentication service temporarily unavailable. "
+                    "Please try again."
+                )
             },
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
-    except requests.HTTPError as e:
+    except requests.HTTPError:
         logger.error(
             f"[GOOGLE CALLBACK] Token exchange failed: HTTP {response.status_code}",
             extra={

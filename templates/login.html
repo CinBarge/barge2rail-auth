@@ -129,17 +129,27 @@
 
         // SSO Client - matching your original plan exactly
         const sso = {
-            async loginEmail(email, password) {
+            async loginEmail(email, password, nextUrl) {
                 try {
+                    const payload = { email, password };
+                    // Include next parameter for OAuth flow continuity
+                    if (nextUrl) {
+                        payload.next = nextUrl;
+                    }
+
                     const response = await fetch(`${SSO_URL}/api/auth/login/email/`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email, password })
+                        body: JSON.stringify(payload)
                     });
 
                     const data = await response.json();
                     if (response.ok) {
-                        return { success: true, user: data.user };
+                        return {
+                            success: true,
+                            user: data.user,
+                            next_url: data.next_url  // Return next_url from backend
+                        };
                     } else {
                         return { success: false, error: data.error };
                     }
@@ -214,7 +224,11 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
 
-            const result = await sso.loginEmail(email, password);
+            // Extract next parameter from URL for OAuth flow
+            const urlParams = new URLSearchParams(window.location.search);
+            const nextUrl = urlParams.get('next');
+
+            const result = await sso.loginEmail(email, password, nextUrl);
             handleAuthResult(result);
         });
 
@@ -242,8 +256,12 @@
         function handleAuthResult(result) {
             if (result.success) {
                 showAlert('Login successful! Redirecting...', 'success');
+
+                // Use next_url from backend if present (OAuth flow), otherwise default to dashboard
+                const redirectUrl = result.next_url || '/dashboard/';
+
                 setTimeout(() => {
-                    window.location.href = '/dashboard/';
+                    window.location.href = redirectUrl;
                 }, 1500);
             } else {
                 showAlert(result.error || 'Login failed', 'error');
