@@ -28,7 +28,8 @@ urlpatterns = [
     path("refresh/", views.refresh_token, name="refresh_token"),
     path("validate/", views.validate_token, name="validate_token"),
     # User Profile
-    path("me/", views.user_profile, name="user_profile"),
+    path("me/", views.profile_page, name="profile_page"),
+    path("profile/", views.user_profile, name="user_profile"),  # API endpoint
     path("verify/", views.verify_access, name="verify_access"),
     path("health/", views.health_check, name="health_check"),
     path("config/google/", views.google_config_check, name="google_config_check"),

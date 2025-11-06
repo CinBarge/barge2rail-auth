@@ -4,10 +4,10 @@ import time
 
 import requests
 from django.conf import settings
-from django.contrib import messages
 from django.contrib.auth import authenticate
 from django.contrib.auth import login
 from django.contrib.auth import login as django_login
+from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
@@ -1170,3 +1170,20 @@ def google_auth_callback(request):
     except Exception as e:
         logger.error(f"Google OAuth callback error: {str(e)}")
         return redirect("/login/?error=oauth_failed")
+
+
+# ============================================================================
+# User Profile Page (Phase 1)
+# ============================================================================
+
+
+@login_required
+@require_http_methods(["GET"])
+def profile_page(request):
+    """
+    User profile page showing account details.
+
+    Displays user information and provides links to password management.
+    This is the HTML version (different from user_profile API view).
+    """
+    return render(request, "sso/profile.html", {"user": request.user})
