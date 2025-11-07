@@ -10,6 +10,7 @@ Provides conditional form fields based on authentication type:
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.core.exceptions import ValidationError
+from django.utils.safestring import mark_safe
 
 from .models import User
 
@@ -29,7 +30,7 @@ class CustomUserCreationForm(UserCreationForm):
         initial="email",
         widget=forms.RadioSelect,
         label="Authentication Type",
-        help_text="Select how this user will authenticate",
+        help_text="",  # Will be set in __init__ with JavaScript
     )
 
     pin_code = forms.CharField(
@@ -78,6 +79,90 @@ class CustomUserCreationForm(UserCreationForm):
         if "username" in self.fields:
             self.fields["username"].required = False
             self.fields["username"].widget = forms.HiddenInput()
+
+        # Add JavaScript for conditional field display
+        js_code = mark_safe(  # nosec - static JavaScript, no user input
+            """
+<script>
+function updateUserFormFields() {
+    // Get selected auth type
+    var authType = document.querySelector('input[name="auth_type"]:checked');
+    if (!authType) return;
+    var selectedType = authType.value;
+
+    // Find field rows - Django admin uses .form-row with .field-{fieldname}
+    var emailRow = document.querySelector('.field-email');
+    var password1Row = document.querySelector('.field-password1');
+    var password2Row = document.querySelector('.field-password2');
+    var pinRow = document.querySelector('.field-pin_code');
+
+    // Debug output
+    console.log('Auth type selected:', selectedType);
+    console.log('Found fields:', {
+        email: !!emailRow,
+        password1: !!password1Row,
+        password2: !!password2Row,
+        pin: !!pinRow
+    });
+
+    // Hide all conditional fields first
+    if (emailRow) emailRow.style.display = 'none';
+    if (password1Row) password1Row.style.display = 'none';
+    if (password2Row) password2Row.style.display = 'none';
+    if (pinRow) pinRow.style.display = 'none';
+
+    // Show fields based on auth type
+    if (selectedType === 'email') {
+        // Email/Password: show email and passwords
+        if (emailRow) emailRow.style.display = '';
+        if (password1Row) password1Row.style.display = '';
+        if (password2Row) password2Row.style.display = '';
+    } else if (selectedType === 'google') {
+        // Google OAuth: show email only
+        if (emailRow) emailRow.style.display = '';
+    } else if (selectedType === 'anonymous') {
+        // Anonymous: show PIN only
+        if (pinRow) pinRow.style.display = '';
+    }
+}
+
+// Initialize on page load
+(function() {
+    console.log('User form script loaded');
+
+    // Run immediately if DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, setting up auth type listeners');
+            updateUserFormFields();
+
+            // Add change listeners
+            var authInputs = document.querySelectorAll('input[name="auth_type"]');
+            authInputs.forEach(function(input) {
+                input.addEventListener('change', updateUserFormFields);
+            });
+        });
+    } else {
+        // DOM already loaded
+        console.log('DOM already ready, running immediately');
+        updateUserFormFields();
+
+        var authInputs = document.querySelectorAll('input[name="auth_type"]');
+        authInputs.forEach(function(input) {
+            input.addEventListener('change', updateUserFormFields);
+        });
+    }
+})();
+</script>
+        """
+        )
+
+        # Set auth_type help_text with JavaScript
+        help_text = "Select how this user will authenticate. "
+        help_text += "Fields will show/hide based on your selection."
+        self.fields["auth_type"].help_text = mark_safe(  # nosec B308, B703
+            help_text + str(js_code)
+        )
 
     def clean(self):
         """Validate form data based on selected auth_type."""
@@ -173,4 +258,4 @@ class CustomUserCreationForm(UserCreationForm):
 
         return user
 
-    # Media class removed - JavaScript is injected inline in UserAdmin instead
+    # Note: No Media class needed - JavaScript injected via help_text in __init__

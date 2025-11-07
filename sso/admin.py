@@ -128,8 +128,8 @@ class UserAdmin(BaseUserAdmin):
         ),
     )
 
-    # Note: Dynamic field show/hide is handled by form validation
-    # All fields are shown - form.clean() validates based on auth_type selection
+    # Note: Dynamic field show/hide handled by JavaScript in CustomUserCreationForm
+    # Form validation in clean() ensures correct fields are filled
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related()
