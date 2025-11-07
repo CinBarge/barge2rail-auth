@@ -48,7 +48,6 @@ pydantic==2.12.4
 pydantic_core==2.41.5
 Pygments==2.19.2
 PyJWT==2.10.1
-PyJWKClient==0.9.0
 pyparsing==3.2.5
 python-decouple==3.8
 pytz==2025.2
