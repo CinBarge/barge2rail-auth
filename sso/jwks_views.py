@@ -6,6 +6,8 @@ Client applications (like PrimeTrade) fetch this to verify token signatures.
 """
 
 import base64
+import hashlib
+import json
 import logging
 
 from cryptography.hazmat.backends import default_backend
@@ -18,6 +20,31 @@ from django.views.decorators.http import require_GET
 logger = logging.getLogger(__name__)
 
 
+def _compute_jwk_thumbprint(n, e):
+    """
+    Compute JWK thumbprint (RFC 7638) for key identifier.
+
+    Args:
+        n: RSA modulus (base64url-encoded string)
+        e: RSA exponent (base64url-encoded string)
+
+    Returns:
+        str: Base64url-encoded SHA-256 hash of canonical JWK
+    """
+    # Create canonical JSON (lexicographic order, no whitespace)
+    canonical_jwk = json.dumps(
+        {"e": e, "kty": "RSA", "n": n}, separators=(",", ":"), sort_keys=True
+    )
+
+    # Compute SHA-256 hash
+    hash_bytes = hashlib.sha256(canonical_jwk.encode("utf-8")).digest()
+
+    # Base64url encode (no padding)
+    thumbprint = base64.urlsafe_b64encode(hash_bytes).rstrip(b"=").decode("utf-8")
+
+    return thumbprint
+
+
 def _rsa_public_numbers_to_jwk(public_key):
     """
     Convert RSA public key to JWK format.
@@ -26,7 +53,7 @@ def _rsa_public_numbers_to_jwk(public_key):
         public_key: RSA public key object
 
     Returns:
-        dict: JWK representation with kty, use, alg, n, e
+        dict: JWK representation with kty, use, alg, n, e, kid
     """
     public_numbers = public_key.public_numbers()
 
@@ -38,13 +65,19 @@ def _rsa_public_numbers_to_jwk(public_key):
         # Base64url encode (no padding)
         return base64.urlsafe_b64encode(num_bytes).rstrip(b"=").decode("utf-8")
 
+    n = int_to_base64url(public_numbers.n)
+    e = int_to_base64url(public_numbers.e)
+
+    # Compute kid using JWK thumbprint (matches PyJWT behavior)
+    kid = _compute_jwk_thumbprint(n, e)
+
     return {
         "kty": "RSA",
         "use": "sig",  # Signature use
         "alg": "RS256",
-        "kid": "barge2rail-sso-2025",  # Key ID
-        "n": int_to_base64url(public_numbers.n),  # Modulus
-        "e": int_to_base64url(public_numbers.e),  # Exponent
+        "kid": kid,  # Computed thumbprint matches JWT header kid
+        "n": n,  # Modulus
+        "e": e,  # Exponent
     }
 
 
