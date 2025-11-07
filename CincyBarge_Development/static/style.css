@@ -47,9 +47,9 @@ body {
     color: #FFFFFF !important;
 }
 .alert-info {
-    background-color: rgba(14, 165, 233, 0.1) !important;
-    border-color: #0EA5E9 !important;
-    color: #0C4A6E !important;
+    background-color: #0C4A6E !important;
+    border-color: #0C4A6E !important;
+    color: #FFFFFF !important;
 }
 
 .bg-primary { background-color: #0C4A6E !important; }
@@ -122,6 +122,10 @@ a:hover {
 .alert-link { 
     color: #0C4A6E !important;
     font-weight: 600 !important;
+}
+.alert-info .alert-link {
+    color: #FFFFFF !important;
+    text-decoration: underline !important;
 }
 
 /* --------------------------------------------- */

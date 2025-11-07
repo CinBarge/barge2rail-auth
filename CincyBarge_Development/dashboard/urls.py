@@ -19,29 +19,8 @@ urlpatterns = [
         name="dashboard-order-update-status",
     ),
     path("bol/", views.bol, name="dashboard-bol"),
-    # BOL Template Management
-    path(
-        "bol/upload-template/",
-        views.upload_bol_template,
-        name="dashboard-bol-upload-template",
-    ),
-    path(
-        "bol/view-template/<int:template_id>/",
-        views.view_bol_template,
-        name="dashboard-bol-view-template",
-    ),
-    path(
-        "bol/delete-template/<int:template_id>/",
-        views.delete_bol_template,
-        name="dashboard-bol-delete-template",
-    ),
     # BOL Creation and Management
     path("bol/create/", views.create_bol, name="dashboard-bol-create"),
-    path(
-        "bol/create-from-template/<int:template_id>/",
-        views.create_bol_from_template,
-        name="dashboard-bol-create-from-template",
-    ),
     path("bol/edit/<int:bol_id>/", views.edit_bol, name="dashboard-bol-edit"),
     path(
         "bol/<int:bol_id>/add-product/",

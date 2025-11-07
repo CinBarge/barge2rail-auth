@@ -3,7 +3,6 @@ from django import forms
 from .models import (
     BillOfLading,
     BillOfLadingLineItem,
-    BillOfLadingTemplate,
     Product,
     Supplier,
 )
@@ -30,35 +29,6 @@ class FileUploadForm(forms.Form):
             file_extension = file.name.split(".")[-1].lower()
             if file_extension not in ["csv", "json"]:
                 raise forms.ValidationError("Only CSV and JSON files are allowed.")
-        return file
-
-
-class BillOfLadingTemplateForm(forms.ModelForm):
-    """Form for uploading BOL PDF templates"""
-
-    class Meta:
-        model = BillOfLadingTemplate
-        fields = ["supplier", "template_file", "description"]
-        widgets = {
-            "supplier": forms.Select(attrs={"class": "form-control"}),
-            "template_file": forms.FileInput(
-                attrs={"class": "form-control", "accept": ".pdf"}
-            ),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-        }
-
-    def clean_template_file(self):
-        file = self.cleaned_data.get("template_file")
-        if file:
-            file_extension = file.name.split(".")[-1].lower()
-            if file_extension != "pdf":
-                raise forms.ValidationError(
-                    "Only PDF files are allowed for BOL templates."
-                )
-
-            # Check file size (max 10MB)
-            if file.size > 10 * 1024 * 1024:
-                raise forms.ValidationError("File size cannot exceed 10MB.")
         return file
 
 

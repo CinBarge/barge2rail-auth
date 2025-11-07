@@ -5,7 +5,6 @@ from django.contrib.auth.models import Group
 from .models import (
     BillOfLading,
     BillOfLadingLineItem,
-    BillOfLadingTemplate,
     Order,
     Product,
     RawProductData,
@@ -139,19 +138,6 @@ class RawProductDataAdmin(AdminMediaMixin, admin.ModelAdmin):
         return queryset.select_related("supplier", "uploaded_by")
 
 
-@admin.register(BillOfLadingTemplate)
-class BillOfLadingTemplateAdmin(AdminMediaMixin, admin.ModelAdmin):
-    """Admin configuration for Bill of Lading Template model"""
-
-    list_display = ("id", "supplier", "file_name", "uploaded_by", "uploaded_at")
-    list_filter = ("supplier", "uploaded_at")
-    search_fields = ("supplier__name", "file_name", "uploaded_by__username")
-    readonly_fields = ("uploaded_at",)
-    date_hierarchy = "uploaded_at"
-    list_per_page = 25
-    ordering = ("-uploaded_at",)
-
-
 class BillOfLadingLineItemInline(admin.TabularInline):
     """Inline admin for BOL line items"""
 
@@ -190,7 +176,7 @@ class BillOfLadingAdmin(AdminMediaMixin, admin.ModelAdmin):
     fieldsets = (
         (
             "BOL Information",
-            {"fields": ("bill_number", "supplier", "template", "status")},
+            {"fields": ("bill_number", "supplier", "status")},
         ),
         (
             "Shipping Details",

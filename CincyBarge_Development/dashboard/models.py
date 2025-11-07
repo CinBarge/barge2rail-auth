@@ -54,43 +54,6 @@ class Product(models.Model):
         verbose_name_plural = "Product"
 
 
-class BillOfLadingTemplate(models.Model):
-    """Store PDF templates for Bill of Lading"""
-
-    supplier = models.OneToOneField(
-        Supplier, on_delete=models.CASCADE, related_name="bol_template"
-    )
-    template_file = models.FileField(upload_to="bol_templates/")
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    uploaded_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True
-    )
-    file_name = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
-
-    # Smart Template: Store extracted field structure for reuse
-    field_mapping = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Extracted field structure from template PDF for quick BOL creation",
-    )
-    is_configured = models.BooleanField(
-        default=False,
-        help_text="Whether field mapping has been extracted and configured",
-    )
-
-    class Meta:
-        verbose_name_plural = "Bill of Lading Templates"
-        ordering = ["-uploaded_at"]
-
-    def __str__(self):
-        return f"BOL Template - {self.supplier.name}"
-
-    def has_field_mapping(self):
-        """Check if template has configured field mapping"""
-        return self.is_configured and bool(self.field_mapping)
-
-
 class BillOfLading(models.Model):
     """Store generated Bill of Lading documents"""
 
@@ -104,9 +67,6 @@ class BillOfLading(models.Model):
 
     bill_number = models.CharField(max_length=50, unique=True)
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT)
-    template = models.ForeignKey(
-        BillOfLadingTemplate, on_delete=models.SET_NULL, null=True, blank=True
-    )
 
     # Shipping details
     shipper_name = models.CharField(max_length=255, blank=True)
@@ -166,6 +126,7 @@ class BillOfLadingLineItem(models.Model):
         BillOfLading, on_delete=models.CASCADE, related_name="line_items"
     )
     product = models.ForeignKey(Product, on_delete=models.PROTECT)
+    po_number = models.CharField(max_length=100, null=True, blank=True, help_text="Purchase Order number")
     quantity = models.PositiveIntegerField()
     weight = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     description = models.TextField(blank=True)

@@ -13,7 +13,7 @@
     <!-- BOL Details -->
     <div class="col-md-6">
       <div class="card">
-        <div class="card-header bg-info text-white">
+        <div class="alert alert-info text-white" style="background-color: #0C4A6E !important; border-color: #0C4A6E !important; color: white !important;">
           <h5><i class="fas fa-info-circle"></i> BOL Details</h5>
         </div>
         <div class="card-body">
@@ -161,41 +161,6 @@
         </div>
       </div>
 
-      <!-- Template Preview -->
-      {% if bol.template %}
-      <div class="card mt-3">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="fas fa-file-pdf"></i> PDF Template</h5>
-          <a href="{% url 'dashboard-bol-view-template' bol.template.id %}"
-             target="_blank"
-             class="btn btn-sm btn-light">
-            <i class="fas fa-external-link-alt"></i> Open in New Tab
-          </a>
-        </div>
-        <div class="card-body p-0">
-          <iframe src="{% url 'dashboard-bol-view-template' bol.template.id %}"
-                  width="100%"
-                  height="500px"
-                  style="border: none;">
-          </iframe>
-          <div class="p-3 bg-light">
-            <small class="text-muted">
-              <i class="fas fa-info-circle"></i> This template will be used as reference for the Bill of Lading.
-              If the PDF doesn't display, <a href="{% url 'dashboard-bol-view-template' bol.template.id %}" target="_blank">click here to open it</a>.
-            </small>
-          </div>
-        </div>
-      </div>
-      {% else %}
-      <div class="card mt-3">
-        <div class="card-body">
-          <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle"></i> No PDF template uploaded for <strong>{{ bol.supplier.name }}</strong>.
-            <a href="{% url 'dashboard-bol' %}" class="alert-link">Upload a template</a> to use it with BOLs.
-          </div>
-        </div>
-      </div>
-      {% endif %}
     </div>
   </div>
 
@@ -228,9 +193,9 @@
   <!-- Information Box -->
   <div class="row mt-4">
     <div class="col-12">
-      <div class="alert alert-info">
-        <h5><i class="fas fa-info-circle"></i> What happens when you confirm?</h5>
-        <ul class="mb-0">
+      <div class="alert alert-info text-white" style="background-color: #0C4A6E !important; border-color: #0C4A6E !important; color: white !important;">
+        <h5 style="color: white !important;"><i class="fas fa-info-circle"></i> What happens when you confirm?</h5>
+        <ul class="mb-0" style="color: white !important;">
           <li>The BOL status will be changed to <strong>Confirmed</strong></li>
           <li>An order will be created for <strong>each product</strong> in the BOL</li>
           <li>Orders will be scheduled for delivery on: <strong>{{ bol.delivery_date|date:"M d, Y"|default:"the specified date" }}</strong></li>
