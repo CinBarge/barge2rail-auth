@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import admin_oauth_views, auth_views, password_views, views
+from . import admin_oauth_views, auth_views, jwks_views, password_views, views
 
 urlpatterns = [
     # Admin Google OAuth - OAuth Admin Integration (Phase 4)
@@ -47,4 +47,6 @@ urlpatterns = [
         password_views.reset_password,
         name="reset_password",
     ),
+    # JWKS endpoint for JWT signature verification
+    path(".well-known/jwks.json", jwks_views.jwks_endpoint, name="jwks"),
 ]
