@@ -4,10 +4,43 @@ import string
 import uuid
 from datetime import timedelta
 
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.utils import timezone
 from oauth2_provider.models import AbstractApplication
+
+
+class UserManager(BaseUserManager):
+    """Custom user manager that doesn't require username."""
+
+    def create_user(self, email=None, password=None, **extra_fields):
+        """Create and save a regular user with email (username auto-generated)."""
+        extra_fields.setdefault("is_staff", False)
+        extra_fields.setdefault("is_superuser", False)
+
+        # Don't require username - it will be auto-generated in save()
+        user = self.model(email=email, **extra_fields)
+
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, email=None, password=None, **extra_fields):
+        """Create and save a superuser."""
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("is_sso_admin", True)
+
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser must have is_staff=True.")
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superuser must have is_superuser=True.")
+
+        return self.create_user(email, password, **extra_fields)
 
 
 class User(AbstractUser):
@@ -50,6 +83,9 @@ class User(AbstractUser):
     pin_code = models.CharField(max_length=4, blank=True, null=True)
     is_anonymous = models.BooleanField(default=False)
 
+    # Use custom manager
+    objects = UserManager()
+
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []  # Remove required fields to allow anonymous users
 
@@ -58,17 +94,38 @@ class User(AbstractUser):
         ordering = ["-created_at"]
 
     def save(self, *args, **kwargs):
-        # Auto-generate anonymous username if needed
-        if self.is_anonymous and not self.anonymous_username:
+        # Auto-generate username based on auth_type if not set
+        if not self.username:
+            if self.auth_type in ["email", "google"] and self.email:
+                # For email/password and Google OAuth: username = email
+                self.username = self.email
+            elif self.auth_type == "anonymous" or self.is_anonymous:
+                # For anonymous users: generate unique username
+                if not self.anonymous_username:
+                    self.anonymous_username = self.generate_anonymous_username()
+                self.username = self.anonymous_username
+            else:
+                # Fallback: generate UUID-based username
+                self.username = f"user_{uuid.uuid4().hex[:8]}"
+
+        # Auto-generate anonymous username if needed for anonymous users
+        if (
+            self.auth_type == "anonymous" or self.is_anonymous
+        ) and not self.anonymous_username:
             self.anonymous_username = self.generate_anonymous_username()
 
-        # Auto-generate PIN if needed
-        if self.is_anonymous and not self.pin_code:
+        # Auto-generate PIN if needed for anonymous users
+        if (self.auth_type == "anonymous" or self.is_anonymous) and not self.pin_code:
             self.pin_code = self.generate_pin()
 
-        # Set username for anonymous users
-        if self.is_anonymous and not self.username:
-            self.username = self.anonymous_username
+        # Validate PIN for anonymous users
+        if self.auth_type == "anonymous" or self.is_anonymous:
+            if self.pin_code and (
+                len(self.pin_code) != 4 or not self.pin_code.isdigit()
+            ):
+                from django.core.exceptions import ValidationError
+
+                raise ValidationError("PIN must be exactly 4 digits")
 
         super().save(*args, **kwargs)
 

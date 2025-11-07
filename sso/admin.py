@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.utils.html import format_html
 
+from .admin_forms import CustomUserCreationForm
 from .models import (
     Application,
     ApplicationRole,
@@ -19,6 +21,9 @@ except admin.sites.NotRegistered:
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
+    # Use custom form for user creation
+    add_form = CustomUserCreationForm
+
     list_display = [
         "email",
         "display_name",
@@ -39,7 +44,6 @@ class UserAdmin(BaseUserAdmin):
         "id",
         "google_id",
         "anonymous_username",
-        "pin_code",
         "created_at",
         "updated_at",
     ]
@@ -87,20 +91,147 @@ class UserAdmin(BaseUserAdmin):
 
     add_fieldsets = (
         (
-            None,
+            "Authentication Type",
+            {
+                "classes": ("wide",),
+                "fields": ("auth_type",),
+                "description": (
+                    "Select the authentication method for this user. "
+                    "This determines which fields are required below."
+                ),
+            },
+        ),
+        (
+            "User Details",
             {
                 "classes": ("wide",),
                 "fields": (
                     "email",
+                    "display_name",
+                    "first_name",
+                    "last_name",
                     "password1",
                     "password2",
-                    "display_name",
-                    "auth_type",
+                    "pin_code",
+                ),
+            },
+        ),
+        (
+            "Permissions",
+            {
+                "classes": ("wide",),
+                "fields": (
                     "is_sso_admin",
+                    "is_staff",
+                    "is_active",
                 ),
             },
         ),
     )
+
+    class Media:
+        js = ("admin/js/user_creation_form.js",)
+        css = {"all": ("admin/css/user_creation_form.css",)}
+
+    def get_form(self, request, obj=None, **kwargs):
+        """Override to inject JavaScript for conditional field display."""
+        form = super().get_form(request, obj, **kwargs)
+
+        # Add help text with JavaScript for conditional fields (only on add page)
+        if obj is None:  # Adding new user
+            # The JavaScript will be added via Media class above
+            pass
+
+        return form
+
+    def render_change_form(
+        self, request, context, add=False, change=False, form_url="", obj=None
+    ):
+        """Add custom JavaScript for conditional field display on add form."""
+        response = super().render_change_form(
+            request, context, add, change, form_url, obj
+        )
+
+        if add:  # Only on user creation form
+            # Inject inline JavaScript for immediate field toggling
+            extra_js = format_html(
+                """
+<script type="text/javascript">
+(function() {{
+    if (typeof django === 'undefined' || !django.jQuery) {{
+        return;  // Wait for Django's jQuery to load
+    }}
+
+    django.jQuery(document).ready(function($) {{
+        // Field containers
+        var authTypeField = $('.field-auth_type');
+        var emailField = $('.field-email');
+        var displayNameField = $('.field-display_name');
+        var password1Field = $('.field-password1');
+        var password2Field = $('.field-password2');
+        var pinField = $('.field-pin_code');
+        var firstNameField = $('.field-first_name');
+        var lastNameField = $('.field-last_name');
+
+        function updateFieldVisibility() {{
+            var selectedType = $('input[name="auth_type"]:checked').val();
+
+            // Hide all conditional fields first
+            emailField.hide();
+            password1Field.hide();
+            password2Field.hide();
+            pinField.hide();
+
+            if (selectedType === 'email') {{
+                // Email/Password: show email, password fields
+                emailField.show();
+                password1Field.show();
+                password2Field.show();
+                displayNameField.show();
+                firstNameField.show();
+                lastNameField.show();
+
+            }} else if (selectedType === 'google') {{
+                // Google OAuth: show email only, hide passwords
+                emailField.show();
+                displayNameField.show();
+                firstNameField.show();
+                lastNameField.show();
+
+            }} else if (selectedType === 'anonymous') {{
+                // Anonymous PIN: show PIN and display name, hide email
+                pinField.show();
+                displayNameField.show();
+                firstNameField.show();
+                lastNameField.show();
+            }}
+        }}
+
+        // Initial update
+        updateFieldVisibility();
+
+        // Update on auth_type change
+        $('input[name="auth_type"]').on('change', updateFieldVisibility);
+    }});
+}})();
+</script>
+            """
+            )
+
+            # Add the JavaScript to the response content
+            if hasattr(response, "content"):
+                response.content = (
+                    response.content.decode("utf-8")
+                    if isinstance(response.content, bytes)
+                    else response.content
+                )
+                response.content = response.content.replace(
+                    "</body>", str(extra_js) + "</body>"
+                )
+                if isinstance(response.content, str):
+                    response.content = response.content.encode("utf-8")
+
+        return response
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related()
