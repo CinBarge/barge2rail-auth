@@ -325,7 +325,17 @@ class UserRole(models.Model):
 
 
 class ApplicationRole(models.Model):
-    """User roles for different business applications"""
+    """
+    User roles for different business applications.
+
+    Three-role system with automatic permission assignment:
+    - Admin: Full access to everything (full_access)
+    - Office: Daily operations (read, write, delete)
+    - Client: View-only access (read)
+
+    Permissions are automatically assigned based on role selection.
+    Manual override is possible by setting permissions before save.
+    """
 
     APPLICATION_CHOICES = [
         ("primetrade", "PrimeTrade"),
@@ -336,18 +346,32 @@ class ApplicationRole(models.Model):
     ]
 
     ROLE_CHOICES = [
-        ("admin", "Administrator"),
-        ("user", "Standard User"),
-        ("viewer", "Read Only"),
-        ("operator", "Operator"),
+        ("Admin", "Admin"),
+        ("Office", "Office"),
+        ("Client", "Client"),
     ]
+
+    # Automatic permission mapping for each role
+    ROLE_PERMISSIONS = {
+        "Admin": ["full_access"],
+        "Office": ["read", "write", "delete"],
+        "Client": ["read"],
+    }
 
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="application_roles"
     )
     application = models.CharField(max_length=50, choices=APPLICATION_CHOICES)
-    role = models.CharField(max_length=50, choices=ROLE_CHOICES)
-    permissions = models.JSONField(default=list, blank=True)
+    role = models.CharField(
+        max_length=50,
+        choices=ROLE_CHOICES,
+        help_text="User's role for this application (permissions auto-assigned)",
+    )
+    permissions = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Auto-assigned based on role. Can be manually overridden if needed.",
+    )
     assigned_date = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
 
@@ -356,6 +380,35 @@ class ApplicationRole(models.Model):
         verbose_name = "Application Role"
         verbose_name_plural = "Application Roles"
         db_table = "sso_application_roles"
+
+    def save(self, *args, **kwargs):
+        """
+        Auto-assign permissions based on role if not explicitly set.
+
+        Allows manual override by setting permissions before save.
+        If permissions list is empty, assigns default permissions for the role.
+        """
+        if not self.permissions:
+            self.permissions = self.ROLE_PERMISSIONS.get(self.role, [])
+        super().save(*args, **kwargs)
+
+    def has_permission(self, permission):
+        """
+        Check if this role has a specific permission.
+
+        Args:
+            permission (str): Permission to check (e.g., 'write', 'delete')
+
+        Returns:
+            bool: True if role has the permission
+
+        Example:
+            role.has_permission('write')  # True for Admin and Office, False for Client
+            role.has_permission('delete')  # True for Admin and Office, False for Client
+        """
+        if "full_access" in self.permissions:
+            return True
+        return permission in self.permissions
 
     def __str__(self):
         user_id = self.user.email or self.user.anonymous_username
