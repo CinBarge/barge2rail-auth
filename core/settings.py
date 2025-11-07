@@ -305,6 +305,9 @@ OAUTH2_PROVIDER = {
     "APPLICATION_ADMIN_CLASS": "",
 }
 
+# Enable OIDC RP-Initiated Logout endpoint (/o/logout/)
+OIDC_RP_INITIATED_LOGOUT_ENABLED = True
+
 # Rate limiting configuration
 RATELIMIT_ENABLE = not DEBUG  # Disable in development
 RATELIMIT_USE_CACHE = "default"
