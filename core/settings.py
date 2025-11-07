@@ -165,7 +165,7 @@ DATABASES = {
     )
 }
 
-# M1.9: Password validation with minimum 12 characters
+# M1.9: Password validation with minimum 8 characters
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": (
@@ -175,7 +175,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         "NAME": ("django.contrib.auth.password_validation.MinimumLengthValidator"),
-        "OPTIONS": {"min_length": 12},
+        "OPTIONS": {"min_length": 8},
     },
     {"NAME": ("django.contrib.auth.password_validation.CommonPasswordValidator")},
     {"NAME": ("django.contrib.auth.password_validation.NumericPasswordValidator")},
