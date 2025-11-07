@@ -173,7 +173,4 @@ class CustomUserCreationForm(UserCreationForm):
 
         return user
 
-    class Media:
-        """Include JavaScript for conditional field display."""
-
-        js = ("admin/js/user_form.js",)
+    # Media class removed - JavaScript is injected inline in UserAdmin instead

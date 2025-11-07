@@ -129,9 +129,7 @@ class UserAdmin(BaseUserAdmin):
         ),
     )
 
-    class Media:
-        js = ("admin/js/user_creation_form.js",)
-        css = {"all": ("admin/css/user_creation_form.css",)}
+    # Media class removed - using inline JavaScript in render_change_form instead
 
     def get_form(self, request, obj=None, **kwargs):
         """Override to inject JavaScript for conditional field display."""
