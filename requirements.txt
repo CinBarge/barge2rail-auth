@@ -13,6 +13,7 @@ dj-database-url==2.1.0
 Django==5.2.8
 django-cors-headers==4.3.1
 django-environ==0.11.2
+django-mcp-server==0.5.7
 django-oauth-toolkit==2.4.0
 django-ratelimit==4.1.0
 djangorestframework==3.16.1
@@ -47,6 +48,7 @@ pydantic==2.12.4
 pydantic_core==2.41.5
 Pygments==2.19.2
 PyJWT==2.10.1
+PyJWKClient==0.9.0
 pyparsing==3.2.5
 python-decouple==3.8
 pytz==2025.2
