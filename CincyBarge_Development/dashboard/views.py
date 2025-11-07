@@ -1328,6 +1328,7 @@ def create_bol_from_template(request, template_id):
                     vessel_name=request.POST.get(
                         "vessel_name", field_mapping.get("vessel_name", "")
                     ),
+                    truck_number=request.POST.get("truck_number", ""),
                     container_number=request.POST.get("container_number", ""),
                     seal_number=request.POST.get("seal_number", ""),
                     freight_charges=request.POST.get("freight_charges") or None,

@@ -119,6 +119,7 @@ class BillOfLading(models.Model):
     # Transport details
     carrier = models.CharField(max_length=255, blank=True)
     vessel_name = models.CharField(max_length=255, blank=True)
+    truck_number = models.CharField(max_length=100, blank=True, null=True)
     container_number = models.CharField(max_length=100, blank=True)
     seal_number = models.CharField(max_length=100, blank=True)
 

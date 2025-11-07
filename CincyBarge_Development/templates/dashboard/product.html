@@ -324,10 +324,10 @@
 
                 visibleCountSpan.textContent = visibleCount;
                 updateNoResultsMessage(visibleCount);
-                return; // 🔚 Exit early – organized by filter doesn't apply without supplier
+                return; // Exit early – organized by filter doesn't apply without supplier
             }
 
-            // ✅ Filtering starts only when a supplier is selected
+            // Filtering starts only when a supplier is selected
             rows.forEach(row => {
                 if (row.cells.length < 2) {
                     row.style.display = "none";
@@ -413,7 +413,7 @@
             filterOrganizedBy.value = "";
             filterAvailability.value = "";
             filterSearch.value = "";
-            toggleFilterInputs(); // disable fields again
+            toggleFilterInputs();
             filterTable();
         }
 

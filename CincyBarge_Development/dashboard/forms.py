@@ -77,6 +77,7 @@ class BillOfLadingForm(forms.ModelForm):
             "destination",
             "carrier",
             "vessel_name",
+            "truck_number",
             "container_number",
             "seal_number",
             "freight_charges",
@@ -97,6 +98,7 @@ class BillOfLadingForm(forms.ModelForm):
             "destination": forms.TextInput(attrs={"class": "form-control"}),
             "carrier": forms.TextInput(attrs={"class": "form-control"}),
             "vessel_name": forms.TextInput(attrs={"class": "form-control"}),
+            "truck_number": forms.TextInput(attrs={"class": "form-control"}),
             "container_number": forms.TextInput(attrs={"class": "form-control"}),
             "seal_number": forms.TextInput(attrs={"class": "form-control"}),
             "freight_charges": forms.NumberInput(
