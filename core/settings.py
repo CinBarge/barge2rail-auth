@@ -303,10 +303,9 @@ OAUTH2_PROVIDER = {
     ),
     # Disable auto admin registration (we have custom admin)
     "APPLICATION_ADMIN_CLASS": "",
+    # Enable OIDC RP-Initiated Logout endpoint (/o/logout/)
+    "OIDC_RP_INITIATED_LOGOUT_ENABLED": True,
 }
-
-# Enable OIDC RP-Initiated Logout endpoint (/o/logout/)
-OIDC_RP_INITIATED_LOGOUT_ENABLED = True
 
 # Rate limiting configuration
 RATELIMIT_ENABLE = not DEBUG  # Disable in development
