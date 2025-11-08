@@ -9,6 +9,7 @@ from django.contrib.auth import login as django_login
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 from google.auth.transport import requests as google_requests
@@ -1108,10 +1109,10 @@ def google_auth_callback(request):
 
     if error:
         # User cancelled or error occurred
-        return redirect("/login/?error=oauth_cancelled")
+        return redirect(f"{reverse('sso:login')}?error=oauth_cancelled")
 
     if not code:
-        return redirect("/login/?error=no_code")
+        return redirect(f"{reverse('sso:login')}?error=no_code")
 
     try:
         # Exchange the code for tokens
@@ -1119,7 +1120,7 @@ def google_auth_callback(request):
 
         if "error" in token_data:
             logger.error(f"Google token exchange error: {token_data}")
-            return redirect("/login/?error=token_exchange_failed")
+            return redirect(f"{reverse('sso:login')}?error=token_exchange_failed")
 
         # Verify ID token and get user info
         user_info = verify_google_id_token(token_data["id_token"])
@@ -1168,7 +1169,7 @@ def google_auth_callback(request):
 
     except Exception as e:
         logger.error(f"Google OAuth callback error: {str(e)}")
-        return redirect("/login/?error=oauth_failed")
+        return redirect(f"{reverse('sso:login')}?error=oauth_failed")
 
 
 # ============================================================================
