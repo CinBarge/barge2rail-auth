@@ -216,9 +216,9 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Authentication URLs - Override Django defaults
-LOGIN_URL = "/login/"
+LOGIN_URL = "/api/auth/login/"
 LOGIN_REDIRECT_URL = "/dashboard/"
-LOGOUT_REDIRECT_URL = "/login/"
+LOGOUT_REDIRECT_URL = "/api/auth/login/"
 
 # --- B2R SSO config ---
 SSO_VALIDATION_URL = os.getenv(
