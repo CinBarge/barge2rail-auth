@@ -263,3 +263,14 @@ def reset_password(request, token):
         "sso/reset_password_form.html",
         {"token": token, "user": token_obj.user},
     )
+
+
+@require_http_methods(["GET"])
+def password_reset_complete(request):
+    """
+    Password reset completion page.
+
+    Django standard password reset flow endpoint.
+    Shows success message after password has been reset.
+    """
+    return render(request, "sso/reset_password_success.html")
