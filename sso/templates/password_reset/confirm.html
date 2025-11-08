@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Set New Password - Barge2Rail SSO{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header" style="background-color: #005500; color: white;">
+                    <h4 class="mb-0">Set New Password</h4>
+                </div>
+                <div class="card-body">
+                    {% if validlink %}
+                        <p>Please enter your new password twice so we can verify you typed it correctly.</p>
+
+                        <form method="post">
+                            {% csrf_token %}
+
+                            {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                            {% endif %}
+
+                            <div class="mb-3">
+                                <label for="{{ form.new_password1.id_for_label }}" class="form-label">New Password</label>
+                                {{ form.new_password1 }}
+                                {% if form.new_password1.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ form.new_password1.errors }}
+                                </div>
+                                {% endif %}
+                                <div class="form-text">
+                                    Password must be at least 8 characters and contain uppercase, lowercase, and numbers.
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="{{ form.new_password2.id_for_label }}" class="form-label">Confirm Password</label>
+                                {{ form.new_password2 }}
+                                {% if form.new_password2.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ form.new_password2.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <button type="submit" class="btn btn-lg w-100" style="background-color: #22c55e; color: white;">Change Password</button>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-danger">
+                            <h5>Invalid or Expired Link</h5>
+                            <p>This password reset link is invalid or has expired. Please request a new one.</p>
+                        </div>
+
+                        <a href="{% url 'sso:password_reset' %}" class="btn w-100" style="background-color: #22c55e; color: white;">Request New Link</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -5,7 +5,6 @@ import time
 import requests
 from django.conf import settings
 from django.contrib.auth import authenticate
-from django.contrib.auth import login
 from django.contrib.auth import login as django_login
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -330,7 +329,7 @@ def login_google_oauth(request):
         user, created = get_or_create_google_user(user_info)
 
         # Log user into Django session (needed for OAuth authorization endpoint)
-        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        django_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
 
         # Generate JWT tokens
         response_data = generate_token_response(user, created=created)
