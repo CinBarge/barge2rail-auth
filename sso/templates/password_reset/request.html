@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Reset Your Password - Barge2Rail SSO{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header" style="background-color: #005500; color: white;">
+                    <h4 class="mb-0">Reset Your Password</h4>
+                </div>
+                <div class="card-body">
+                    <p>Enter your email address and we'll send you a link to reset your password.</p>
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.email.id_for_label }}" class="form-label">Email Address</label>
+                            {{ form.email }}
+                            {% if form.email.errors %}
+                            <div class="text-danger small mt-1">
+                                {{ form.email.errors }}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <button type="submit" class="btn btn-lg w-100" style="background-color: #22c55e; color: white;">Send Reset Link</button>
+                    </form>
+
+                    <hr>
+
+                    <div class="text-center">
+                        <a href="{% url 'login' %}">Back to Login</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

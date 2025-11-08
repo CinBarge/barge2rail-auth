@@ -182,6 +182,9 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": ("django.contrib.auth.password_validation.NumericPasswordValidator")},
 ]
 
+# Password Reset Settings
+PASSWORD_RESET_TIMEOUT = 3600  # 1 hour in seconds
+
 # Internationalization
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "America/New_York"

@@ -1,6 +1,12 @@
 from django.urls import path
 
 from . import admin_oauth_views, auth_views, jwks_views, password_views, views
+from .views.password_reset import (
+    CustomPasswordResetCompleteView,
+    CustomPasswordResetConfirmView,
+    CustomPasswordResetDoneView,
+    CustomPasswordResetView,
+)
 
 urlpatterns = [
     # Admin Google OAuth - OAuth Admin Integration (Phase 4)
@@ -46,6 +52,23 @@ urlpatterns = [
         "reset-password/<str:token>/",
         password_views.reset_password,
         name="reset_password",
+    ),
+    # Password Reset (Django built-in)
+    path("password/reset/", CustomPasswordResetView.as_view(), name="password_reset"),
+    path(
+        "password/reset/sent/",
+        CustomPasswordResetDoneView.as_view(),
+        name="password_reset_sent",
+    ),
+    path(
+        "password/reset/<uidb64>/<token>/",
+        CustomPasswordResetConfirmView.as_view(),
+        name="password_reset_confirm",
+    ),
+    path(
+        "password/reset/done/",
+        CustomPasswordResetCompleteView.as_view(),
+        name="password_reset_done",
     ),
     # JWKS endpoint for JWT signature verification
     path(".well-known/jwks.json", jwks_views.jwks_endpoint, name="jwks"),
