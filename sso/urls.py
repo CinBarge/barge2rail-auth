@@ -37,7 +37,7 @@ urlpatterns = [
     path("config/google/", views.google_config_check, name="google_config_check"),
     # Core Authentication
     path("register/", views.register, name="register"),
-    path("login/", views.login, name="login"),
+    path("login/", views.login_web, name="login"),
     path("logout/", views.logout, name="logout"),
     # Debug
     path("debug/google/", auth_views.debug_google_config, name="debug_google_config"),
