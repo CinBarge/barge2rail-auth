@@ -116,6 +116,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "oauth2_provider",
+    "mcp_server",
     # Local apps (after oauth2_provider to override admin)
     "sso",
     "dashboard",
@@ -446,3 +447,9 @@ else:
 # Email settings
 EMAIL_SUBJECT_PREFIX = "[Barge2Rail SSO] "
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# MCP Server Configuration
+DJANGO_MCP_TOOLSETS = [
+    "sso.mcp_toolsets.UserToolset",
+    "sso.mcp_toolsets.ApplicationRoleToolset",
+]
