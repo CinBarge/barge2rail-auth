@@ -10,7 +10,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.utils import timezone
 
-from ..forms.password_reset import PasswordResetConfirmForm, PasswordResetRequestForm
+from sso.password_reset_forms import PasswordResetConfirmForm, PasswordResetRequestForm
 
 
 class CustomPasswordResetView(PasswordResetView):

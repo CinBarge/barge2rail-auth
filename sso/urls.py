@@ -1,7 +1,7 @@
 from django.urls import path
 
 from . import admin_oauth_views, auth_views, jwks_views, password_views, views
-from .views.password_reset import (
+from .password_reset_views import (
     CustomPasswordResetCompleteView,
     CustomPasswordResetConfirmView,
     CustomPasswordResetDoneView,
