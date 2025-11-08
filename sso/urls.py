@@ -8,6 +8,8 @@ from .password_reset_views import (
     CustomPasswordResetView,
 )
 
+app_name = "sso"
+
 urlpatterns = [
     # Admin Google OAuth - OAuth Admin Integration (Phase 4)
     path(
@@ -48,6 +50,13 @@ urlpatterns = [
     # Password Management (Phase 1)
     path("change-password/", password_views.change_password, name="change_password"),
     path("forgot-password/", password_views.forgot_password, name="forgot_password"),
+    # Django standard password_reset URLs (for template compatibility)
+    path("password/reset/", password_views.forgot_password, name="password_reset"),
+    path(
+        "password/reset/complete/",
+        password_views.password_reset_complete,
+        name="password_reset_complete",
+    ),
     path(
         "reset-password/<str:token>/",
         password_views.reset_password,

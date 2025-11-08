@@ -17,7 +17,7 @@ class JWKSEndpointTests(TestCase):
 
     def setUp(self):
         self.client = Client()
-        self.jwks_url = reverse("jwks")  # /api/auth/.well-known/jwks.json
+        self.jwks_url = reverse("sso:jwks")  # /api/auth/.well-known/jwks.json
 
     def test_jwks_endpoint_returns_200(self):
         """JWKS endpoint should be publicly accessible"""
