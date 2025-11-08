@@ -10,7 +10,7 @@ from sso.models import Application, User, UserRole
 def index(request):
     if request.user.is_authenticated:
         return redirect("dashboard:dashboard")
-    return redirect("dashboard:login")
+    return redirect("sso:login")
 
 
 def login_view(request):
@@ -80,7 +80,7 @@ def google_oauth_callback(request):
 def logout_view(request):
     logout(request)
     messages.success(request, "Successfully logged out!")
-    return redirect("dashboard:login")
+    return redirect("sso:login")
 
 
 @login_required
