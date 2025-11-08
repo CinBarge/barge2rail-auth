@@ -2,6 +2,8 @@ from django.urls import path
 
 from . import admin_oauth_views, auth_views, jwks_views, password_views, views
 
+app_name = "sso"
+
 urlpatterns = [
     # Admin Google OAuth - OAuth Admin Integration (Phase 4)
     path(
@@ -42,6 +44,8 @@ urlpatterns = [
     # Password Management (Phase 1)
     path("change-password/", password_views.change_password, name="change_password"),
     path("forgot-password/", password_views.forgot_password, name="forgot_password"),
+    # Django standard password_reset alias (for template compatibility)
+    path("password/reset/", password_views.forgot_password, name="password_reset"),
     path(
         "reset-password/<str:token>/",
         password_views.reset_password,
