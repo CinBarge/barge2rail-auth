@@ -383,13 +383,35 @@ class ApplicationRole(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        Auto-assign permissions based on role if not explicitly set.
+        Auto-assign permissions based on role if not explicitly set or role changed.
 
-        Allows manual override by setting permissions before save.
-        If permissions list is empty, assigns default permissions for the role.
+        Behavior:
+        - New records: Auto-assign permissions if field is empty
+        - Role changes: Auto-update permissions if they match old role defaults
+        - Manual override: If permissions differ from old defaults, preserve them
         """
+        # Check if this is an update to an existing record
+        if self.pk:
+            try:
+                old_instance = ApplicationRole.objects.get(pk=self.pk)
+
+                # If role changed, check if we should auto-update permissions
+                if old_instance.role != self.role:
+                    old_default_perms = self.ROLE_PERMISSIONS.get(old_instance.role, [])
+
+                    # Only auto-update if old permissions matched old role's defaults
+                    # This preserves manual customizations while fixing the primary bug
+                    if old_instance.permissions == old_default_perms:
+                        self.permissions = self.ROLE_PERMISSIONS.get(self.role, [])
+                    # else: old permissions were customized, keep current value
+
+            except ApplicationRole.DoesNotExist:
+                pass
+
+        # For new records, auto-assign if permissions field is empty
         if not self.permissions:
             self.permissions = self.ROLE_PERMISSIONS.get(self.role, [])
+
         super().save(*args, **kwargs)
 
     def has_permission(self, permission):
