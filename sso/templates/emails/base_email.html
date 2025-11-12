@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Barge2Rail SSO{% endblock %}</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #f3f4f6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+        .header {
+            background-color: #005500;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            padding: 30px 20px;
+            color: #1f2937;
+            line-height: 1.6;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #22c55e;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .footer {
+            background-color: #f3f4f6;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .alert-box {
+            background-color: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="https://sso.barge2rail.com/static/sso/images/cbrt-logo.jpg" alt="Cincinnati Barge & Rail Terminal" style="height: 60px; margin-bottom: 10px; display: block; margin-left: auto; margin-right: auto;">
+        </div>
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+        <div class="footer">
+            <p>Cincinnati Barge & Rail Terminal</p>
+            <p>This is an automated message. Please do not reply to this email.</p>
+            <p>&copy; 2025 Barge2Rail. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

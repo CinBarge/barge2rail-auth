@@ -102,7 +102,7 @@ class AdminOAuthLoginViewTests(TestCase):
     def setUp(self):
         """Create test client."""
         self.client = Client()
-        self.url = reverse("admin_oauth_login")
+        self.url = reverse("sso:admin_oauth_login")
 
     @override_settings(
         GOOGLE_CLIENT_ID="test-client-id",
@@ -206,7 +206,7 @@ class AdminOAuthCallbackViewTests(TestCase):
     def setUp(self):
         """Create test client and URL."""
         self.client = Client()
-        self.url = reverse("admin_oauth_callback")
+        self.url = reverse("sso:admin_oauth_callback")
 
     def test_missing_code_redirects_to_login(self):
         """Test missing authorization code redirects to login."""

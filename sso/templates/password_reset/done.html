@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Password Changed - Barge2Rail SSO{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header" style="background-color: #005500; color: white;">
+                    <h4 class="mb-0">Password Changed Successfully</h4>
+                </div>
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <svg style="color: #22c55e;" width="80" height="80" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+                        </svg>
+                    </div>
+
+                    <h5 class="mb-3">Your password has been changed!</h5>
+
+                    <p>You can now log in with your new password.</p>
+
+                    <p class="text-muted small">A confirmation email has been sent to your email address.</p>
+
+                    <a href="{% url 'sso:login' %}" class="btn btn-lg w-100 mt-3" style="background-color: #22c55e; color: white;">Log In</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

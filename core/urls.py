@@ -19,7 +19,9 @@ urlpatterns = [
     # OAuth2 Provider endpoints (django-oauth-toolkit)
     # Provides: /o/authorize/, /o/token/, /o/revoke_token/, /o/introspect/
     path("o/", include("oauth2_provider.urls", namespace="oauth2_provider")),
-    path("api/auth/", include("sso.urls")),
+    # MCP Server endpoint (mcp_server.urls provides /mcp path)
+    path("", include("mcp_server.urls")),
+    path("api/auth/", include(("sso.urls", "sso"), namespace="sso")),
     path("auth/", include("sso.urls")),  # Also include under /auth/ for admin OAuth
     path("health/", Health.as_view()),  # add
     path("secure/", SecureEcho.as_view()),  # add

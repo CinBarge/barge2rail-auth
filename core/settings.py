@@ -116,6 +116,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "oauth2_provider",
+    "mcp_server",
     # Local apps (after oauth2_provider to override admin)
     "sso",
     "dashboard",
@@ -181,6 +182,9 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": ("django.contrib.auth.password_validation.NumericPasswordValidator")},
 ]
 
+# Password Reset Settings
+PASSWORD_RESET_TIMEOUT = 3600  # 1 hour in seconds
+
 # Internationalization
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "America/New_York"
@@ -216,9 +220,9 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Authentication URLs - Override Django defaults
-LOGIN_URL = "/login/"
+LOGIN_URL = "/api/auth/login/"
 LOGIN_REDIRECT_URL = "/dashboard/"
-LOGOUT_REDIRECT_URL = "/login/"
+LOGOUT_REDIRECT_URL = "/api/auth/login/"
 
 # --- B2R SSO config ---
 SSO_VALIDATION_URL = os.getenv(
@@ -446,3 +450,9 @@ else:
 # Email settings
 EMAIL_SUBJECT_PREFIX = "[Barge2Rail SSO] "
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# MCP Server Configuration
+DJANGO_MCP_TOOLSETS = [
+    "sso.mcp_toolsets.UserToolset",
+    "sso.mcp_toolsets.ApplicationRoleToolset",
+]

@@ -1,6 +1,14 @@
 from django.urls import path
 
 from . import admin_oauth_views, auth_views, jwks_views, password_views, views
+from .password_reset_views import (
+    CustomPasswordResetCompleteView,
+    CustomPasswordResetConfirmView,
+    CustomPasswordResetDoneView,
+    CustomPasswordResetView,
+)
+
+app_name = "sso"
 
 urlpatterns = [
     # Admin Google OAuth - OAuth Admin Integration (Phase 4)
@@ -35,17 +43,41 @@ urlpatterns = [
     path("config/google/", views.google_config_check, name="google_config_check"),
     # Core Authentication
     path("register/", views.register, name="register"),
-    path("login/", views.login, name="login"),
+    path("login/", views.login_web, name="login"),
     path("logout/", views.logout, name="logout"),
     # Debug
     path("debug/google/", auth_views.debug_google_config, name="debug_google_config"),
     # Password Management (Phase 1)
     path("change-password/", password_views.change_password, name="change_password"),
     path("forgot-password/", password_views.forgot_password, name="forgot_password"),
+    # Django standard password_reset URLs (for template compatibility)
+    path("password/reset/", password_views.forgot_password, name="password_reset"),
+    path(
+        "password/reset/complete/",
+        password_views.password_reset_complete,
+        name="password_reset_complete",
+    ),
     path(
         "reset-password/<str:token>/",
         password_views.reset_password,
         name="reset_password",
+    ),
+    # Password Reset (Django built-in)
+    path("password/reset/", CustomPasswordResetView.as_view(), name="password_reset"),
+    path(
+        "password/reset/sent/",
+        CustomPasswordResetDoneView.as_view(),
+        name="password_reset_sent",
+    ),
+    path(
+        "password/reset/<uidb64>/<token>/",
+        CustomPasswordResetConfirmView.as_view(),
+        name="password_reset_confirm",
+    ),
+    path(
+        "password/reset/done/",
+        CustomPasswordResetCompleteView.as_view(),
+        name="password_reset_done",
     ),
     # JWKS endpoint for JWT signature verification
     path(".well-known/jwks.json", jwks_views.jwks_endpoint, name="jwks"),

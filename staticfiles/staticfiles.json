@@ -1,5 +1,5 @@
 {
-  "hash": "fd1962df2ffa",
+  "hash": "f5bb1dc000cc",
   "paths": {
     "admin/css/autocomplete.css": "admin/css/autocomplete.4a81fc4242d0.css",
     "admin/css/base.css": "admin/css/base.523eb49842a7.css",
@@ -126,15 +126,15 @@
     "admin/js/vendor/xregexp/LICENSE.txt": "admin/js/vendor/xregexp/LICENSE.bf79e414957a.txt",
     "admin/js/vendor/xregexp/xregexp.js": "admin/js/vendor/xregexp/xregexp.efda034b9537.js",
     "admin/js/vendor/xregexp/xregexp.min.js": "admin/js/vendor/xregexp/xregexp.min.b0439563a5d3.js",
-    "cors_test.html": "cors_test.d63ee94adde8.html",
-    "django_sso_admin_integration.html": "django_sso_admin_integration.3970002b681e.html",
-    "google_login_test.html": "google_login_test.03bdb465abb8.html",
-    "js/barge2rail-sso-v2.js": "js/barge2rail-sso-v2.09b10ee03aec.js",
-    "js/barge2rail-sso.js": "js/barge2rail-sso.cf763c4a5c9b.js",
-    "rest_framework/css/bootstrap-theme.min.css": "rest_framework/css/bootstrap-theme.min.1d4b05b397c3.css",
+    "cors_test.html": "cors_test.4b896f71a0be.html",
+    "django_sso_admin_integration.html": "django_sso_admin_integration.95f387bfd812.html",
+    "google_login_test.html": "google_login_test.767208b81b30.html",
+    "js/barge2rail-sso-v2.js": "js/barge2rail-sso-v2.9899eec38a43.js",
+    "js/barge2rail-sso.js": "js/barge2rail-sso.215dea4df79d.js",
+    "rest_framework/css/bootstrap-theme.min.css": "rest_framework/css/bootstrap-theme.min.297168c864ac.css",
     "rest_framework/css/bootstrap-theme.min.css.map": "rest_framework/css/bootstrap-theme.min.css.51806092cc05.map",
     "rest_framework/css/bootstrap-tweaks.css": "rest_framework/css/bootstrap-tweaks.ee4ee6acf9eb.css",
-    "rest_framework/css/bootstrap.min.css": "rest_framework/css/bootstrap.min.f17d4516b026.css",
+    "rest_framework/css/bootstrap.min.css": "rest_framework/css/bootstrap.min.0746a4db24cc.css",
     "rest_framework/css/bootstrap.min.css.map": "rest_framework/css/bootstrap.min.css.cafbda9c0e9e.map",
     "rest_framework/css/default.css": "rest_framework/css/default.789dfb5732d7.css",
     "rest_framework/css/font-awesome-4.0.3.css": "rest_framework/css/font-awesome-4.0.3.c1e1ea213abf.css",
@@ -166,7 +166,8 @@
     "rest_framework/js/default.js": "rest_framework/js/default.5b08897dbdc3.js",
     "rest_framework/js/jquery-3.7.1.min.js": "rest_framework/js/jquery-3.7.1.min.2c872dbe60f4.js",
     "rest_framework/js/load-ajax-form.js": "rest_framework/js/load-ajax-form.8cdb3a9f3466.js",
-    "rest_framework/js/prettify-min.js": "rest_framework/js/prettify-min.709bfcc456c6.js"
+    "rest_framework/js/prettify-min.js": "rest_framework/js/prettify-min.709bfcc456c6.js",
+    "sso/images/cbrt-logo.jpg": "sso/images/cbrt-logo.057c9d78759d.jpg"
   },
   "version": "1.1"
 }
