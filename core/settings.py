@@ -9,8 +9,31 @@ from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
+
+# Sentry Error Monitoring Configuration
+# Only initializes if SENTRY_DSN environment variable is set
+import sentry_sdk
 from decouple import config
 from django.core.exceptions import ImproperlyConfigured
+from sentry_sdk.integrations.django import DjangoIntegration
+
+if os.environ.get("SENTRY_DSN"):
+    sentry_sdk.init(
+        dsn=os.environ.get("SENTRY_DSN"),
+        integrations=[
+            DjangoIntegration(),
+        ],
+        # Performance Monitoring
+        traces_sample_rate=0.1,  # 10% of transactions for performance monitoring
+        # Environment identification
+        environment=os.environ.get("ENVIRONMENT", "production"),
+        # Release tracking (optional but useful)
+        release=os.environ.get("RENDER_GIT_COMMIT", "unknown"),
+        # Error filtering
+        send_default_pii=False,  # Don't send personally identifiable information
+        # Sample rate for error events
+        sample_rate=1.0,  # Capture 100% of errors
+    )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
