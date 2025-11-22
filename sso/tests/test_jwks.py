@@ -7,9 +7,26 @@ import base64
 import jwt
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from django.conf import settings
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
+
+
+def generate_test_rsa_key():
+    """Generate a test RSA private key for JWKS testing"""
+    private_key = rsa.generate_private_key(
+        public_exponent=65537, key_size=2048, backend=default_backend()
+    )
+
+    # Serialize to PEM format
+    pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+    return pem.decode("utf-8")
 
 
 class JWKSEndpointTests(TestCase):
@@ -18,6 +35,21 @@ class JWKSEndpointTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.jwks_url = reverse("sso:jwks")  # /api/auth/.well-known/jwks.json
+
+        # Generate test RSA key
+        self.test_rsa_key = generate_test_rsa_key()
+
+        # Override settings with test key
+        self.settings_override = override_settings(
+            OAUTH2_PROVIDER={
+                **settings.OAUTH2_PROVIDER,
+                "OIDC_RSA_PRIVATE_KEY": self.test_rsa_key,
+            }
+        )
+        self.settings_override.enable()
+
+    def tearDown(self):
+        self.settings_override.disable()
 
     def test_jwks_endpoint_returns_200(self):
         """JWKS endpoint should be publicly accessible"""

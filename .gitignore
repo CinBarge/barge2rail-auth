@@ -62,3 +62,7 @@ htmlcov/
 bandit-report.json
 safety-report.json
 EMERGENCY_*
+bandit_report.json
+security_scan_focused.json
+security-scan-*.md
+deploy-check-*.md

@@ -55,34 +55,22 @@ class RateLimitEndpointTests(TestCase):
 
     @override_settings(RATELIMIT_ENABLE=True)
     def test_oauth_endpoint_rate_limit(self):
-        """OAuth endpoint should allow 20 requests per hour"""
-        from sso.views import generate_oauth_state
-
-        # Make 20 OAuth attempts (should all succeed without rate limit)
+        """Google login endpoint should allow 20 POST requests per hour"""
+        # Make 20 Google login attempts with invalid tokens (should all fail but not be rate limited)
         for i in range(20):
-            state = generate_oauth_state()
-            session = self.client.session
-            session["oauth_state"] = state
-            session.save()
-
             response = self.client.post(
-                "/api/auth/login/google/oauth/",
-                {"code": f"code_{i}", "state": state},
+                "/api/auth/login/google/",
+                {"token": f"fake_token_{i}"},
                 content_type="application/json",
             )
 
-            # May get 400/401 (invalid code) but not 429 (rate limit)
+            # May get 400/500 (invalid token or config error) but not 429 (rate limit)
             self.assertNotEqual(response.status_code, 429)
 
         # 21st attempt should be rate limited
-        state = generate_oauth_state()
-        session = self.client.session
-        session["oauth_state"] = state
-        session.save()
-
         response = self.client.post(
-            "/api/auth/login/google/oauth/",
-            {"code": "code_21", "state": state},
+            "/api/auth/login/google/",
+            {"token": "fake_token_21"},
             content_type="application/json",
         )
 

@@ -80,7 +80,7 @@ class User(AbstractUser):
     anonymous_username = models.CharField(
         max_length=50, blank=True, null=True, unique=True
     )
-    pin_code = models.CharField(max_length=4, blank=True, null=True)
+    pin_code = models.CharField(max_length=12, blank=True, null=True)
     is_anonymous = models.BooleanField(default=False)
 
     # Use custom manager
@@ -121,11 +121,11 @@ class User(AbstractUser):
         # Validate PIN for anonymous users
         if self.auth_type == "anonymous" or self.is_anonymous:
             if self.pin_code and (
-                len(self.pin_code) != 4 or not self.pin_code.isdigit()
+                len(self.pin_code) != 12 or not self.pin_code.isdigit()
             ):
                 from django.core.exceptions import ValidationError
 
-                raise ValidationError("PIN must be exactly 4 digits")
+                raise ValidationError("PIN must be exactly 12 digits")
 
         super().save(*args, **kwargs)
 
@@ -140,8 +140,8 @@ class User(AbstractUser):
                 return username
 
     def generate_pin(self):
-        """Generate 4-digit numeric PIN for anonymous users"""
-        return "".join(random.choices(string.digits, k=4))
+        """Generate 12-digit numeric PIN for anonymous users"""
+        return "".join(random.choices(string.digits, k=12))
 
     @property
     def display_identifier(self):

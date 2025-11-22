@@ -4,8 +4,10 @@ SSO Utilities Package
 This package contains utility functions for OAuth admin integration:
 - permissions.py: Email whitelist and permission management
 - session.py: OAuth token validation and session management
+- exceptions.py: Custom exception handlers
 """
 
+from .exceptions import custom_exception_handler
 from .permissions import (
     assign_admin_permissions,
     get_admin_whitelist,
@@ -28,4 +30,6 @@ __all__ = [
     "validate_oauth_token",
     "get_user_from_token",
     "create_admin_session",
+    # Exception handlers
+    "custom_exception_handler",
 ]

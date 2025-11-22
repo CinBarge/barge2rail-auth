@@ -265,8 +265,7 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
     ],
     "DEFAULT_PAGINATION_CLASS": ("rest_framework.pagination.PageNumberPagination"),
-    # REMOVED: Custom exception handler was causing test crashes
-    # "EXCEPTION_HANDLER": "sso.utils.custom_exception_handler",
+    "EXCEPTION_HANDLER": "sso.utils.custom_exception_handler",
 }
 PAGE_SIZE = 20
 

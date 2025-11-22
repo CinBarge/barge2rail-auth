@@ -145,6 +145,40 @@ def check_account_lockout(identifier, request):
     return False, None
 
 
+def is_account_locked(identifier):
+    """
+    Check if an account is locked due to too many failed login attempts.
+
+    Locks account for 15 minutes after 5 failed attempts within the lockout window.
+    Respects RATELIMIT_ENABLE setting - disabled when rate limiting is disabled.
+
+    Args:
+        identifier (str): Email or anonymous_username
+
+    Returns:
+        bool: True if account is locked, False otherwise
+    """
+    from datetime import timedelta
+
+    from django.conf import settings
+    from django.utils import timezone
+
+    from .models import LoginAttempt
+
+    # Account lockout respects RATELIMIT_ENABLE setting
+    if not getattr(settings, "RATELIMIT_ENABLE", True):
+        return False
+
+    # Check for failed attempts in the last 15 minutes
+    lockout_window = timezone.now() - timedelta(minutes=15)
+
+    failed_attempts = LoginAttempt.objects.filter(
+        identifier=identifier, success=False, attempted_at__gte=lockout_window
+    ).count()
+
+    return failed_attempts >= 5
+
+
 def log_login_attempt(identifier, ip_address, success):
     """
     Log a login attempt for security tracking.
@@ -1177,13 +1211,14 @@ def google_auth_callback(request):
 # ============================================================================
 
 
-@login_required
-@require_http_methods(["GET"])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def profile_page(request):
     """
-    User profile page showing account details.
+    User profile API endpoint (alias for user_profile).
 
-    Displays user information and provides links to password management.
-    This is the HTML version (different from user_profile API view).
+    Returns authenticated user's profile information via JWT.
+    Protected endpoint requiring valid Bearer token.
     """
-    return render(request, "sso/profile.html", {"user": request.user})
+    serializer = UserSerializer(request.user)
+    return Response(serializer.data)

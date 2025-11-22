@@ -6,6 +6,7 @@ from decouple import config
 from django.contrib.auth import authenticate, login
 from django.contrib.sessions.models import Session
 from django.shortcuts import redirect
+from django_ratelimit.decorators import ratelimit
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -13,6 +14,7 @@ from rest_framework.response import Response
 
 from .models import User
 from .tokens import CustomRefreshToken
+from .views import is_account_locked, log_login_attempt
 
 try:
     from google.auth.transport import requests as google_requests
@@ -31,6 +33,7 @@ GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@ratelimit(key="ip", rate="5/1h", method="POST", block=True)
 def login_email(request):
     """Traditional email/password login with OAuth flow support"""
     email = request.data.get("email")
@@ -42,8 +45,26 @@ def login_email(request):
             {"error": "Email and password required"}, status=status.HTTP_400_BAD_REQUEST
         )
 
+    # Get client IP address
+    x_forwarded_for = request.headers.get("x-forwarded-for")
+    if x_forwarded_for:
+        ip_address = x_forwarded_for.split(",")[0]
+    else:
+        ip_address = request.META.get("REMOTE_ADDR")
+
+    # Check if account is locked
+    if is_account_locked(email):
+        log_login_attempt(email, ip_address, success=False)
+        return Response(
+            {
+                "error": "Account temporarily locked due to too many failed attempts. Try again in 15 minutes."
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
     user = authenticate(username=email, password=password)
     if not user:
+        log_login_attempt(email, ip_address, success=False)
         return Response(
             {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
         )
@@ -57,6 +78,9 @@ def login_email(request):
 
     # Login creates Django session (required for OAuth authorize endpoint)
     login(request, user)
+
+    # Log successful login attempt
+    log_login_attempt(email, ip_address, success=True)
 
     # Force session save to ensure cookie is set
     request.session.save()
@@ -128,12 +152,15 @@ def login_email(request):
 
 @api_view(["GET", "POST"])
 @permission_classes([AllowAny])
+@ratelimit(key="ip", rate="20/1h", method="POST", block=True)
 def login_google(request):
     """
     Google Sign-In authentication.
 
     GET: Initiates Google OAuth flow (redirects to Google consent screen)
     POST: Verifies Google ID token and creates/updates user
+
+    Rate limit: 20 POST requests per hour per IP
     """
 
     # Handle GET requests - initiate Google OAuth flow
@@ -256,6 +283,7 @@ def login_google(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@ratelimit(key="ip", rate="10/1h", method="POST", block=True)
 def login_anonymous(request):
     """Anonymous login with username and PIN"""
     username = request.data.get("username")
@@ -365,7 +393,7 @@ def generate_token_response(
 
     # Include anonymous credentials for new anonymous users
     if anonymous_credentials:
-        response_data["anonymous_credentials"] = anonymous_credentials
+        response_data["user"]["anonymous_credentials"] = anonymous_credentials
         response_data["message"] = (
             "Anonymous account created. Save your username and PIN!"
         )
