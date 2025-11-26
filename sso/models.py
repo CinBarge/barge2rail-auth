@@ -1,9 +1,9 @@
-import random
 import secrets
 import string
 import uuid
 from datetime import timedelta
 
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.utils import timezone
@@ -80,7 +80,8 @@ class User(AbstractUser):
     anonymous_username = models.CharField(
         max_length=50, blank=True, null=True, unique=True
     )
-    pin_code = models.CharField(max_length=12, blank=True, null=True)
+    # PIN is stored as a hash (like password) - use set_pin()/check_pin() methods
+    pin_code = models.CharField(max_length=128, blank=True, null=True)
     is_anonymous = models.BooleanField(default=False)
 
     # Use custom manager
@@ -114,34 +115,61 @@ class User(AbstractUser):
         ) and not self.anonymous_username:
             self.anonymous_username = self.generate_anonymous_username()
 
-        # Auto-generate PIN if needed for anonymous users
+        # Auto-generate and hash PIN if needed for anonymous users
+        # Note: PIN is hashed on save, so we track if we need to generate one
         if (self.auth_type == "anonymous" or self.is_anonymous) and not self.pin_code:
-            self.pin_code = self.generate_pin()
-
-        # Validate PIN for anonymous users
-        if self.auth_type == "anonymous" or self.is_anonymous:
-            if self.pin_code and (
-                len(self.pin_code) != 12 or not self.pin_code.isdigit()
-            ):
-                from django.core.exceptions import ValidationError
-
-                raise ValidationError("PIN must be exactly 12 digits")
+            # Generate PIN and hash it - plaintext returned via _plaintext_pin
+            plaintext_pin = self.generate_pin()
+            self._plaintext_pin = plaintext_pin  # Store for returning to user
+            self.pin_code = make_password(plaintext_pin)
 
         super().save(*args, **kwargs)
 
     def generate_anonymous_username(self):
-        """Generate unique anonymous username like 'Guest-ABC123'"""
+        """Generate unique anonymous username like 'Guest-ABC123'
+
+        Uses cryptographically secure random for username generation.
+        """
+        charset = string.ascii_uppercase + string.digits
         while True:
-            suffix = "".join(
-                random.choices(string.ascii_uppercase + string.digits, k=6)
-            )
+            # Use secrets.choice for cryptographically secure random selection
+            suffix = "".join(secrets.choice(charset) for _ in range(6))
             username = f"Guest-{suffix}"
             if not User.objects.filter(anonymous_username=username).exists():
                 return username
 
     def generate_pin(self):
-        """Generate 12-digit numeric PIN for anonymous users"""
-        return "".join(random.choices(string.digits, k=12))
+        """Generate 12-digit numeric PIN for anonymous users.
+
+        Uses secrets.randbelow() for cryptographically secure generation.
+        Returns plaintext PIN (caller responsible for hashing if storing).
+        """
+        return "".join(str(secrets.randbelow(10)) for _ in range(12))
+
+    def set_pin(self, plaintext_pin):
+        """Hash and store a PIN (like set_password for passwords).
+
+        Args:
+            plaintext_pin: 12-digit numeric PIN string
+        """
+        if not plaintext_pin or len(plaintext_pin) != 12 or not plaintext_pin.isdigit():
+            from django.core.exceptions import ValidationError
+
+            raise ValidationError("PIN must be exactly 12 digits")
+        self.pin_code = make_password(plaintext_pin)
+
+    def check_pin(self, plaintext_pin):
+        """Verify a PIN against the stored hash (like check_password).
+
+        Args:
+            plaintext_pin: PIN to verify
+
+        Returns:
+            bool: True if PIN matches, False otherwise
+        """
+        if not self.pin_code:
+            return False
+        return check_password(plaintext_pin, self.pin_code)
 
     @property
     def display_identifier(self):

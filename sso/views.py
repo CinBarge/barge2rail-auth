@@ -557,6 +557,7 @@ def login_anonymous(request):
     """Anonymous login with username and PIN with account lockout protection.
 
     DATA SAFETY: User creation wrapped in transaction.
+    Security: PIN is hashed on storage, verified using check_pin().
     """
     # Check if rate limited
     was_limited = getattr(request, "limited", False)
@@ -581,12 +582,19 @@ def login_anonymous(request):
             return lockout_response
 
         try:
-            user = User.objects.get(
-                anonymous_username=username, pin_code=pin, is_anonymous=True
-            )
-            # HIGH-2: Log successful attempt
-            log_login_attempt(username, ip_address, success=True)
-            return Response(generate_token_response(user))
+            user = User.objects.get(anonymous_username=username, is_anonymous=True)
+            # Use check_pin() to verify hashed PIN
+            if user.check_pin(pin):
+                # HIGH-2: Log successful attempt
+                log_login_attempt(username, ip_address, success=True)
+                return Response(generate_token_response(user))
+            else:
+                # HIGH-2: Log failed attempt
+                log_login_attempt(username, ip_address, success=False)
+                return Response(
+                    {"error": "Invalid username or PIN"},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
         except User.DoesNotExist:
             # HIGH-2: Log failed attempt
             log_login_attempt(username, ip_address, success=False)
@@ -602,15 +610,16 @@ def login_anonymous(request):
             is_active=True,
         )
 
-        # Save to generate username and PIN
+        # Save to generate username and PIN (hashed)
         user.save()
 
+        # Return plaintext PIN only on creation (stored in _plaintext_pin)
         return Response(
             generate_token_response(
                 user,
                 anonymous_credentials={
                     "username": user.anonymous_username,
-                    "pin": user.pin_code,
+                    "pin": user._plaintext_pin,  # Plaintext only available at creation
                 },
             )
         )

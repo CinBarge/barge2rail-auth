@@ -35,6 +35,12 @@ urlpatterns = [
     # Token Management
     path("refresh/", views.refresh_token, name="refresh_token"),
     path("validate/", views.validate_token, name="validate_token"),
+    # Secure token exchange (for OAuth callbacks - never expose tokens in URLs)
+    path(
+        "exchange/<uuid:session_id>/",
+        views.exchange_session_for_tokens,
+        name="exchange_session_for_tokens",
+    ),
     # User Profile
     path("me/", views.profile_page, name="profile_page"),
     path("profile/", views.user_profile, name="user_profile"),  # API endpoint

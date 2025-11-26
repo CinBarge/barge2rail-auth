@@ -213,45 +213,25 @@
     </div>
 
     <script>
-        // Fetch tokens on page load - check URL parameters first, fall back to session exchange
+        // SECURITY: Token exchange only via secure session endpoint
+        // Tokens are NEVER passed in URL parameters (prevents logging/leakage)
         window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
-            const accessToken = urlParams.get('access_token');
-            const refreshToken = urlParams.get('refresh_token');
-            const sessionId = urlParams.get('session');
+            const sessionId = urlParams.get('session_id');
 
-            // OPTION 1: Tokens already in URL (new flow)
-            if (accessToken && refreshToken) {
-                console.log('Tokens found in URL parameters');
-
-                // Store tokens
-                localStorage.setItem('barge2rail_access_token', accessToken);
-                localStorage.setItem('barge2rail_refresh_token', refreshToken);
-
-                // Display success
-                showSuccess({
-                    access_token: accessToken,
-                    refresh_token: refreshToken,
-                    user: {
-                        email: 'Authenticated',
-                        display_name: 'Successfully logged in'
-                    }
-                });
-
-                // Redirect to dashboard after 2 seconds
-                setTimeout(() => {
-                    window.location.href = '/dashboard/';
-                }, 2000);
-
+            // Security check: Reject if tokens appear in URL (old insecure flow)
+            if (urlParams.get('access_token') || urlParams.get('refresh_token')) {
+                console.warn('SECURITY: Tokens in URL rejected - use session exchange');
+                showError('Insecure token flow detected. Please try logging in again.');
                 return;
             }
 
-            // OPTION 2: Session exchange (old flow, kept for backward compatibility)
+            // Secure flow: Exchange session_id for tokens via API
             if (sessionId) {
                 console.log('Exchanging session for tokens:', sessionId);
 
                 try {
-                    const response = await fetch(`/api/auth/session/${sessionId}/tokens/`, {
+                    const response = await fetch(`/auth/exchange/${sessionId}/`, {
                         method: 'GET',
                         credentials: 'include',
                         headers: {
@@ -267,12 +247,17 @@
                     const data = await response.json();
                     console.log('Token exchange successful');
 
-                    // Store tokens
+                    // Store tokens securely
                     localStorage.setItem('barge2rail_access_token', data.access_token);
                     localStorage.setItem('barge2rail_refresh_token', data.refresh_token);
 
                     // Display success
                     showSuccess(data);
+
+                    // Redirect to dashboard after 2 seconds
+                    setTimeout(() => {
+                        window.location.href = '/dashboard/';
+                    }, 2000);
 
                 } catch (error) {
                     console.error('Token exchange error:', error);
@@ -281,8 +266,8 @@
                 return;
             }
 
-            // OPTION 3: No tokens or session found - error
-            showError('No authentication data provided. Please try logging in again.');
+            // No session_id provided - error
+            showError('No authentication session provided. Please try logging in again.');
         });
 
         function showSuccess(data) {

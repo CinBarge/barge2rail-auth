@@ -285,17 +285,25 @@ def login_google(request):
 @permission_classes([AllowAny])
 @ratelimit(key="ip", rate="10/1h", method="POST", block=True)
 def login_anonymous(request):
-    """Anonymous login with username and PIN"""
+    """Anonymous login with username and PIN.
+
+    Security: PIN is hashed on storage, verified using check_pin().
+    """
     username = request.data.get("username")
     pin = request.data.get("pin")
 
     if username and pin:
         # Existing anonymous user login
         try:
-            user = User.objects.get(
-                anonymous_username=username, pin_code=pin, is_anonymous=True
-            )
-            return generate_token_response(user)
+            user = User.objects.get(anonymous_username=username, is_anonymous=True)
+            # Use check_pin() to verify hashed PIN
+            if user.check_pin(pin):
+                return generate_token_response(user)
+            else:
+                return Response(
+                    {"error": "Invalid username or PIN"},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
         except User.DoesNotExist:
             return Response(
                 {"error": "Invalid username or PIN"},
@@ -309,14 +317,15 @@ def login_anonymous(request):
             is_active=True,
         )
 
-        # Save to generate username and PIN
+        # Save to generate username and PIN (hashed)
         user.save()
 
+        # Return plaintext PIN only on creation (stored in _plaintext_pin)
         return generate_token_response(
             user,
             anonymous_credentials={
                 "username": user.anonymous_username,
-                "pin": user.pin_code,
+                "pin": user._plaintext_pin,  # Plaintext only available at creation
             },
         )
 
@@ -407,8 +416,18 @@ def generate_token_response(
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def debug_google_config(request):
-    """Debug endpoint to verify Google OAuth configuration"""
+    """Debug endpoint to verify Google OAuth configuration.
+
+    Security: Disabled in production (only available when DEBUG=True).
+    """
     from django.conf import settings
+
+    # Security: Block debug endpoint in production
+    if not settings.DEBUG:
+        return Response(
+            {"error": "Debug endpoint disabled in production"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     return Response(
         {
@@ -538,6 +557,12 @@ def google_auth_callback(request):
 
     # Verify the ID token
     try:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from .models import TokenExchangeSession
+
         idinfo = id_token.verify_oauth2_token(
             id_token_value, google_requests.Request(), GOOGLE_CLIENT_ID
         )
@@ -570,14 +595,25 @@ def google_auth_callback(request):
 
         # Generate tokens for the user
         refresh = CustomRefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
 
-        # Redirect to success page with tokens
-        access = str(refresh.access_token)
-        refresh_str = str(refresh)
-        success_url = (
-            f"/login/google-success/?access_token={access}"
-            f"&refresh_token={refresh_str}"
+        # SECURITY FIX: Use TokenExchangeSession instead of URL params
+        # Tokens are never exposed in URL - only session ID is passed
+        exchange_session = TokenExchangeSession.objects.create(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user_email=email,
+            expires_at=timezone.now() + timedelta(seconds=60),  # 60 second expiry
         )
+
+        logger.info(
+            f"[GOOGLE CALLBACK] Created token exchange session "
+            f"{exchange_session.session_id} for {email}"
+        )
+
+        # Redirect with only session_id - frontend exchanges for tokens via API
+        success_url = f"/login/google-success/?session_id={exchange_session.session_id}"
         return redirect(success_url)
 
     except ValueError as e:
