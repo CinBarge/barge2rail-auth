@@ -249,6 +249,14 @@ class ApplicationRoleAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("user")
 
+    def formfield_for_choice_field(self, db_field, request, **kwargs):
+        """Dynamically populate application choices from Application model"""
+        if db_field.name == "application":
+            # Get active applications and create choices
+            apps = Application.objects.filter(is_active=True).order_by("name")
+            kwargs["choices"] = [(app.slug, app.name) for app in apps]
+        return super().formfield_for_choice_field(db_field, request, **kwargs)
+
 
 @admin.register(RefreshToken)
 class RefreshTokenAdmin(admin.ModelAdmin):
