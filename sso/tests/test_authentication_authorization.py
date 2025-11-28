@@ -262,12 +262,16 @@ class AnonymousAuthenticationTests(TestCase):
             is_anonymous=True,
             is_active=True,
         )
-        user.save()  # Triggers username and PIN generation
+        user.save()  # Triggers username and PIN generation (PIN is hashed)
 
-        # Login with credentials
+        # Get plaintext PIN before it's gone (only available right after creation)
+        # Since PIN is now hashed, we need to use _plaintext_pin attribute
+        plaintext_pin = user._plaintext_pin
+
+        # Login with credentials (use plaintext PIN, not the hash)
         response = self.client.post(
             "/auth/login/anonymous/",
-            {"username": user.anonymous_username, "pin": user.pin_code},
+            {"username": user.anonymous_username, "pin": plaintext_pin},
             content_type="application/json",
         )
 

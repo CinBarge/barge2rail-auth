@@ -363,16 +363,10 @@ class ApplicationRole(models.Model):
 
     Permissions are automatically assigned based on role selection.
     Manual override is possible by setting permissions before save.
-    """
 
-    APPLICATION_CHOICES = [
-        ("primetrade", "PrimeTrade"),
-        ("sacks", "Sacks Inventory System"),
-        ("database", "Customer Database"),
-        ("repair", "Repair Ticketing"),
-        ("barge", "Barge Tracking"),
-        ("admin", "Admin Dashboard"),
-    ]
+    Note: application field is now a ForeignKey to Application model.
+    Applications are managed through the Application model, not hardcoded choices.
+    """
 
     ROLE_CHOICES = [
         ("Admin", "Admin"),
@@ -390,7 +384,9 @@ class ApplicationRole(models.Model):
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="application_roles"
     )
-    application = models.CharField(max_length=50, choices=APPLICATION_CHOICES)
+    application = models.ForeignKey(
+        "Application", on_delete=models.CASCADE, related_name="roles"
+    )
     role = models.CharField(
         max_length=50,
         choices=ROLE_CHOICES,
