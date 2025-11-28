@@ -367,6 +367,7 @@ class ApplicationRole(models.Model):
 
     APPLICATION_CHOICES = [
         ("primetrade", "PrimeTrade"),
+        ("sacks", "Sacks Inventory System"),
         ("database", "Customer Database"),
         ("repair", "Repair Ticketing"),
         ("barge", "Barge Tracking"),
