@@ -28,18 +28,22 @@ class CustomScopeClaims(ScopeClaims):
         app_roles = ApplicationRole.objects.filter(user=user).only(
             "application", "role", "permissions"
         )
-        logger.error(f"[OIDC CLAIMS 4] Found {app_roles.count()} ApplicationRole records")
+        logger.error(
+            f"[OIDC CLAIMS 4] Found {app_roles.count()} ApplicationRole records"
+        )
 
         roles = {}
         for ar in app_roles:
-            roles[ar.application] = {
+            roles[ar.application.slug] = {
                 "role": ar.role,
                 "permissions": ar.permissions or [],
             }
-            logger.error(f"[OIDC CLAIMS 5] Added {ar.application}: {ar.role}")
+            logger.error(f"[OIDC CLAIMS 5] Added {ar.application.slug}: {ar.role}")
 
         claims["application_roles"] = roles
-        logger.error(f"[OIDC CLAIMS 6] Returning claims with keys: {list(claims.keys())}")
+        logger.error(
+            f"[OIDC CLAIMS 6] Returning claims with keys: {list(claims.keys())}"
+        )
         return claims
 
     def scope_roles(self):
@@ -51,7 +55,7 @@ class CustomScopeClaims(ScopeClaims):
         )
         roles = {}
         for ar in app_roles:
-            roles[ar.application] = {
+            roles[ar.application.slug] = {
                 "role": ar.role,
                 "permissions": ar.permissions or [],
             }

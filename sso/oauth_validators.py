@@ -217,11 +217,13 @@ class CustomOAuth2Validator(OAuth2Validator):
 
                 application_roles = {}
                 for ar in app_roles_qs:
-                    application_roles[ar.application] = {
+                    application_roles[ar.application.slug] = {
                         "role": ar.role,
                         "permissions": ar.permissions or [],
                     }
-                    logger.info(f"[CLAIMS] Added role: {ar.application} -> {ar.role}")
+                    logger.info(
+                        f"[CLAIMS] Added role: {ar.application.slug} -> {ar.role}"
+                    )
 
                 if application_roles:
                     claims["application_roles"] = application_roles

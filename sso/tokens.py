@@ -27,7 +27,7 @@ class CustomRefreshToken(BaseRefreshToken):
         # Add application roles
         application_roles = {}
         for app_role in user.application_roles.all():
-            application_roles[app_role.application] = {
+            application_roles[app_role.application.slug] = {
                 "role": app_role.role,
                 "permissions": app_role.permissions,
             }
