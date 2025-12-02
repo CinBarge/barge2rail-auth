@@ -459,10 +459,7 @@ class ApplicationRole(models.Model):
 
     def __str__(self):
         user_id = self.user.email or self.user.anonymous_username
-        return (
-            f"{user_id} - {self.get_application_display()}: "
-            f"{self.get_role_display()}"
-        )
+        return f"{user_id} - {self.application}: " f"{self.get_role_display()}"
 
 
 class RefreshToken(models.Model):
