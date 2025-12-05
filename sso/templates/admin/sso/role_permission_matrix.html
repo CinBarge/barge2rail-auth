@@ -15,8 +15,8 @@
     <a href="{% url 'admin:index' %}">Home</a>
     &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
     &rsaquo; <a href="{% url 'sso_rbac_dashboard' %}">RBAC</a>
-    &rsaquo; <a href="{% url 'admin:sso_role_changelist' %}">Roles</a>
-    &rsaquo; <a href="{% url 'admin:sso_role_change' role.pk %}">{{ role.name }}</a>
+    &rsaquo; <a href="{% url 'sso_role_list' %}">Roles</a>
+    &rsaquo; <a href="{% url 'sso_role_edit' role_id=role.pk %}">{{ role.name }}</a>
     &rsaquo; Edit Permissions
 </div>
 {% endblock %}
@@ -112,7 +112,7 @@
             <tr>
                 <td colspan="{{ permissions|length|add:1 }}" class="empty-message">
                     No features defined for this application.
-                    <a href="{% url 'admin:sso_feature_add' %}">Add features</a>
+                    <a href="{% url 'sso_feature_create' %}">Add features</a>
                 </td>
             </tr>
             {% endfor %}
@@ -121,7 +121,7 @@
 
     <div class="submit-row">
         <span class="change-indicator" id="changeIndicator">Unsaved changes</span>
-        <a href="{% url 'admin:sso_role_change' role.pk %}" class="cancel-link">Cancel</a>
+        <a href="{% url 'sso_role_list' %}" class="cancel-link">Cancel</a>
         <input type="submit" value="Save Permissions" id="saveBtn">
     </div>
 </form>
