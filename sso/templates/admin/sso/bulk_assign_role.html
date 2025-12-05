@@ -46,8 +46,13 @@
 
     <div class="form-group">
         <label for="tenant_code">Tenant Code (optional):</label>
-        <input type="text" name="tenant_code" id="tenant_code" placeholder="e.g., LIBERTY, SENCO">
-        <p class="help-text">Leave blank if this role is not tenant-specific.</p>
+        <select name="tenant_code" id="tenant_code">
+            <option value="">-- No tenant (global) --</option>
+            {% for code in tenant_codes %}
+            <option value="{{ code }}">{{ code }}</option>
+            {% endfor %}
+        </select>
+        <p class="help-text">Select a tenant if this role assignment is tenant-specific.</p>
     </div>
 
     <div class="form-group">

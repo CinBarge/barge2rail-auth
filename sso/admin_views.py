@@ -53,30 +53,64 @@ def role_permission_matrix(request, role_id):
     ).distinct()
 
     if request.method == "POST":
-        # Clear existing permissions for this role
-        RoleFeaturePermission.objects.filter(role=role).delete()
+        # Get current permissions as set of (feature_id, permission_id) tuples
+        current_perms_set = set(
+            RoleFeaturePermission.objects.filter(role=role).values_list(
+                "feature_id", "permission_id"
+            )
+        )
 
-        # Process form submission - create new permissions
-        created_count = 0
+        # Build submitted permissions set from form
+        submitted_perms_set = set()
         for feature in features:
             selected_perm_ids = request.POST.getlist(f"feature_{feature.id}")
             for perm_id in selected_perm_ids:
                 try:
-                    perm = Permission.objects.get(id=perm_id)
-                    RoleFeaturePermission.objects.create(
-                        role=role,
-                        feature=feature,
-                        permission=perm,
-                    )
-                    created_count += 1
-                except Permission.DoesNotExist:
+                    perm_id_int = int(perm_id)
+                    submitted_perms_set.add((feature.id, perm_id_int))
+                except ValueError:
                     pass
 
-        messages.success(
-            request,
-            f'Permissions for "{role.name}" saved successfully. '
-            f"{created_count} permission(s) set.",
-        )
+        # Calculate differences
+        to_delete = current_perms_set - submitted_perms_set
+        to_create = submitted_perms_set - current_perms_set
+
+        # Only delete removed permissions
+        deleted_count = 0
+        for feature_id, perm_id in to_delete:
+            RoleFeaturePermission.objects.filter(
+                role=role, feature_id=feature_id, permission_id=perm_id
+            ).delete()
+            deleted_count += 1
+
+        # Only create added permissions
+        created_count = 0
+        for feature_id, perm_id in to_create:
+            try:
+                perm = Permission.objects.get(id=perm_id)
+                feature = Feature.objects.get(id=feature_id)
+                RoleFeaturePermission.objects.create(
+                    role=role,
+                    feature=feature,
+                    permission=perm,
+                )
+                created_count += 1
+            except (Permission.DoesNotExist, Feature.DoesNotExist):
+                pass
+
+        # Informative message about what changed
+        if created_count == 0 and deleted_count == 0:
+            messages.info(request, f'No changes to "{role.name}" permissions.')
+        else:
+            parts = []
+            if created_count:
+                parts.append(f"{created_count} added")
+            if deleted_count:
+                parts.append(f"{deleted_count} removed")
+            messages.success(
+                request,
+                f'Permissions for "{role.name}" updated: {", ".join(parts)}.',
+            )
         # Stay on the permission matrix page (not redirect to role change)
         return redirect("sso_role_permission_matrix", role_id=role_id)
 
@@ -332,6 +366,7 @@ def bulk_assign_role(request):
 
         role = get_object_or_404(Role, pk=role_id)
         created_count = 0
+        assigned_emails = []
 
         for user_id in user_ids:
             user = User.objects.get(pk=user_id)
@@ -343,17 +378,33 @@ def bulk_assign_role(request):
             )
             if created:
                 created_count += 1
+                assigned_emails.append(user.email)
 
-        messages.success(request, f"Assigned {created_count} users to {role.name}")
+        # Detailed success message with user emails
+        if assigned_emails:
+            email_list = ", ".join(assigned_emails)
+            messages.success(request, f"Assigned {email_list} to {role.name}")
+        else:
+            messages.info(request, "No new assignments - users already have this role")
         return redirect("sso_bulk_assign_role")
 
     # GET: show form
     roles = Role.objects.select_related("application").filter(is_active=True)
     users = User.objects.filter(is_active=True).order_by("email")
 
+    # Get unique tenant codes for dropdown
+    tenant_codes = (
+        UserAppRole.objects.exclude(tenant_code__isnull=True)
+        .exclude(tenant_code="")
+        .values_list("tenant_code", flat=True)
+        .distinct()
+        .order_by("tenant_code")
+    )
+
     context = {
         "roles": roles,
         "users": users,
+        "tenant_codes": list(tenant_codes),
         "title": "Bulk Role Assignment",
     }
     return render(request, "admin/sso/bulk_assign_role.html", context)
