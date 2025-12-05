@@ -5,12 +5,19 @@ from django.urls import include, path
 
 from core.views import Health, SecureEcho  # add
 from sso.admin_oauth_views import admin_oauth_callback, admin_oauth_login
+from sso.admin_views import role_permission_matrix
 from sso.jwks_views import jwks_endpoint
 from sso.views import google_auth_callback
 
 urlpatterns = [
     # JWKS endpoint - must be at root for standard OAuth2/OIDC compliance
     path(".well-known/jwks.json", jwks_endpoint, name="jwks"),
+    # Custom admin views (must come before admin.site.urls)
+    path(
+        "admin/sso/role/<int:role_id>/permissions/",
+        role_permission_matrix,
+        name="sso_role_permission_matrix",
+    ),
     path("admin/", admin.site.urls),
     # Admin OAuth URLs (Phase 4) - must come before general auth includes
     path("sso/admin/oauth/login/", admin_oauth_login, name="admin_oauth_login"),

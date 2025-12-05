@@ -1,0 +1,220 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls permission_tags %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .permission-matrix {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+    }
+    .permission-matrix th,
+    .permission-matrix td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: center;
+    }
+    .permission-matrix th {
+        background-color: #417690;
+        color: white;
+        font-weight: bold;
+    }
+    .permission-matrix th.feature-header {
+        text-align: left;
+        min-width: 150px;
+    }
+    .permission-matrix tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+    .permission-matrix tr:hover {
+        background-color: #e8f4f8;
+    }
+    .permission-matrix td.feature-name {
+        text-align: left;
+        font-weight: 500;
+    }
+    .permission-matrix input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+    .quick-actions {
+        margin: 15px 0;
+        padding: 15px;
+        background-color: #f5f5f5;
+        border-radius: 5px;
+    }
+    .quick-actions button {
+        margin-right: 10px;
+        padding: 8px 15px;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background-color: white;
+    }
+    .quick-actions button:hover {
+        background-color: #e0e0e0;
+    }
+    .quick-actions button.primary {
+        background-color: #417690;
+        color: white;
+        border-color: #417690;
+    }
+    .quick-actions button.primary:hover {
+        background-color: #205067;
+    }
+    .role-info {
+        background-color: #f0f7fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    .role-info h2 {
+        margin: 0 0 10px 0;
+        color: #417690;
+    }
+    .role-info p {
+        margin: 5px 0;
+        color: #666;
+    }
+    .submit-row {
+        padding: 15px;
+        background-color: #f5f5f5;
+        text-align: right;
+        margin-top: 20px;
+    }
+    .submit-row input[type="submit"] {
+        padding: 10px 25px;
+        background-color: #417690;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    .submit-row input[type="submit"]:hover {
+        background-color: #205067;
+    }
+    .submit-row .cancel-link {
+        margin-right: 15px;
+        color: #666;
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
+    &rsaquo; <a href="{% url 'admin:sso_role_changelist' %}">Roles</a>
+    &rsaquo; <a href="{% url 'admin:sso_role_change' role.pk %}">{{ role.name }}</a>
+    &rsaquo; Edit Permissions
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="role-info">
+    <h2>{{ role.name }}</h2>
+    <p><strong>Application:</strong> {{ role.application.name }}</p>
+    <p><strong>Code:</strong> {{ role.code }}</p>
+    {% if role.description %}
+    <p><strong>Description:</strong> {{ role.description }}</p>
+    {% endif %}
+    {% if role.legacy_role %}
+    <p><strong>Legacy Role:</strong> {{ role.legacy_role }}</p>
+    {% endif %}
+</div>
+
+<form method="post" id="permission-form">
+    {% csrf_token %}
+
+    <div class="quick-actions">
+        <strong>Quick Actions:</strong>
+        <button type="button" onclick="selectAll()">Select All</button>
+        <button type="button" onclick="clearAll()">Clear All</button>
+        <button type="button" onclick="selectReadOnly()">Read-Only (View)</button>
+        <button type="button" onclick="selectReadWrite()">Read-Write (View+Create+Modify)</button>
+        <button type="button" onclick="selectFullAccess()">Full Access</button>
+    </div>
+
+    <table class="permission-matrix">
+        <thead>
+            <tr>
+                <th class="feature-header">Feature</th>
+                {% for permission in permissions %}
+                <th>{{ permission.name }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for feature in features %}
+            <tr>
+                <td class="feature-name">
+                    {{ feature.name }}
+                    {% if feature.description %}
+                    <br><small style="color: #888;">{{ feature.description }}</small>
+                    {% endif %}
+                </td>
+                {% for permission in permissions %}
+                <td>
+                    {% is_permission_set current_perms feature.id permission.id as is_checked %}
+                    <input type="checkbox"
+                           name="feature_{{ feature.id }}"
+                           value="{{ permission.id }}"
+                           data-permission="{{ permission.code }}"
+                           {% if is_checked %}checked{% endif %}>
+                </td>
+                {% endfor %}
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="{{ permissions|length|add:1 }}">
+                    No features defined for this application.
+                    <a href="{% url 'admin:sso_feature_add' %}">Add features</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="submit-row">
+        <a href="{% url 'admin:sso_role_change' role.pk %}" class="cancel-link">Cancel</a>
+        <input type="submit" value="Save Permissions" class="primary">
+    </div>
+</form>
+
+<script>
+function selectAll() {
+    document.querySelectorAll('.permission-matrix input[type="checkbox"]').forEach(cb => {
+        cb.checked = true;
+    });
+}
+
+function clearAll() {
+    document.querySelectorAll('.permission-matrix input[type="checkbox"]').forEach(cb => {
+        cb.checked = false;
+    });
+}
+
+function selectReadOnly() {
+    clearAll();
+    document.querySelectorAll('.permission-matrix input[data-permission="view"]').forEach(cb => {
+        cb.checked = true;
+    });
+}
+
+function selectReadWrite() {
+    clearAll();
+    ['view', 'create', 'modify'].forEach(perm => {
+        document.querySelectorAll(`.permission-matrix input[data-permission="${perm}"]`).forEach(cb => {
+            cb.checked = true;
+        });
+    });
+}
+
+function selectFullAccess() {
+    selectAll();
+}
+</script>
+{% endblock %}

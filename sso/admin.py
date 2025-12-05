@@ -354,7 +354,7 @@ class RoleFeaturePermissionInline(admin.TabularInline):
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
-    """Admin for application roles with inline permission assignments."""
+    """Admin for application roles with permission matrix link."""
 
     list_display = [
         "name",
@@ -363,25 +363,55 @@ class RoleAdmin(admin.ModelAdmin):
         "legacy_role",
         "is_active",
         "permission_count",
+        "edit_permissions_link",
     ]
     list_filter = ["application", "is_active", "legacy_role"]
     search_fields = ["code", "name", "application__name"]
     autocomplete_fields = ["application"]
-    readonly_fields = ["created_at", "updated_at"]
-    inlines = [RoleFeaturePermissionInline]
+    readonly_fields = ["created_at", "updated_at", "permission_matrix_link"]
 
     @admin.display(description="Permissions")
     def permission_count(self, obj):
         count = obj.feature_permissions.count()
         return f"{count} permission(s)"
 
+    @admin.display(description="Edit Permissions")
+    def edit_permissions_link(self, obj):
+        from django.utils.html import format_html
+
+        url = f"/admin/sso/role/{obj.pk}/permissions/"
+        return format_html('<a href="{}">Edit Permissions</a>', url)
+
+    @admin.display(description="Permission Matrix")
+    def permission_matrix_link(self, obj):
+        from django.utils.html import format_html
+
+        url = f"/admin/sso/role/{obj.pk}/permissions/"
+        return format_html(
+            '<a href="{}" class="button" style="padding: 10px 15px;">'
+            "Open Permission Matrix Editor</a>",
+            url,
+        )
+
     fieldsets = (
         (None, {"fields": ("application", "code", "name", "description")}),
+        (
+            "Permissions",
+            {
+                "fields": ("permission_matrix_link",),
+                "description": (
+                    "Use the Permission Matrix to edit feature "
+                    "permissions for this role."
+                ),
+            },
+        ),
         (
             "Backward Compatibility",
             {
                 "fields": ("legacy_role",),
-                "description": "Map to legacy role for apps not yet migrated to new RBAC",
+                "description": (
+                    "Map to legacy role for apps not yet migrated to new RBAC"
+                ),
             },
         ),
         ("Status", {"fields": ("is_active",)}),
