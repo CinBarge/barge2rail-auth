@@ -4,10 +4,11 @@ Custom admin views for SSO.
 Role Permission Matrix: QuickBooks-style grid for editing role permissions.
 """
 
+import re
+
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 
 from .models import Feature, Permission, Role, RoleFeaturePermission
 
@@ -55,9 +56,11 @@ def role_permission_matrix(request, role_id):
 
         messages.success(
             request,
-            f"Permissions updated for {role.name}. {created_count} permission(s) set.",
+            f'Permissions for "{role.name}" saved successfully. '
+            f"{created_count} permission(s) set.",
         )
-        return redirect(reverse("admin:sso_role_change", args=[role_id]))
+        # Stay on the permission matrix page (not redirect to role change)
+        return redirect("sso_role_permission_matrix", role_id=role_id)
 
     context = {
         "role": role,
@@ -70,3 +73,54 @@ def role_permission_matrix(request, role_id):
         "has_change_permission": True,
     }
     return render(request, "admin/sso/role_permission_matrix.html", context)
+
+
+@staff_member_required
+def clone_role(request, role_id):
+    """
+    Clone an existing role with all its permissions.
+
+    Creates a new role with the same application and permissions,
+    then redirects to the permission matrix for the new role.
+    """
+    original = get_object_or_404(Role, pk=role_id)
+    new_name = request.GET.get("name", f"{original.name} (Copy)")
+
+    # Generate a unique code from the name
+    base_code = re.sub(r"[^a-z0-9]+", "_", new_name.lower()).strip("_")
+    code = base_code
+
+    # Ensure code is unique for this application
+    counter = 1
+    while Role.objects.filter(application=original.application, code=code).exists():
+        code = f"{base_code}_{counter}"
+        counter += 1
+
+    # Create new role
+    new_role = Role.objects.create(
+        application=original.application,
+        code=code,
+        name=new_name,
+        description=f"Cloned from {original.name}",
+        legacy_role="",  # Don't copy legacy role mapping
+        is_active=True,
+    )
+
+    # Copy all permissions
+    copied_count = 0
+    for rfp in original.feature_permissions.select_related("feature", "permission"):
+        RoleFeaturePermission.objects.create(
+            role=new_role,
+            feature=rfp.feature,
+            permission=rfp.permission,
+        )
+        copied_count += 1
+
+    messages.success(
+        request,
+        f'Role "{new_name}" created with {copied_count} permission(s) '
+        f'copied from "{original.name}".',
+    )
+
+    # Redirect to permission matrix for the new role
+    return redirect("sso_role_permission_matrix", role_id=new_role.id)
