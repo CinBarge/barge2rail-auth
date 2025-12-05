@@ -24,13 +24,19 @@ class UserAdmin(BaseUserAdmin):
     add_form = CustomUserCreationForm
 
     list_display = [
-        "email",
+        "user_identifier",
         "display_name",
         "auth_type",
         "is_sso_admin",
         "is_active",
         "created_at",
     ]
+
+    @admin.display(description="User", ordering="username")
+    def user_identifier(self, obj):
+        """Show email, username, or anonymous_username - whichever is available"""
+        return obj.email or obj.username or obj.anonymous_username or f"User {obj.id}"
+
     list_filter = [
         "auth_type",
         "is_sso_admin",
