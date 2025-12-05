@@ -382,6 +382,7 @@ class ApplicationRole(models.Model):
     ROLE_CHOICES = [
         ("Admin", "Admin"),
         ("Office", "Office"),
+        ("Operator", "Operator"),
         ("Client", "Client"),
     ]
 
@@ -389,6 +390,7 @@ class ApplicationRole(models.Model):
     ROLE_PERMISSIONS = {
         "Admin": ["full_access"],
         "Office": ["read", "write", "delete"],
+        "Operator": ["read", "write"],
         "Client": ["read"],
     }
 
