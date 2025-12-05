@@ -6,7 +6,6 @@ import requests
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth import login as django_login
-from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -1092,17 +1091,46 @@ class ApplicationListCreateView(generics.ListCreateAPIView):
     serializer_class = ApplicationSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        """
+        SECURITY FIX: Filter applications based on user permissions.
+        - SSO admins can see all applications
+        - Regular users can only see applications they own or have roles in
+        """
+        user = self.request.user
+        if user.is_sso_admin:
+            return Application.objects.all()
+        # User can see apps they own or have roles in
+        from django.db.models import Q
+
+        return Application.objects.filter(Q(user=user) | Q(roles__user=user)).distinct()
+
     def perform_create(self, serializer):
         # Generate client_id and client_secret
         client_id = f"app_{secrets.token_urlsafe(16)}"
         client_secret = secrets.token_urlsafe(32)
-        serializer.save(client_id=client_id, client_secret=client_secret)
+        # Associate application with creating user
+        serializer.save(
+            client_id=client_id, client_secret=client_secret, user=self.request.user
+        )
 
 
 class ApplicationDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Application.objects.all()
     serializer_class = ApplicationSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        SECURITY FIX: Restrict access to applications.
+        - SSO admins can access any application
+        - Regular users can only access applications they own
+        """
+        user = self.request.user
+        if user.is_sso_admin:
+            return Application.objects.all()
+        # Regular users can only access their own applications
+        return Application.objects.filter(user=user)
 
 
 class UserRoleListCreateView(generics.ListCreateAPIView):
@@ -1111,7 +1139,27 @@ class UserRoleListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        """
+        SECURITY FIX: Filter user roles based on permissions.
+        - SSO admins can see all roles
+        - App owners can see roles for their applications
+        - Regular users can only see their own roles
+        """
+        from django.db.models import Q
+
+        user = self.request.user
+        base_queryset = UserRole.objects.select_related("user", "application")
+
+        # SSO admin can see everything
+        if user.is_sso_admin:
+            queryset = base_queryset.all()
+        else:
+            # User can see: their own roles OR roles in apps they own
+            queryset = base_queryset.filter(
+                Q(user=user) | Q(application__user=user)
+            ).distinct()
+
+        # Apply filters from query params
         user_id = self.request.query_params.get("user_id")
         app_id = self.request.query_params.get("app_id")
 
@@ -1122,11 +1170,66 @@ class UserRoleListCreateView(generics.ListCreateAPIView):
 
         return queryset
 
+    def perform_create(self, serializer):
+        """
+        SECURITY FIX: Validate ownership before creating roles.
+        - SSO admins can create any role
+        - App owners can create roles for their applications only
+        - Regular users cannot create roles for others
+        """
+        user = self.request.user
+        application = serializer.validated_data.get("application")
+        target_user = serializer.validated_data.get("user")
+
+        # SSO admin can create any role
+        if user.is_sso_admin:
+            serializer.save()
+            return
+
+        # App owner can create roles for their app
+        if application and application.user == user:
+            serializer.save()
+            return
+
+        # Regular user can only create roles for themselves (if allowed)
+        if target_user == user:
+            serializer.save()
+            return
+
+        # Otherwise, deny
+        from rest_framework.exceptions import PermissionDenied
+
+        security_logger.warning(
+            f"Unauthorized role creation attempt by {user.email} for app {application}"
+        )
+        raise PermissionDenied(
+            "You can only create roles for applications you own or for yourself."
+        )
+
 
 class UserRoleDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = UserRole.objects.all()
     serializer_class = UserRoleSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        SECURITY FIX: Restrict access to user roles.
+        - SSO admins can access any role
+        - App owners can access roles for their applications
+        - Users can only access their own roles
+        """
+        from django.db.models import Q
+
+        user = self.request.user
+
+        if user.is_sso_admin:
+            return UserRole.objects.all()
+
+        # User can access: their own roles OR roles in apps they own
+        return UserRole.objects.filter(
+            Q(user=user) | Q(application__user=user)
+        ).distinct()
 
 
 @api_view(["GET", "POST"])

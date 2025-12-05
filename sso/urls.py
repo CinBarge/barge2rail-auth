@@ -7,6 +7,12 @@ from .password_reset_views import (
     CustomPasswordResetDoneView,
     CustomPasswordResetView,
 )
+from .views import (
+    ApplicationDetailView,
+    ApplicationListCreateView,
+    UserRoleDetailView,
+    UserRoleListCreateView,
+)
 
 app_name = "sso"
 
@@ -88,4 +94,19 @@ urlpatterns = [
     ),
     # JWKS endpoint for JWT signature verification
     path(".well-known/jwks.json", jwks_views.jwks_endpoint, name="jwks"),
+    # Application and UserRole APIs (with security controls)
+    path(
+        "applications/",
+        ApplicationListCreateView.as_view(),
+        name="application_list_create",
+    ),
+    path(
+        "applications/<uuid:pk>/",
+        ApplicationDetailView.as_view(),
+        name="application_detail",
+    ),
+    path("user-roles/", UserRoleListCreateView.as_view(), name="user_role_list_create"),
+    path(
+        "user-roles/<uuid:pk>/", UserRoleDetailView.as_view(), name="user_role_detail"
+    ),
 ]
