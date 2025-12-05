@@ -9,7 +9,7 @@ from django.shortcuts import redirect
 from django_ratelimit.decorators import ratelimit
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .models import User
@@ -57,7 +57,10 @@ def login_email(request):
         log_login_attempt(email, ip_address, success=False)
         return Response(
             {
-                "error": "Account temporarily locked due to too many failed attempts. Try again in 15 minutes."
+                "error": (
+                    "Account temporarily locked due to too many failed attempts. "
+                    "Try again in 15 minutes."
+                )
             },
             status=status.HTTP_403_FORBIDDEN,
         )
@@ -293,9 +296,15 @@ def login_anonymous(request):
     pin = request.data.get("pin")
 
     if username and pin:
-        # Existing anonymous user login
+        # Existing anonymous user login - check both username and anonymous_username
         try:
-            user = User.objects.get(anonymous_username=username, is_anonymous=True)
+            # Check username (manual like "bob") or anonymous_username (auto)
+            from django.db.models import Q
+
+            user = User.objects.get(
+                Q(username=username) | Q(anonymous_username=username),
+                is_anonymous=True,
+            )
             # Use check_pin() to verify hashed PIN
             if user.check_pin(pin):
                 return generate_token_response(user)
@@ -328,6 +337,33 @@ def login_anonymous(request):
                 "pin": user._plaintext_pin,  # Plaintext only available at creation
             },
         )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def change_pin(request):
+    """Change PIN for anonymous user (required on first login)."""
+    user = request.user
+
+    if not user.is_anonymous:
+        return Response(
+            {"error": "PIN change only available for anonymous users"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    new_pin = request.data.get("new_pin")
+    if not new_pin or len(new_pin) != 4 or not new_pin.isdigit():
+        return Response(
+            {"error": "PIN must be exactly 4 digits"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Set new PIN and clear force_pin_change flag
+    user.set_pin(new_pin)
+    user.force_pin_change = False
+    user.save(update_fields=["pin_code", "force_pin_change"])
+
+    return Response({"message": "PIN changed successfully"})
 
 
 @api_view(["POST"])
@@ -380,6 +416,13 @@ def generate_token_response(
                 "permissions": role.permissions,
             }
 
+    # Check if user must change PIN
+    force_pin_change = (
+        hasattr(user, "force_pin_change")
+        and user.force_pin_change
+        and user.is_anonymous
+    )
+
     response_data = {
         "access_token": str(refresh.access_token),
         "refresh_token": str(refresh),
@@ -392,6 +435,7 @@ def generate_token_response(
             "is_anonymous": user.is_anonymous,
             "is_sso_admin": user.is_sso_admin,
             "roles": roles,
+            "force_pin_change": force_pin_change,
         },
     }
 

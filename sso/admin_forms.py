@@ -250,7 +250,10 @@ function updateUserFormFields() {
         elif auth_type == "anonymous":
             user.auth_method = "password"  # Will use PIN for auth
             user.is_anonymous = True
-            user.pin_code = self.cleaned_data.get("pin_code")
+            # Hash the PIN before storing (use set_pin method)
+            pin = self.cleaned_data.get("pin_code")
+            if pin:
+                user.set_pin(pin)
             user.display_name = self.cleaned_data.get("display_name")
             user.set_unusable_password()  # Anonymous users use PIN, not password
 

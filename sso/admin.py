@@ -68,6 +68,7 @@ class UserAdmin(BaseUserAdmin):
                     "is_anonymous",
                     "anonymous_username",
                     "pin_code",
+                    "force_pin_change",
                 )
             },
         ),

@@ -32,6 +32,7 @@ urlpatterns = [
     path("register/email/", auth_views.register_email, name="register_email"),
     # Anonymous Authentication
     path("login/anonymous/", auth_views.login_anonymous, name="login_anonymous"),
+    path("change-pin/", auth_views.change_pin, name="change_pin"),
     # Token Management
     path("refresh/", views.refresh_token, name="refresh_token"),
     path("validate/", views.validate_token, name="validate_token"),

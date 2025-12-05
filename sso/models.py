@@ -83,6 +83,10 @@ class User(AbstractUser):
     # PIN is stored as a hash (like password) - use set_pin()/check_pin() methods
     pin_code = models.CharField(max_length=128, blank=True, null=True)
     is_anonymous = models.BooleanField(default=False)
+    # Force user to change PIN on next login (set by admin)
+    force_pin_change = models.BooleanField(
+        default=True, help_text="User must set their own PIN on first login"
+    )
 
     # Use custom manager
     objects = UserManager()
@@ -178,6 +182,12 @@ class User(AbstractUser):
         if self.is_anonymous:
             return self.anonymous_username
         return self.email or self.username
+
+    def __str__(self):
+        """String representation for admin dropdowns and display"""
+        return (
+            self.email or self.username or self.anonymous_username or f"User {self.id}"
+        )
 
     def requires_google_oauth(self):
         """Check if user must use Google OAuth (barge2rail.com users)"""
