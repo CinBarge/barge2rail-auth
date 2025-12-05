@@ -96,12 +96,13 @@ class User(AbstractUser):
 
     def save(self, *args, **kwargs):
         # Auto-generate username based on auth_type if not set
+        # Respect manually set usernames - only auto-generate if empty
         if not self.username:
             if self.auth_type in ["email", "google"] and self.email:
                 # For email/password and Google OAuth: username = email
                 self.username = self.email
             elif self.auth_type == "anonymous" or self.is_anonymous:
-                # For anonymous users: generate unique username
+                # For anonymous users: use anonymous_username if no manual username
                 if not self.anonymous_username:
                     self.anonymous_username = self.generate_anonymous_username()
                 self.username = self.anonymous_username
@@ -109,7 +110,7 @@ class User(AbstractUser):
                 # Fallback: generate UUID-based username
                 self.username = f"user_{uuid.uuid4().hex[:8]}"
 
-        # Auto-generate anonymous username if needed for anonymous users
+        # Auto-generate anonymous username for tracking (separate from login username)
         if (
             self.auth_type == "anonymous" or self.is_anonymous
         ) and not self.anonymous_username:

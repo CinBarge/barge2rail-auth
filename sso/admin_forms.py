@@ -75,10 +75,13 @@ class CustomUserCreationForm(UserCreationForm):
         if "password2" in self.fields:
             self.fields["password2"].required = False
 
-        # Username will be auto-generated, so hide it from form
+        # Username is optional - if not provided, will be auto-generated
         if "username" in self.fields:
             self.fields["username"].required = False
-            self.fields["username"].widget = forms.HiddenInput()
+            self.fields["username"].help_text = (
+                "Optional. If blank, will be auto-generated. "
+                "For anonymous users, this is their login ID."
+            )
 
         # Add JavaScript for conditional field display
         js_code = mark_safe(  # nosec - static JavaScript, no user input
