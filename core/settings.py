@@ -189,20 +189,13 @@ DATABASES = {
     )
 }
 
-# M1.9: Password validation with minimum 8 characters
+# Password validation - simple 4-digit PIN for username accounts
+# Note: Google OAuth users don't use passwords
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": (
-            "django.contrib.auth.password_validation."
-            "UserAttributeSimilarityValidator"
-        )
-    },
-    {
         "NAME": ("django.contrib.auth.password_validation.MinimumLengthValidator"),
-        "OPTIONS": {"min_length": 8},
+        "OPTIONS": {"min_length": 4},
     },
-    {"NAME": ("django.contrib.auth.password_validation.CommonPasswordValidator")},
-    {"NAME": ("django.contrib.auth.password_validation.NumericPasswordValidator")},
 ]
 
 # Password Reset Settings
