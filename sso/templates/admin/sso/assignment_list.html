@@ -1,0 +1,110 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'sso/css/rbac-theme.css' %}">
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} rbac-page{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
+    &rsaquo; <a href="{% url 'sso_rbac_dashboard' %}">RBAC</a>
+    &rsaquo; Assignments
+</div>
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="toast-container">
+    {% for message in messages %}
+    <div class="toast {% if message.tags %}{{ message.tags }}{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<h1>User Role Assignments</h1>
+<p>View and manage which users have which roles.</p>
+
+<div class="filter-bar">
+    <form method="get" class="filter-form">
+        <label for="app">Application:</label>
+        <select name="app" id="app" onchange="this.form.submit()">
+            <option value="">All</option>
+            {% for app in apps %}
+            <option value="{{ app.id }}" {% if selected_app == app.id|stringformat:"s" %}selected{% endif %}>{{ app.name }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="role">Role:</label>
+        <select name="role" id="role" onchange="this.form.submit()">
+            <option value="">All</option>
+            {% for role in roles %}
+            <option value="{{ role.id }}" {% if selected_role == role.id|stringformat:"s" %}selected{% endif %}>{{ role.application.name }} - {{ role.name }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="q">Search:</label>
+        <input type="text" name="q" id="q" value="{{ search }}" placeholder="Email...">
+        <button type="submit" class="btn-secondary">Search</button>
+    </form>
+    <a href="{% url 'sso_bulk_assign_role' %}" class="btn-primary">Bulk Assign</a>
+</div>
+
+<table class="rbac-table">
+    <thead>
+        <tr>
+            <th>User Email</th>
+            <th>Role</th>
+            <th>Application</th>
+            <th>Tenant</th>
+            <th>Assigned By</th>
+            <th>Date</th>
+            <th>Active</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for assignment in assignments %}
+        <tr>
+            <td>{{ assignment.user.email }}</td>
+            <td>{{ assignment.role.name }}</td>
+            <td>{{ assignment.role.application.name }}</td>
+            <td>{% if assignment.tenant_code %}{{ assignment.tenant_code }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
+            <td>{% if assignment.assigned_by %}{{ assignment.assigned_by.email }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
+            <td>{{ assignment.assigned_at|date:"Y-m-d H:i" }}</td>
+            <td>{% if assignment.is_active %}<span class="badge-active">Yes</span>{% else %}<span class="badge-inactive">No</span>{% endif %}</td>
+            <td class="actions">
+                <a href="{% url 'sso_assignment_edit' assignment_id=assignment.id %}" class="btn-icon" title="Edit">&#9998;</a>
+                <a href="{% url 'sso_assignment_delete' assignment_id=assignment.id %}" class="btn-icon btn-danger" title="Remove">&#10006;</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="8" class="empty-state">No assignments found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="page-actions">
+    <a href="{% url 'sso_rbac_dashboard' %}" class="btn-secondary">&larr; Back to Dashboard</a>
+</div>
+
+<script>
+// Auto-hide toasts
+setTimeout(function() {
+    document.querySelectorAll('.toast').forEach(toast => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    });
+}, 5000);
+</script>
+{% endblock %}

@@ -1,0 +1,107 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'sso/css/rbac-theme.css' %}">
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} rbac-page{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
+    &rsaquo; <a href="{% url 'sso_rbac_dashboard' %}">RBAC</a>
+    &rsaquo; <a href="{% url 'sso_assignment_list' %}">Assignments</a>
+    &rsaquo; Edit
+</div>
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="toast-container">
+    {% for message in messages %}
+    <div class="toast {% if message.tags %}{{ message.tags }}{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<h1>Edit Assignment</h1>
+
+<form method="post" class="rbac-form">
+    {% csrf_token %}
+
+    <div class="form-group">
+        <label>User:</label>
+        <input type="text" value="{{ assignment.user.email }}" disabled>
+        <p class="help-text">User cannot be changed. To change user, remove this assignment and create a new one.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Role:</label>
+        <input type="text" value="{{ assignment.role.name }} ({{ assignment.role.application.name }})" disabled>
+        <p class="help-text">Role cannot be changed. To change role, remove this assignment and create a new one.</p>
+    </div>
+
+    <div class="form-group">
+        <label for="tenant_code">Tenant Code:</label>
+        <select name="tenant_code" id="tenant_code">
+            <option value="">-- No tenant (global) --</option>
+            {% for code in tenant_codes %}
+            <option value="{{ code }}" {% if assignment.tenant_code == code %}selected{% endif %}>{{ code }}</option>
+            {% endfor %}
+        </select>
+        <p class="help-text">For multi-tenant applications, specify which tenant this assignment applies to.</p>
+        <input type="text" id="custom_tenant" placeholder="Or enter a new tenant code..." style="margin-top: 10px;">
+    </div>
+
+    <div class="form-group checkbox-group">
+        <label>
+            <input type="checkbox" name="is_active" {% if assignment.is_active %}checked{% endif %}>
+            Active
+        </label>
+        <p class="help-text">Inactive assignments are ignored. Deactivate instead of deleting to preserve history.</p>
+    </div>
+
+    <div class="submit-row">
+        <button type="submit" class="btn-primary">Save Changes</button>
+        <a href="{% url 'sso_assignment_list' %}" class="btn-secondary">Cancel</a>
+        <a href="{% url 'sso_assignment_delete' assignment_id=assignment.id %}" class="btn-danger">Remove Assignment</a>
+    </div>
+</form>
+
+<script>
+// Allow custom tenant code entry
+document.getElementById('custom_tenant').addEventListener('input', function() {
+    const select = document.getElementById('tenant_code');
+    if (this.value) {
+        // Check if option exists, if not add it
+        let found = false;
+        for (let opt of select.options) {
+            if (opt.value === this.value) {
+                opt.selected = true;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            const option = new Option(this.value, this.value, true, true);
+            select.add(option);
+        }
+    }
+});
+
+// Auto-hide toasts
+setTimeout(function() {
+    document.querySelectorAll('.toast').forEach(toast => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    });
+}, 5000);
+</script>
+{% endblock %}

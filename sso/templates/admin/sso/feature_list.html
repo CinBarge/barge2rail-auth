@@ -1,0 +1,94 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'sso/css/rbac-theme.css' %}">
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} rbac-page{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
+    &rsaquo; <a href="{% url 'sso_rbac_dashboard' %}">RBAC</a>
+    &rsaquo; Features
+</div>
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="toast-container">
+    {% for message in messages %}
+    <div class="toast {% if message.tags %}{{ message.tags }}{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<h1>Manage Features</h1>
+<p>Features are the functional areas of an application that can have permissions assigned.</p>
+
+<div class="filter-bar">
+    <form method="get" class="filter-form">
+        <label for="app">Filter by Application:</label>
+        <select name="app" id="app" onchange="this.form.submit()">
+            <option value="">All Applications</option>
+            {% for app in apps %}
+            <option value="{{ app.id }}" {% if selected_app == app.id|stringformat:"s" %}selected{% endif %}>{{ app.name }}</option>
+            {% endfor %}
+        </select>
+    </form>
+    <a href="{% url 'sso_feature_create' %}" class="btn-primary">+ Add Feature</a>
+</div>
+
+<table class="rbac-table">
+    <thead>
+        <tr>
+            <th>Code</th>
+            <th>Name</th>
+            <th>Application</th>
+            <th>Order</th>
+            <th>Active</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for feature in features %}
+        <tr>
+            <td><code>{{ feature.code }}</code></td>
+            <td>{{ feature.name }}</td>
+            <td>{{ feature.application.name }}</td>
+            <td>{{ feature.display_order }}</td>
+            <td>{% if feature.is_active %}<span class="badge-active">Yes</span>{% else %}<span class="badge-inactive">No</span>{% endif %}</td>
+            <td class="actions">
+                <a href="{% url 'sso_feature_edit' feature_id=feature.id %}" class="btn-icon" title="Edit">&#9998;</a>
+                <a href="{% url 'sso_feature_delete' feature_id=feature.id %}" class="btn-icon btn-danger" title="Delete">&#10006;</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="6" class="empty-state">No features found. <a href="{% url 'sso_feature_create' %}">Create one</a>.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="page-actions">
+    <a href="{% url 'sso_rbac_dashboard' %}" class="btn-secondary">&larr; Back to Dashboard</a>
+</div>
+
+<script>
+// Auto-hide toasts
+setTimeout(function() {
+    document.querySelectorAll('.toast').forEach(toast => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    });
+}, 5000);
+</script>
+{% endblock %}

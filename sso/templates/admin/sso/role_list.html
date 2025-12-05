@@ -1,0 +1,100 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'sso/css/rbac-theme.css' %}">
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} rbac-page{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
+    &rsaquo; <a href="{% url 'sso_rbac_dashboard' %}">RBAC</a>
+    &rsaquo; Roles
+</div>
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="toast-container">
+    {% for message in messages %}
+    <div class="toast {% if message.tags %}{{ message.tags }}{% endif %}">
+        {{ message|safe }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<h1>Manage Roles</h1>
+<p>Roles define what users can do within an application by grouping feature permissions.</p>
+
+<div class="filter-bar">
+    <form method="get" class="filter-form">
+        <label for="app">Filter by Application:</label>
+        <select name="app" id="app" onchange="this.form.submit()">
+            <option value="">All Applications</option>
+            {% for app in apps %}
+            <option value="{{ app.id }}" {% if selected_app == app.id|stringformat:"s" %}selected{% endif %}>{{ app.name }}</option>
+            {% endfor %}
+        </select>
+    </form>
+    <a href="{% url 'sso_role_create' %}" class="btn-primary">+ Add Role</a>
+</div>
+
+<table class="rbac-table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Application</th>
+            <th>Code</th>
+            <th>Legacy</th>
+            <th>Users</th>
+            <th>Permissions</th>
+            <th>Active</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in role_data %}
+        <tr>
+            <td><strong>{{ item.role.name }}</strong></td>
+            <td>{{ item.role.application.name }}</td>
+            <td><code>{{ item.role.code }}</code></td>
+            <td>{% if item.role.legacy_role %}{{ item.role.legacy_role }}{% else %}-{% endif %}</td>
+            <td>{{ item.user_count }}</td>
+            <td>{{ item.perm_count }}</td>
+            <td>{% if item.role.is_active %}<span class="badge-active">Yes</span>{% else %}<span class="badge-inactive">No</span>{% endif %}</td>
+            <td class="actions">
+                <a href="{% url 'sso_role_permission_matrix' role_id=item.role.id %}" class="btn-icon" title="Edit Permissions">&#128274;</a>
+                <a href="{% url 'sso_role_edit' role_id=item.role.id %}" class="btn-icon" title="Edit Role">&#9998;</a>
+                <a href="{% url 'sso_clone_role' role_id=item.role.id %}" class="btn-icon" title="Clone Role">&#128203;</a>
+                <a href="{% url 'sso_role_delete' role_id=item.role.id %}" class="btn-icon btn-danger" title="Delete">&#10006;</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="8" class="empty-state">No roles found. <a href="{% url 'sso_role_create' %}">Create one</a>.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="page-actions">
+    <a href="{% url 'sso_rbac_dashboard' %}" class="btn-secondary">&larr; Back to Dashboard</a>
+</div>
+
+<script>
+// Auto-hide toasts
+setTimeout(function() {
+    document.querySelectorAll('.toast').forEach(toast => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    });
+}, 5000);
+</script>
+{% endblock %}

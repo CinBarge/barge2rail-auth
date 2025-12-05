@@ -27,72 +27,76 @@
         <div class="label">Active Roles</div>
     </div>
     <div class="stat-card">
-        <div class="number">{{ stats.total_users_with_roles }}</div>
-        <div class="label">Users with Roles</div>
+        <div class="number">{{ stats.total_features }}</div>
+        <div class="label">Active Features</div>
+    </div>
+    <div class="stat-card">
+        <div class="number">{{ stats.total_assignments }}</div>
+        <div class="label">User Assignments</div>
     </div>
     <div class="stat-card">
         <div class="number">{{ stats.total_permissions }}</div>
-        <div class="label">Permission Assignments</div>
-    </div>
-    <div class="stat-card">
-        <div class="number">{{ stats.total_roles }}</div>
-        <div class="label">Total Roles</div>
+        <div class="label">Permission Mappings</div>
     </div>
 </div>
 
-<h2 class="section-title">User & Permission Tools</h2>
+<h2 class="section-title">Manage</h2>
+<div class="tools-grid">
+    <a href="{% url 'sso_feature_list' %}" class="tool-card">
+        <h3><span class="tool-icon">&#9881;</span> Features</h3>
+        <p>Create, edit, and manage application features that can have permissions assigned.</p>
+    </a>
+    <a href="{% url 'sso_role_list' %}" class="tool-card">
+        <h3><span class="tool-icon">&#128736;</span> Roles</h3>
+        <p>Create, edit, and manage roles. Click to edit permissions in the matrix view.</p>
+    </a>
+    <a href="{% url 'sso_assignment_list' %}" class="tool-card">
+        <h3><span class="tool-icon">&#128101;</span> User Assignments</h3>
+        <p>View all user-role assignments. Edit tenant codes or remove assignments.</p>
+    </a>
+</div>
+
+<h2 class="section-title">Permissions</h2>
 <div class="tools-grid">
     <a href="{% url 'sso_effective_permissions' %}" class="tool-card">
         <h3><span class="tool-icon">&#128100;</span> Effective Permissions</h3>
-        <p>See what a specific user can actually do across all their roles. Answer "Can Bob delete invoices?"</p>
-    </a>
-    <a href="{% url 'sso_permission_search' %}" class="tool-card">
-        <h3><span class="tool-icon">&#128269;</span> Permission Search</h3>
-        <p>Find which roles have specific permissions. "Who can approve BOLs?"</p>
-    </a>
-    <a href="{% url 'sso_bulk_assign_role' %}" class="tool-card">
-        <h3><span class="tool-icon">&#128101;</span> Bulk Assignment</h3>
-        <p>Assign multiple users to a role at once. Great for onboarding teams.</p>
-    </a>
-</div>
-
-<h2 class="section-title">Role Management</h2>
-<div class="tools-grid">
-    <a href="{% url 'admin:sso_role_changelist' %}" class="tool-card">
-        <h3><span class="tool-icon">&#128736;</span> Manage Roles</h3>
-        <p>View, create, and edit roles. Use the permission matrix for fine-grained control.</p>
+        <p>See what a specific user can actually do across all their roles.</p>
     </a>
     <a href="{% url 'sso_compare_roles' %}" class="tool-card">
         <h3><span class="tool-icon">&#8646;</span> Compare Roles</h3>
         <p>Side-by-side comparison of two roles. Find differences and similarities.</p>
     </a>
+    <a href="{% url 'sso_permission_search' %}" class="tool-card">
+        <h3><span class="tool-icon">&#128269;</span> Permission Search</h3>
+        <p>Find which roles have specific permissions. "Who can approve BOLs?"</p>
+    </a>
 </div>
 
-<h2 class="section-title">Import / Export</h2>
+<h2 class="section-title">Tools</h2>
 <div class="tools-grid">
+    <a href="{% url 'sso_bulk_assign_role' %}" class="tool-card">
+        <h3><span class="tool-icon">&#128101;</span> Bulk Assign</h3>
+        <p>Assign multiple users to a role at once. Great for onboarding teams.</p>
+    </a>
     <a href="{% url 'sso_export_roles' %}" class="tool-card">
-        <h3><span class="tool-icon">&#128229;</span> Export Roles</h3>
-        <p>Download roles and permissions as JSON. Backup before changes or migrate between environments.</p>
+        <h3><span class="tool-icon">&#128229;</span> Export</h3>
+        <p>Download roles and permissions as JSON for backup or migration.</p>
     </a>
     <a href="{% url 'sso_import_roles' %}" class="tool-card">
-        <h3><span class="tool-icon">&#128228;</span> Import Roles</h3>
-        <p>Upload roles from JSON file. Restore from backup or import from another environment.</p>
+        <h3><span class="tool-icon">&#128228;</span> Import</h3>
+        <p>Upload roles from JSON file to restore or sync environments.</p>
     </a>
 </div>
 
-<h2 class="section-title">Quick Links</h2>
+<h2 class="section-title">Django Admin</h2>
 <div class="tools-grid">
-    <a href="{% url 'admin:sso_feature_changelist' %}" class="tool-card">
-        <h3><span class="tool-icon">&#9881;</span> Features</h3>
-        <p>Manage features that can have permissions assigned.</p>
-    </a>
     <a href="{% url 'admin:sso_permission_changelist' %}" class="tool-card">
         <h3><span class="tool-icon">&#128274;</span> Base Permissions</h3>
         <p>View and manage base permission types (view, create, modify, etc.)</p>
     </a>
-    <a href="{% url 'admin:sso_userapprole_changelist' %}" class="tool-card">
-        <h3><span class="tool-icon">&#128100;</span> User Role Assignments</h3>
-        <p>View all user-to-role assignments across the system.</p>
+    <a href="{% url 'admin:sso_application_changelist' %}" class="tool-card">
+        <h3><span class="tool-icon">&#127760;</span> Applications</h3>
+        <p>Manage OAuth applications and their settings.</p>
     </a>
 </div>
 {% endblock %}

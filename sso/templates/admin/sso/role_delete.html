@@ -1,0 +1,38 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'sso/css/rbac-theme.css' %}">
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} rbac-page{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
+    &rsaquo; <a href="{% url 'sso_rbac_dashboard' %}">RBAC</a>
+    &rsaquo; <a href="{% url 'sso_role_list' %}">Roles</a>
+    &rsaquo; Delete
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Delete Role</h1>
+
+<div class="delete-confirmation">
+    <p>Are you sure you want to delete the role <strong>"{{ role.name }}"</strong> ({{ role.application.name }})?</p>
+    <p class="warning">This will also delete all permission assignments for this role. This action cannot be undone.</p>
+
+    <form method="post" class="rbac-form">
+        {% csrf_token %}
+        <div class="submit-row">
+            <button type="submit" class="btn-danger">Yes, Delete Role</button>
+            <a href="{% url 'sso_role_list' %}" class="btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

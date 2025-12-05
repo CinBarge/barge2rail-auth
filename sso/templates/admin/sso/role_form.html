@@ -1,0 +1,113 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'sso/css/rbac-theme.css' %}">
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} rbac-page{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
+    &rsaquo; <a href="{% url 'sso_rbac_dashboard' %}">RBAC</a>
+    &rsaquo; <a href="{% url 'sso_role_list' %}">Roles</a>
+    &rsaquo; {% if is_edit %}Edit{% else %}Add{% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="toast-container">
+    {% for message in messages %}
+    <div class="toast {% if message.tags %}{{ message.tags }}{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<h1>{% if is_edit %}Edit Role: {{ role.name }}{% else %}Add Role{% endif %}</h1>
+
+<form method="post" class="rbac-form">
+    {% csrf_token %}
+
+    <div class="form-group">
+        <label for="application">Application:</label>
+        {% if is_edit %}
+        <input type="text" value="{{ role.application.name }}" disabled>
+        <p class="help-text">Application cannot be changed after creation.</p>
+        {% else %}
+        <select name="application" id="application" required>
+            <option value="">-- Select Application --</option>
+            {% for app in apps %}
+            <option value="{{ app.id }}">{{ app.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+    </div>
+
+    <div class="form-group">
+        <label for="code">Code:</label>
+        <input type="text" name="code" id="code" value="{% if role %}{{ role.code }}{% endif %}" required pattern="[a-z0-9_]+" title="Lowercase letters, numbers, and underscores only">
+        <p class="help-text">Machine-readable identifier (lowercase, no spaces). Example: primetrade_admin, senco_viewer</p>
+    </div>
+
+    <div class="form-group">
+        <label for="name">Name:</label>
+        <input type="text" name="name" id="name" value="{% if role %}{{ role.name }}{% endif %}" required>
+        <p class="help-text">Human-readable name. Example: PrimeTrade Admin, Senco Viewer</p>
+    </div>
+
+    <div class="form-group">
+        <label for="description">Description:</label>
+        <textarea name="description" id="description" rows="3">{% if role %}{{ role.description }}{% endif %}</textarea>
+        <p class="help-text">Optional description of what this role is for.</p>
+    </div>
+
+    <div class="form-group">
+        <label for="legacy_role">Legacy Role Mapping:</label>
+        <select name="legacy_role" id="legacy_role">
+            {% for value, label in legacy_choices %}
+            <option value="{{ value }}" {% if role and role.legacy_role == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <p class="help-text">For backward compatibility with old role system. Leave blank for new roles.</p>
+    </div>
+
+    <div class="form-group checkbox-group">
+        <label>
+            <input type="checkbox" name="is_active" {% if not is_edit or role.is_active %}checked{% endif %}>
+            Active
+        </label>
+        <p class="help-text">Inactive roles cannot be assigned to users.</p>
+    </div>
+
+    <div class="submit-row">
+        <button type="submit" class="btn-primary">{% if is_edit %}Save Changes{% else %}Create Role{% endif %}</button>
+        <a href="{% url 'sso_role_list' %}" class="btn-secondary">Cancel</a>
+        {% if is_edit %}
+        <a href="{% url 'sso_role_permission_matrix' role_id=role.id %}" class="btn-secondary">Edit Permissions</a>
+        {% endif %}
+    </div>
+</form>
+
+<script>
+// Auto-lowercase code field
+document.getElementById('code').addEventListener('input', function() {
+    this.value = this.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+});
+
+// Auto-hide toasts
+setTimeout(function() {
+    document.querySelectorAll('.toast').forEach(toast => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    });
+}, 5000);
+</script>
+{% endblock %}

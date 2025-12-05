@@ -584,6 +584,8 @@ def rbac_dashboard(request):
         .distinct()
         .count(),
         "total_permissions": RoleFeaturePermission.objects.count(),
+        "total_features": Feature.objects.filter(is_active=True).count(),
+        "total_assignments": UserAppRole.objects.filter(is_active=True).count(),
     }
 
     context = {
@@ -591,3 +593,439 @@ def rbac_dashboard(request):
         "title": "RBAC Management",
     }
     return render(request, "admin/sso/rbac_dashboard.html", context)
+
+
+# =============================================================================
+# Feature Management (RBAC Dashboard v2)
+# =============================================================================
+
+
+@staff_member_required
+def feature_list(request):
+    """List all features with filtering by application."""
+    app_id = request.GET.get("app")
+    features = Feature.objects.select_related("application").order_by(
+        "application__name", "display_order", "name"
+    )
+
+    if app_id:
+        features = features.filter(application_id=app_id)
+
+    apps = Application.objects.all()
+
+    context = {
+        "features": features,
+        "apps": apps,
+        "selected_app": app_id,
+        "title": "Manage Features",
+    }
+    return render(request, "admin/sso/feature_list.html", context)
+
+
+@staff_member_required
+def feature_create(request):
+    """Create a new feature."""
+    if request.method == "POST":
+        application_id = request.POST.get("application")
+        code = request.POST.get("code", "").lower().strip()
+        name = request.POST.get("name", "").strip()
+        description = request.POST.get("description", "").strip()
+        display_order = request.POST.get("display_order", 0) or 0
+        is_active = request.POST.get("is_active") == "on"
+
+        if not application_id or not code or not name:
+            messages.error(request, "Application, code, and name are required.")
+            return redirect("sso_feature_create")
+
+        try:
+            application = Application.objects.get(pk=application_id)
+            # Check if code already exists for this application
+            if Feature.objects.filter(application=application, code=code).exists():
+                messages.error(
+                    request,
+                    f'Feature "{code}" already exists for {application.name}.',
+                )
+                return redirect("sso_feature_create")
+
+            Feature.objects.create(
+                application=application,
+                code=code,
+                name=name,
+                description=description,
+                display_order=int(display_order),
+                is_active=is_active,
+            )
+            messages.success(request, f'Feature "{name}" created successfully.')
+            return redirect("sso_feature_list")
+        except Application.DoesNotExist:
+            messages.error(request, "Invalid application selected.")
+            return redirect("sso_feature_create")
+        except Exception as e:
+            messages.error(request, f"Error creating feature: {e}")
+            return redirect("sso_feature_create")
+
+    apps = Application.objects.all()
+    context = {
+        "apps": apps,
+        "title": "Add Feature",
+        "is_edit": False,
+    }
+    return render(request, "admin/sso/feature_form.html", context)
+
+
+@staff_member_required
+def feature_edit(request, feature_id):
+    """Edit an existing feature."""
+    feature = get_object_or_404(Feature, pk=feature_id)
+
+    if request.method == "POST":
+        code = request.POST.get("code", "").lower().strip()
+        name = request.POST.get("name", "").strip()
+        description = request.POST.get("description", "").strip()
+        display_order = request.POST.get("display_order", 0) or 0
+        is_active = request.POST.get("is_active") == "on"
+
+        if not code or not name:
+            messages.error(request, "Code and name are required.")
+            return redirect("sso_feature_edit", feature_id=feature_id)
+
+        # Check if code conflicts with another feature
+        if (
+            Feature.objects.filter(application=feature.application, code=code)
+            .exclude(pk=feature_id)
+            .exists()
+        ):
+            messages.error(
+                request, f'Another feature with code "{code}" already exists.'
+            )
+            return redirect("sso_feature_edit", feature_id=feature_id)
+
+        feature.code = code
+        feature.name = name
+        feature.description = description
+        feature.display_order = int(display_order)
+        feature.is_active = is_active
+        feature.save()
+
+        messages.success(request, f'Feature "{name}" updated successfully.')
+        return redirect("sso_feature_list")
+
+    apps = Application.objects.all()
+    context = {
+        "feature": feature,
+        "apps": apps,
+        "title": f"Edit Feature: {feature.name}",
+        "is_edit": True,
+    }
+    return render(request, "admin/sso/feature_form.html", context)
+
+
+@staff_member_required
+def feature_delete(request, feature_id):
+    """Delete a feature (only if no permissions assigned)."""
+    feature = get_object_or_404(Feature, pk=feature_id)
+
+    # Check if feature has any permissions
+    perm_count = RoleFeaturePermission.objects.filter(feature=feature).count()
+    if perm_count > 0:
+        messages.error(
+            request,
+            f'Cannot delete "{feature.name}" - has {perm_count} permission(s). '
+            f"Remove them first.",
+        )
+        return redirect("sso_feature_list")
+
+    if request.method == "POST":
+        name = feature.name
+        feature.delete()
+        messages.success(request, f'Feature "{name}" deleted.')
+        return redirect("sso_feature_list")
+
+    context = {
+        "feature": feature,
+        "title": f"Delete Feature: {feature.name}",
+    }
+    return render(request, "admin/sso/feature_delete.html", context)
+
+
+# =============================================================================
+# Role Management (RBAC Dashboard v2)
+# =============================================================================
+
+
+@staff_member_required
+def role_list(request):
+    """List all roles with filtering by application."""
+    app_id = request.GET.get("app")
+    roles = Role.objects.select_related("application").order_by(
+        "application__name", "name"
+    )
+
+    if app_id:
+        roles = roles.filter(application_id=app_id)
+
+    # Annotate with user count and permission count
+    role_data = []
+    for role in roles:
+        user_count = UserAppRole.objects.filter(role=role, is_active=True).count()
+        perm_count = RoleFeaturePermission.objects.filter(role=role).count()
+        role_data.append(
+            {
+                "role": role,
+                "user_count": user_count,
+                "perm_count": perm_count,
+            }
+        )
+
+    apps = Application.objects.all()
+
+    context = {
+        "role_data": role_data,
+        "apps": apps,
+        "selected_app": app_id,
+        "title": "Manage Roles",
+    }
+    return render(request, "admin/sso/role_list.html", context)
+
+
+@staff_member_required
+def role_create(request):
+    """Create a new role."""
+    if request.method == "POST":
+        application_id = request.POST.get("application")
+        code = request.POST.get("code", "").lower().strip()
+        name = request.POST.get("name", "").strip()
+        description = request.POST.get("description", "").strip()
+        legacy_role = request.POST.get("legacy_role", "")
+        is_active = request.POST.get("is_active") == "on"
+
+        if not application_id or not code or not name:
+            messages.error(request, "Application, code, and name are required.")
+            return redirect("sso_role_create")
+
+        try:
+            application = Application.objects.get(pk=application_id)
+            # Check if code already exists for this application
+            if Role.objects.filter(application=application, code=code).exists():
+                messages.error(
+                    request,
+                    f'Role with code "{code}" already exists for {application.name}.',
+                )
+                return redirect("sso_role_create")
+
+            role = Role.objects.create(
+                application=application,
+                code=code,
+                name=name,
+                description=description,
+                legacy_role=legacy_role,
+                is_active=is_active,
+            )
+            messages.success(
+                request,
+                f'Role "{name}" created. '
+                f'<a href="{role.id}/permissions/">Edit permissions</a>',
+            )
+            return redirect("sso_role_list")
+        except Application.DoesNotExist:
+            messages.error(request, "Invalid application selected.")
+            return redirect("sso_role_create")
+        except Exception as e:
+            messages.error(request, f"Error creating role: {e}")
+            return redirect("sso_role_create")
+
+    apps = Application.objects.all()
+    legacy_choices = [
+        ("", "-"),
+        ("Admin", "Admin"),
+        ("Office", "Office"),
+        ("Operator", "Operator"),
+        ("Client", "Client"),
+    ]
+    context = {
+        "apps": apps,
+        "legacy_choices": legacy_choices,
+        "title": "Add Role",
+        "is_edit": False,
+    }
+    return render(request, "admin/sso/role_form.html", context)
+
+
+@staff_member_required
+def role_edit(request, role_id):
+    """Edit an existing role."""
+    role = get_object_or_404(Role, pk=role_id)
+
+    if request.method == "POST":
+        code = request.POST.get("code", "").lower().strip()
+        name = request.POST.get("name", "").strip()
+        description = request.POST.get("description", "").strip()
+        legacy_role = request.POST.get("legacy_role", "")
+        is_active = request.POST.get("is_active") == "on"
+
+        if not code or not name:
+            messages.error(request, "Code and name are required.")
+            return redirect("sso_role_edit", role_id=role_id)
+
+        # Check if code conflicts with another role
+        if (
+            Role.objects.filter(application=role.application, code=code)
+            .exclude(pk=role_id)
+            .exists()
+        ):
+            messages.error(request, f'Another role with code "{code}" already exists.')
+            return redirect("sso_role_edit", role_id=role_id)
+
+        role.code = code
+        role.name = name
+        role.description = description
+        role.legacy_role = legacy_role
+        role.is_active = is_active
+        role.save()
+
+        messages.success(request, f'Role "{name}" updated successfully.')
+        return redirect("sso_role_list")
+
+    apps = Application.objects.all()
+    legacy_choices = [
+        ("", "-"),
+        ("Admin", "Admin"),
+        ("Office", "Office"),
+        ("Operator", "Operator"),
+        ("Client", "Client"),
+    ]
+    context = {
+        "role": role,
+        "apps": apps,
+        "legacy_choices": legacy_choices,
+        "title": f"Edit Role: {role.name}",
+        "is_edit": True,
+    }
+    return render(request, "admin/sso/role_form.html", context)
+
+
+@staff_member_required
+def role_delete(request, role_id):
+    """Delete a role (only if no users assigned)."""
+    role = get_object_or_404(Role, pk=role_id)
+
+    # Check if role has any users
+    user_count = UserAppRole.objects.filter(role=role, is_active=True).count()
+    if user_count > 0:
+        messages.error(
+            request,
+            f'Cannot delete "{role.name}" - {user_count} user(s) are assigned. '
+            f"Remove user assignments first.",
+        )
+        return redirect("sso_role_list")
+
+    if request.method == "POST":
+        name = role.name
+        role.delete()
+        messages.success(request, f'Role "{name}" deleted.')
+        return redirect("sso_role_list")
+
+    context = {
+        "role": role,
+        "title": f"Delete Role: {role.name}",
+    }
+    return render(request, "admin/sso/role_delete.html", context)
+
+
+# =============================================================================
+# User Role Assignment Management (RBAC Dashboard v2)
+# =============================================================================
+
+
+@staff_member_required
+def assignment_list(request):
+    """List all user role assignments with filtering."""
+    app_id = request.GET.get("app")
+    role_id = request.GET.get("role")
+    search = request.GET.get("q", "").strip()
+
+    assignments = UserAppRole.objects.select_related(
+        "user", "role", "role__application", "assigned_by"
+    ).order_by("-assigned_at")
+
+    if app_id:
+        assignments = assignments.filter(role__application_id=app_id)
+    if role_id:
+        assignments = assignments.filter(role_id=role_id)
+    if search:
+        assignments = assignments.filter(user__email__icontains=search)
+
+    apps = Application.objects.all()
+    roles = Role.objects.select_related("application").filter(is_active=True)
+
+    context = {
+        "assignments": assignments[:100],  # Limit for performance
+        "apps": apps,
+        "roles": roles,
+        "selected_app": app_id,
+        "selected_role": role_id,
+        "search": search,
+        "title": "User Role Assignments",
+    }
+    return render(request, "admin/sso/assignment_list.html", context)
+
+
+@staff_member_required
+def assignment_edit(request, assignment_id):
+    """Edit a user role assignment (tenant code only)."""
+    assignment = get_object_or_404(
+        UserAppRole.objects.select_related("user", "role", "role__application"),
+        pk=assignment_id,
+    )
+
+    if request.method == "POST":
+        tenant_code = request.POST.get("tenant_code", "").strip() or None
+        is_active = request.POST.get("is_active") == "on"
+
+        assignment.tenant_code = tenant_code
+        assignment.is_active = is_active
+        assignment.save()
+
+        messages.success(
+            request,
+            f"Assignment for {assignment.user.email} updated.",
+        )
+        return redirect("sso_assignment_list")
+
+    # Get existing tenant codes for dropdown
+    tenant_codes = (
+        UserAppRole.objects.exclude(tenant_code__isnull=True)
+        .exclude(tenant_code="")
+        .values_list("tenant_code", flat=True)
+        .distinct()
+        .order_by("tenant_code")
+    )
+
+    context = {
+        "assignment": assignment,
+        "tenant_codes": list(tenant_codes),
+        "title": f"Edit Assignment: {assignment.user.email}",
+    }
+    return render(request, "admin/sso/assignment_form.html", context)
+
+
+@staff_member_required
+def assignment_delete(request, assignment_id):
+    """Remove a user role assignment."""
+    assignment = get_object_or_404(
+        UserAppRole.objects.select_related("user", "role", "role__application"),
+        pk=assignment_id,
+    )
+
+    if request.method == "POST":
+        email = assignment.user.email
+        role_name = assignment.role.name
+        assignment.delete()
+        messages.success(request, f"Removed {email} from {role_name}.")
+        return redirect("sso_assignment_list")
+
+    context = {
+        "assignment": assignment,
+        "title": f"Remove Assignment: {assignment.user.email}",
+    }
+    return render(request, "admin/sso/assignment_delete.html", context)

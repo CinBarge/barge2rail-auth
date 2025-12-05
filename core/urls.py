@@ -6,15 +6,26 @@ from django.urls import include, path
 from core.views import Health, SecureEcho  # add
 from sso.admin_oauth_views import admin_oauth_callback, admin_oauth_login
 from sso.admin_views import (
+    assignment_delete,
+    assignment_edit,
+    assignment_list,
     bulk_assign_role,
     clone_role,
     compare_roles,
     effective_permissions,
     export_roles,
+    feature_create,
+    feature_delete,
+    feature_edit,
+    feature_list,
     import_roles,
     permission_search,
     rbac_dashboard,
+    role_create,
+    role_delete,
+    role_edit,
     role_history,
+    role_list,
     role_permission_matrix,
 )
 from sso.jwks_views import jwks_endpoint
@@ -75,6 +86,64 @@ urlpatterns = [
         "admin/sso/rbac/import/",
         import_roles,
         name="sso_import_roles",
+    ),
+    # Feature management (RBAC Dashboard v2)
+    path(
+        "admin/sso/rbac/features/",
+        feature_list,
+        name="sso_feature_list",
+    ),
+    path(
+        "admin/sso/rbac/features/add/",
+        feature_create,
+        name="sso_feature_create",
+    ),
+    path(
+        "admin/sso/rbac/features/<int:feature_id>/edit/",
+        feature_edit,
+        name="sso_feature_edit",
+    ),
+    path(
+        "admin/sso/rbac/features/<int:feature_id>/delete/",
+        feature_delete,
+        name="sso_feature_delete",
+    ),
+    # Role management (RBAC Dashboard v2)
+    path(
+        "admin/sso/rbac/roles/",
+        role_list,
+        name="sso_role_list",
+    ),
+    path(
+        "admin/sso/rbac/roles/add/",
+        role_create,
+        name="sso_role_create",
+    ),
+    path(
+        "admin/sso/rbac/roles/<int:role_id>/edit/",
+        role_edit,
+        name="sso_role_edit",
+    ),
+    path(
+        "admin/sso/rbac/roles/<int:role_id>/delete/",
+        role_delete,
+        name="sso_role_delete",
+    ),
+    # Assignment management (RBAC Dashboard v2)
+    path(
+        "admin/sso/rbac/assignments/",
+        assignment_list,
+        name="sso_assignment_list",
+    ),
+    path(
+        "admin/sso/rbac/assignments/<int:assignment_id>/edit/",
+        assignment_edit,
+        name="sso_assignment_edit",
+    ),
+    path(
+        "admin/sso/rbac/assignments/<int:assignment_id>/delete/",
+        assignment_delete,
+        name="sso_assignment_delete",
     ),
     path("admin/", admin.site.urls),
     # Admin OAuth URLs (Phase 4) - must come before general auth includes

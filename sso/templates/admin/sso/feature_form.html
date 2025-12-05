@@ -1,0 +1,106 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'sso/css/rbac-theme.css' %}">
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} rbac-page{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
+    &rsaquo; <a href="{% url 'sso_rbac_dashboard' %}">RBAC</a>
+    &rsaquo; <a href="{% url 'sso_feature_list' %}">Features</a>
+    &rsaquo; {% if is_edit %}Edit{% else %}Add{% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="toast-container">
+    {% for message in messages %}
+    <div class="toast {% if message.tags %}{{ message.tags }}{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<h1>{% if is_edit %}Edit Feature: {{ feature.name }}{% else %}Add Feature{% endif %}</h1>
+
+<form method="post" class="rbac-form">
+    {% csrf_token %}
+
+    <div class="form-group">
+        <label for="application">Application:</label>
+        {% if is_edit %}
+        <input type="text" value="{{ feature.application.name }}" disabled>
+        <p class="help-text">Application cannot be changed after creation.</p>
+        {% else %}
+        <select name="application" id="application" required>
+            <option value="">-- Select Application --</option>
+            {% for app in apps %}
+            <option value="{{ app.id }}">{{ app.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+    </div>
+
+    <div class="form-group">
+        <label for="code">Code:</label>
+        <input type="text" name="code" id="code" value="{% if feature %}{{ feature.code }}{% endif %}" required pattern="[a-z0-9_]+" title="Lowercase letters, numbers, and underscores only">
+        <p class="help-text">Machine-readable identifier (lowercase, no spaces). Example: bol, releases, schedule</p>
+    </div>
+
+    <div class="form-group">
+        <label for="name">Name:</label>
+        <input type="text" name="name" id="name" value="{% if feature %}{{ feature.name }}{% endif %}" required>
+        <p class="help-text">Human-readable name. Example: Bill of Lading, Releases, Schedule</p>
+    </div>
+
+    <div class="form-group">
+        <label for="description">Description:</label>
+        <textarea name="description" id="description" rows="3">{% if feature %}{{ feature.description }}{% endif %}</textarea>
+        <p class="help-text">Optional description of what this feature covers.</p>
+    </div>
+
+    <div class="form-group">
+        <label for="display_order">Display Order:</label>
+        <input type="number" name="display_order" id="display_order" value="{% if feature %}{{ feature.display_order }}{% else %}0{% endif %}" min="0">
+        <p class="help-text">Lower numbers appear first in lists.</p>
+    </div>
+
+    <div class="form-group checkbox-group">
+        <label>
+            <input type="checkbox" name="is_active" {% if not is_edit or feature.is_active %}checked{% endif %}>
+            Active
+        </label>
+        <p class="help-text">Inactive features won't appear in permission matrices.</p>
+    </div>
+
+    <div class="submit-row">
+        <button type="submit" class="btn-primary">{% if is_edit %}Save Changes{% else %}Create Feature{% endif %}</button>
+        <a href="{% url 'sso_feature_list' %}" class="btn-secondary">Cancel</a>
+    </div>
+</form>
+
+<script>
+// Auto-lowercase code field
+document.getElementById('code').addEventListener('input', function() {
+    this.value = this.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+});
+
+// Auto-hide toasts
+setTimeout(function() {
+    document.querySelectorAll('.toast').forEach(toast => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    });
+}, 5000);
+</script>
+{% endblock %}
