@@ -2,15 +2,27 @@
 Custom admin views for SSO.
 
 Role Permission Matrix: QuickBooks-style grid for editing role permissions.
+Enterprise RBAC Management: History, user impact, comparison, bulk assignment.
 """
 
+import json
 import re
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
-from .models import Feature, Permission, Role, RoleFeaturePermission
+from .models import (
+    Application,
+    Feature,
+    Permission,
+    Role,
+    RoleFeaturePermission,
+    User,
+    UserAppRole,
+)
 
 
 @staff_member_required
@@ -33,6 +45,12 @@ def role_permission_matrix(request, role_id):
         if rfp.feature_id not in current_perms:
             current_perms[rfp.feature_id] = set()
         current_perms[rfp.feature_id].add(rfp.permission_id)
+
+    # Get users affected by this role
+    affected_users = User.objects.filter(
+        app_roles__role=role,
+        app_roles__is_active=True,
+    ).distinct()
 
     if request.method == "POST":
         # Clear existing permissions for this role
@@ -67,6 +85,8 @@ def role_permission_matrix(request, role_id):
         "features": features,
         "permissions": permissions,
         "current_perms": current_perms,
+        "affected_users": affected_users,
+        "affected_count": affected_users.count(),
         "title": f"Edit Permissions: {role.name}",
         "opts": Role._meta,  # For admin breadcrumbs
         "has_view_permission": True,
@@ -124,3 +144,399 @@ def clone_role(request, role_id):
 
     # Redirect to permission matrix for the new role
     return redirect("sso_role_permission_matrix", role_id=new_role.id)
+
+
+# =============================================================================
+# Feature 1: Audit Trail / History
+# =============================================================================
+
+
+@staff_member_required
+def role_history(request, role_id):
+    """Display audit history for a role and its permission changes."""
+    role = get_object_or_404(Role, pk=role_id)
+
+    # Get role history
+    role_history_records = role.history.all().select_related("history_user")[:50]
+
+    # Get permission change history for this role
+    perm_history = (
+        RoleFeaturePermission.history.filter(role_id=role_id)
+        .select_related("history_user")
+        .order_by("-history_date")[:100]
+    )
+
+    context = {
+        "role": role,
+        "role_history": role_history_records,
+        "perm_history": perm_history,
+        "title": f"History: {role.name}",
+    }
+    return render(request, "admin/sso/role_history.html", context)
+
+
+# =============================================================================
+# Feature 3: Effective Permissions View
+# =============================================================================
+
+
+@staff_member_required
+def effective_permissions(request):
+    """Show what a specific user can actually do across all their roles."""
+    user_id = request.GET.get("user_id")
+    selected_user = None
+    permissions_by_app = {}
+
+    if user_id:
+        selected_user = get_object_or_404(User, pk=user_id)
+
+        # Get all active roles for this user
+        user_roles = UserAppRole.objects.filter(
+            user=selected_user,
+            is_active=True,
+        ).select_related("role", "role__application")
+
+        for user_role in user_roles:
+            app_name = user_role.role.application.name
+            if app_name not in permissions_by_app:
+                permissions_by_app[app_name] = {
+                    "roles": [],
+                    "tenant": user_role.tenant_code,
+                    "features": {},
+                }
+
+            permissions_by_app[app_name]["roles"].append(user_role.role.name)
+
+            # Merge permissions from this role
+            for rfp in user_role.role.feature_permissions.select_related(
+                "feature", "permission"
+            ):
+                feature_name = rfp.feature.name
+                if feature_name not in permissions_by_app[app_name]["features"]:
+                    permissions_by_app[app_name]["features"][feature_name] = set()
+
+                permissions_by_app[app_name]["features"][feature_name].add(
+                    rfp.permission.code
+                )
+
+    # Get all users for dropdown
+    all_users = User.objects.filter(is_active=True).order_by("email")
+    all_permissions = Permission.objects.all().order_by("display_order", "code")
+
+    context = {
+        "all_users": all_users,
+        "selected_user": selected_user,
+        "permissions_by_app": permissions_by_app,
+        "all_permissions": all_permissions,
+        "title": "Effective Permissions",
+    }
+    return render(request, "admin/sso/effective_permissions.html", context)
+
+
+# =============================================================================
+# Feature 5: Role Comparison
+# =============================================================================
+
+
+@staff_member_required
+def compare_roles(request):
+    """Side-by-side comparison of two roles."""
+    role1_id = request.GET.get("role1")
+    role2_id = request.GET.get("role2")
+    app_id = request.GET.get("app")
+
+    role1 = role2 = None
+    comparison = []
+
+    # Get apps for dropdown
+    apps = Application.objects.all()
+    selected_app = None
+    available_roles = []
+
+    if app_id:
+        selected_app = get_object_or_404(Application, pk=app_id)
+        available_roles = Role.objects.filter(application=selected_app)
+
+        if role1_id and role2_id:
+            role1 = get_object_or_404(Role, pk=role1_id)
+            role2 = get_object_or_404(Role, pk=role2_id)
+
+            # Build comparison data
+            features = Feature.objects.filter(application=selected_app)
+            permissions = Permission.objects.all().order_by("display_order", "code")
+
+            role1_perms = {}
+            for rfp in role1.feature_permissions.select_related(
+                "feature", "permission"
+            ):
+                if rfp.feature_id not in role1_perms:
+                    role1_perms[rfp.feature_id] = set()
+                role1_perms[rfp.feature_id].add(rfp.permission.code)
+
+            role2_perms = {}
+            for rfp in role2.feature_permissions.select_related(
+                "feature", "permission"
+            ):
+                if rfp.feature_id not in role2_perms:
+                    role2_perms[rfp.feature_id] = set()
+                role2_perms[rfp.feature_id].add(rfp.permission.code)
+
+            for feature in features:
+                r1_perms = role1_perms.get(feature.id, set())
+                r2_perms = role2_perms.get(feature.id, set())
+
+                feature_comparison = {
+                    "feature": feature,
+                    "permissions": [],
+                }
+
+                for perm in permissions:
+                    in_r1 = perm.code in r1_perms
+                    in_r2 = perm.code in r2_perms
+                    diff = "same" if in_r1 == in_r2 else "different"
+                    feature_comparison["permissions"].append(
+                        {
+                            "perm": perm,
+                            "role1": in_r1,
+                            "role2": in_r2,
+                            "diff": diff,
+                        }
+                    )
+
+                comparison.append(feature_comparison)
+
+    context = {
+        "apps": apps,
+        "selected_app": selected_app,
+        "available_roles": available_roles,
+        "role1": role1,
+        "role2": role2,
+        "comparison": comparison,
+        "title": "Compare Roles",
+    }
+    return render(request, "admin/sso/compare_roles.html", context)
+
+
+# =============================================================================
+# Feature 6: Bulk User Assignment
+# =============================================================================
+
+
+@staff_member_required
+def bulk_assign_role(request):
+    """Assign multiple users to a role at once."""
+    if request.method == "POST":
+        role_id = request.POST.get("role")
+        user_ids = request.POST.getlist("users")
+        tenant_code = request.POST.get("tenant_code") or None
+
+        role = get_object_or_404(Role, pk=role_id)
+        created_count = 0
+
+        for user_id in user_ids:
+            user = User.objects.get(pk=user_id)
+            _, created = UserAppRole.objects.get_or_create(
+                user=user,
+                role=role,
+                tenant_code=tenant_code,
+                defaults={"is_active": True, "assigned_by": request.user},
+            )
+            if created:
+                created_count += 1
+
+        messages.success(request, f"Assigned {created_count} users to {role.name}")
+        return redirect("sso_bulk_assign_role")
+
+    # GET: show form
+    roles = Role.objects.select_related("application").filter(is_active=True)
+    users = User.objects.filter(is_active=True).order_by("email")
+
+    context = {
+        "roles": roles,
+        "users": users,
+        "title": "Bulk Role Assignment",
+    }
+    return render(request, "admin/sso/bulk_assign_role.html", context)
+
+
+# =============================================================================
+# Feature 7: Export/Import JSON
+# =============================================================================
+
+
+@staff_member_required
+def export_roles(request, app_id=None):
+    """Export roles and permissions as JSON."""
+    roles_query = Role.objects.all()
+    if app_id:
+        roles_query = roles_query.filter(application_id=app_id)
+
+    export_data = {
+        "exported_at": timezone.now().isoformat(),
+        "roles": [],
+    }
+
+    for role in roles_query.select_related("application").prefetch_related(
+        "feature_permissions__permission", "feature_permissions__feature"
+    ):
+        role_data = {
+            "application": role.application.slug,
+            "code": role.code,
+            "name": role.name,
+            "description": role.description,
+            "legacy_role": role.legacy_role,
+            "permissions": {},
+        }
+
+        for rfp in role.feature_permissions.all():
+            if rfp.feature.code not in role_data["permissions"]:
+                role_data["permissions"][rfp.feature.code] = []
+            role_data["permissions"][rfp.feature.code].append(rfp.permission.code)
+
+        export_data["roles"].append(role_data)
+
+    response = HttpResponse(
+        json.dumps(export_data, indent=2),
+        content_type="application/json",
+    )
+    response["Content-Disposition"] = 'attachment; filename="rbac_export.json"'
+    return response
+
+
+@staff_member_required
+def import_roles(request):
+    """Import roles and permissions from JSON."""
+    if request.method == "POST" and request.FILES.get("file"):
+        try:
+            data = json.load(request.FILES["file"])
+            created = 0
+            updated = 0
+
+            for role_data in data.get("roles", []):
+                app = Application.objects.get(slug__iexact=role_data["application"])
+
+                role, was_created = Role.objects.update_or_create(
+                    application=app,
+                    code=role_data["code"],
+                    defaults={
+                        "name": role_data.get("name", role_data["code"]),
+                        "description": role_data.get("description", ""),
+                        "legacy_role": role_data.get("legacy_role", ""),
+                    },
+                )
+
+                if was_created:
+                    created += 1
+                else:
+                    updated += 1
+
+                # Clear existing permissions and set new ones
+                RoleFeaturePermission.objects.filter(role=role).delete()
+
+                for feature_code, perm_codes in role_data.get(
+                    "permissions", {}
+                ).items():
+                    try:
+                        feature = Feature.objects.get(
+                            application=app, code=feature_code
+                        )
+                        for perm_code in perm_codes:
+                            try:
+                                perm = Permission.objects.get(code=perm_code)
+                                RoleFeaturePermission.objects.create(
+                                    role=role,
+                                    feature=feature,
+                                    permission=perm,
+                                )
+                            except Permission.DoesNotExist:
+                                pass
+                    except Feature.DoesNotExist:
+                        pass
+
+            messages.success(
+                request, f"Import complete: {created} created, {updated} updated"
+            )
+        except Exception as e:
+            messages.error(request, f"Import failed: {e!s}")
+
+        return redirect("sso_import_roles")
+
+    return render(request, "admin/sso/import_roles.html", {"title": "Import Roles"})
+
+
+# =============================================================================
+# Feature 8: Permission Search
+# =============================================================================
+
+
+@staff_member_required
+def permission_search(request):
+    """Find which roles have specific permissions."""
+    feature_code = request.GET.get("feature")
+    perm_code = request.GET.get("permission")
+    app_id = request.GET.get("app")
+
+    results = []
+
+    if feature_code and perm_code:
+        query = RoleFeaturePermission.objects.filter(
+            feature__code=feature_code,
+            permission__code=perm_code,
+        ).select_related("role", "role__application", "feature")
+
+        if app_id:
+            query = query.filter(role__application_id=app_id)
+
+        for rfp in query:
+            user_count = UserAppRole.objects.filter(
+                role=rfp.role, is_active=True
+            ).count()
+            results.append(
+                {
+                    "role": rfp.role,
+                    "feature": rfp.feature,
+                    "user_count": user_count,
+                }
+            )
+
+    apps = Application.objects.all()
+    features = Feature.objects.all().order_by("application", "name")
+    permissions = Permission.objects.all().order_by("display_order", "code")
+
+    context = {
+        "apps": apps,
+        "features": features,
+        "permissions": permissions,
+        "results": results,
+        "selected_feature": feature_code,
+        "selected_permission": perm_code,
+        "selected_app": app_id,
+        "title": "Permission Search",
+    }
+    return render(request, "admin/sso/permission_search.html", context)
+
+
+# =============================================================================
+# RBAC Dashboard
+# =============================================================================
+
+
+@staff_member_required
+def rbac_dashboard(request):
+    """Main dashboard for RBAC management tools."""
+    # Get some stats
+    stats = {
+        "total_roles": Role.objects.count(),
+        "active_roles": Role.objects.filter(is_active=True).count(),
+        "total_users_with_roles": UserAppRole.objects.filter(is_active=True)
+        .values("user")
+        .distinct()
+        .count(),
+        "total_permissions": RoleFeaturePermission.objects.count(),
+    }
+
+    context = {
+        "stats": stats,
+        "title": "RBAC Management",
+    }
+    return render(request, "admin/sso/rbac_dashboard.html", context)

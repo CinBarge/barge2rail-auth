@@ -1,0 +1,180 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .history-container {
+        padding: 20px;
+    }
+    .role-info {
+        background-color: #e8f4e8;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        border-left: 4px solid #005500;
+    }
+    .role-info h2 {
+        margin: 0 0 10px 0;
+        color: #005500;
+    }
+    .history-section {
+        margin-bottom: 30px;
+    }
+    .history-section h3 {
+        color: #005500;
+        border-bottom: 2px solid #005500;
+        padding-bottom: 10px;
+    }
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .history-table th,
+    .history-table td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: left;
+    }
+    .history-table th {
+        background-color: #005500;
+        color: white;
+    }
+    .history-table tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+    .history-table tr:hover {
+        background-color: #e8f4e8;
+    }
+    .change-type {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 3px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    .change-type.created {
+        background-color: #28a745;
+        color: white;
+    }
+    .change-type.changed {
+        background-color: #ffc107;
+        color: black;
+    }
+    .change-type.deleted {
+        background-color: #dc3545;
+        color: white;
+    }
+    .back-link {
+        display: inline-block;
+        margin-top: 20px;
+        padding: 10px 20px;
+        background-color: #005500;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+    }
+    .back-link:hover {
+        background-color: #003300;
+        color: white;
+    }
+    .empty-message {
+        color: #666;
+        font-style: italic;
+        padding: 20px;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
+    &rsaquo; <a href="{% url 'admin:sso_role_changelist' %}">Roles</a>
+    &rsaquo; <a href="{% url 'admin:sso_role_change' role.pk %}">{{ role.name }}</a>
+    &rsaquo; History
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="history-container">
+    <div class="role-info">
+        <h2>{{ role.name }}</h2>
+        <p><strong>Application:</strong> {{ role.application.name }}</p>
+        <p><strong>Code:</strong> {{ role.code }}</p>
+    </div>
+
+    <div class="history-section">
+        <h3>Role Changes</h3>
+        {% if role_history %}
+        <table class="history-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Changed By</th>
+                    <th>Type</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in role_history %}
+                <tr>
+                    <td>{{ record.history_date|date:"M d, Y H:i" }}</td>
+                    <td>{{ record.history_user.email|default:"System" }}</td>
+                    <td>
+                        <span class="change-type {% if record.history_type == '+' %}created{% elif record.history_type == '~' %}changed{% else %}deleted{% endif %}">
+                            {% if record.history_type == '+' %}Created
+                            {% elif record.history_type == '~' %}Changed
+                            {% else %}Deleted{% endif %}
+                        </span>
+                    </td>
+                    <td>{{ record.history_change_reason|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-message">No role history records found.</p>
+        {% endif %}
+    </div>
+
+    <div class="history-section">
+        <h3>Permission Changes</h3>
+        {% if perm_history %}
+        <table class="history-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Changed By</th>
+                    <th>Type</th>
+                    <th>Feature</th>
+                    <th>Permission</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in perm_history %}
+                <tr>
+                    <td>{{ record.history_date|date:"M d, Y H:i" }}</td>
+                    <td>{{ record.history_user.email|default:"System" }}</td>
+                    <td>
+                        <span class="change-type {% if record.history_type == '+' %}created{% elif record.history_type == '~' %}changed{% else %}deleted{% endif %}">
+                            {% if record.history_type == '+' %}Added
+                            {% elif record.history_type == '~' %}Changed
+                            {% else %}Removed{% endif %}
+                        </span>
+                    </td>
+                    <td>{{ record.feature.name|default:"(deleted)" }}</td>
+                    <td>{{ record.permission.name|default:"(deleted)" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-message">No permission history records found.</p>
+        {% endif %}
+    </div>
+
+    <a href="{% url 'sso_role_permission_matrix' role.pk %}" class="back-link">Back to Permission Matrix</a>
+</div>
+{% endblock %}

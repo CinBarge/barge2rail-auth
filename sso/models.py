@@ -8,6 +8,7 @@ from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.utils import timezone
 from oauth2_provider.models import AbstractApplication
+from simple_history.models import HistoricalRecords
 
 
 class UserManager(BaseUserManager):
@@ -848,10 +849,13 @@ class Role(models.Model):
     legacy_role = models.CharField(
         max_length=50,
         blank=True,
-        help_text="Legacy role code for backward compatibility (Admin/Office/Operator/Client)",
+        help_text="Legacy role code for backward compatibility",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Audit trail
+    history = HistoricalRecords()
 
     class Meta:
         db_table = "sso_roles"
@@ -913,6 +917,9 @@ class RoleFeaturePermission(models.Model):
         related_name="role_feature_permissions",
     )
 
+    # Audit trail
+    history = HistoricalRecords()
+
     class Meta:
         db_table = "sso_role_feature_permissions"
         unique_together = ["role", "feature", "permission"]
@@ -971,6 +978,9 @@ class UserAppRole(models.Model):
         blank=True,
         help_text="Optional notes about this assignment",
     )
+
+    # Audit trail
+    history = HistoricalRecords()
 
     class Meta:
         db_table = "sso_user_app_roles"

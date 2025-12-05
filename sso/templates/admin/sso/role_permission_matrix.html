@@ -212,6 +212,25 @@
     .change-indicator.visible {
         display: inline-block;
     }
+
+    /* User impact warning */
+    .user-impact-warning {
+        background-color: #fff3cd;
+        border: 1px solid #ffc107;
+        border-left: 4px solid #ffc107;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 15px 0;
+    }
+    .user-impact-warning strong {
+        color: #856404;
+    }
+    .affected-users {
+        display: block;
+        margin-top: 8px;
+        color: #666;
+        font-size: 14px;
+    }
 </style>
 {% endblock %}
 
@@ -252,7 +271,17 @@
 
 <div class="actions-row">
     <button type="button" class="button" onclick="cloneRole()">Clone This Role</button>
+    <a href="{% url 'sso_role_history' role.pk %}" class="button">View History</a>
 </div>
+
+{% if affected_count > 0 %}
+<div class="user-impact-warning">
+    <strong>&#9888; Impact Warning:</strong> {{ affected_count }} user{{ affected_count|pluralize }} currently {{ affected_count|pluralize:"has,have" }} this role:
+    <span class="affected-users">
+        {% for user in affected_users|slice:":5" %}{{ user.email }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if affected_count > 5 %} and {{ affected_count|add:"-5" }} more...{% endif %}
+    </span>
+</div>
+{% endif %}
 
 <form method="post" id="permission-form">
     {% csrf_token %}

@@ -140,6 +140,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "oauth2_provider",
     "mcp_server",
+    "simple_history",
     # Local apps (after oauth2_provider to override admin)
     "sso",
     "dashboard",
@@ -156,6 +157,7 @@ MIDDLEWARE = [
     "sso.middleware.OAuthAdminMiddleware",  # OAuth authentication for admin
     "sso.middleware.OAuthSessionDiagnosticMiddleware",  # Session diagnostics
     "sso.middleware.SessionActivityMiddleware",  # Gate 7: Session timeout tracking
+    "simple_history.middleware.HistoryRequestMiddleware",  # Audit trail
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]

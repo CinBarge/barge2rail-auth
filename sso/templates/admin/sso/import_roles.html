@@ -1,0 +1,194 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .import-container {
+        padding: 20px;
+    }
+    .import-form {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 20px;
+        max-width: 600px;
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    .form-group label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: #005500;
+    }
+    .form-group input[type="file"] {
+        display: block;
+        padding: 10px;
+        border: 2px dashed #ddd;
+        border-radius: 4px;
+        width: 100%;
+        box-sizing: border-box;
+        cursor: pointer;
+    }
+    .form-group input[type="file"]:hover {
+        border-color: #005500;
+    }
+    .help-text {
+        color: #666;
+        font-size: 13px;
+        margin-top: 8px;
+    }
+    .warning-box {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        border-radius: 4px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .warning-box strong {
+        color: #856404;
+    }
+    .submit-row {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #ddd;
+    }
+    .submit-row button {
+        padding: 12px 30px;
+        background: #005500;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    .submit-row button:hover {
+        background: #003300;
+    }
+    .back-link {
+        display: inline-block;
+        margin-left: 10px;
+        padding: 12px 30px;
+        background: #666;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+    }
+    .back-link:hover {
+        background: #444;
+        color: white;
+    }
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+    }
+    .toast {
+        background: #28a745;
+        color: white;
+        padding: 15px 20px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .toast.error {
+        background: #dc3545;
+    }
+    .format-info {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 4px;
+        margin-top: 20px;
+    }
+    .format-info h4 {
+        margin: 0 0 10px 0;
+        color: #005500;
+    }
+    .format-info pre {
+        background: #333;
+        color: #0f0;
+        padding: 15px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-size: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
+    &rsaquo; <a href="{% url 'sso_rbac_dashboard' %}">RBAC</a>
+    &rsaquo; Import Roles
+</div>
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="toast-container">
+    {% for message in messages %}
+    <div class="toast {% if message.tags %}{{ message.tags }}{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="import-container">
+    <h1>Import Roles</h1>
+    <p>Upload roles and permissions from a JSON file.</p>
+
+    <form method="post" enctype="multipart/form-data" class="import-form">
+        {% csrf_token %}
+
+        <div class="warning-box">
+            <strong>Warning:</strong> Importing will update existing roles if they match by application + code.
+            Permissions for matching roles will be replaced with the imported values.
+        </div>
+
+        <div class="form-group">
+            <label for="file">JSON File:</label>
+            <input type="file" name="file" id="file" accept=".json" required>
+            <p class="help-text">Select a JSON file exported from the RBAC export tool.</p>
+        </div>
+
+        <div class="submit-row">
+            <button type="submit">Import Roles</button>
+            <a href="{% url 'sso_rbac_dashboard' %}" class="back-link">Cancel</a>
+        </div>
+    </form>
+
+    <div class="format-info">
+        <h4>Expected JSON Format:</h4>
+        <pre>{
+  "exported_at": "2024-01-15T10:30:00Z",
+  "roles": [
+    {
+      "application": "primetrade",
+      "code": "admin",
+      "name": "Administrator",
+      "description": "Full access",
+      "legacy_role": "Admin",
+      "permissions": {
+        "bol": ["view", "create", "modify", "delete"],
+        "reports": ["view", "export"]
+      }
+    }
+  ]
+}</pre>
+    </div>
+</div>
+
+<script>
+setTimeout(function() {
+    document.querySelectorAll('.toast').forEach(toast => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    });
+}, 5000);
+</script>
+{% endblock %}

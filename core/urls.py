@@ -5,7 +5,18 @@ from django.urls import include, path
 
 from core.views import Health, SecureEcho  # add
 from sso.admin_oauth_views import admin_oauth_callback, admin_oauth_login
-from sso.admin_views import clone_role, role_permission_matrix
+from sso.admin_views import (
+    bulk_assign_role,
+    clone_role,
+    compare_roles,
+    effective_permissions,
+    export_roles,
+    import_roles,
+    permission_search,
+    rbac_dashboard,
+    role_history,
+    role_permission_matrix,
+)
 from sso.jwks_views import jwks_endpoint
 from sso.views import google_auth_callback
 
@@ -22,6 +33,48 @@ urlpatterns = [
         "admin/sso/role/<int:role_id>/clone/",
         clone_role,
         name="sso_clone_role",
+    ),
+    path(
+        "admin/sso/role/<int:role_id>/history/",
+        role_history,
+        name="sso_role_history",
+    ),
+    # RBAC management views
+    path("admin/sso/rbac/", rbac_dashboard, name="sso_rbac_dashboard"),
+    path(
+        "admin/sso/rbac/effective-permissions/",
+        effective_permissions,
+        name="sso_effective_permissions",
+    ),
+    path(
+        "admin/sso/rbac/compare-roles/",
+        compare_roles,
+        name="sso_compare_roles",
+    ),
+    path(
+        "admin/sso/rbac/bulk-assign/",
+        bulk_assign_role,
+        name="sso_bulk_assign_role",
+    ),
+    path(
+        "admin/sso/rbac/permission-search/",
+        permission_search,
+        name="sso_permission_search",
+    ),
+    path(
+        "admin/sso/rbac/export/",
+        export_roles,
+        name="sso_export_roles",
+    ),
+    path(
+        "admin/sso/rbac/export/<int:app_id>/",
+        export_roles,
+        name="sso_export_roles_app",
+    ),
+    path(
+        "admin/sso/rbac/import/",
+        import_roles,
+        name="sso_import_roles",
     ),
     path("admin/", admin.site.urls),
     # Admin OAuth URLs (Phase 4) - must come before general auth includes
