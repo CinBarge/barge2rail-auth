@@ -684,3 +684,324 @@ class PasswordResetToken(models.Model):
         """Delete expired tokens (run periodically via management command)"""
         expired_count = cls.objects.filter(expires_at__lt=timezone.now()).delete()[0]
         return expired_count
+
+
+# =============================================================================
+# Phase 5: Flexible RBAC Models (December 2025)
+# =============================================================================
+# These models replace the hardcoded role system with customizable,
+# per-feature permissions managed through Django Admin.
+#
+# Architecture:
+# - Permission: Actions (view, create, modify, delete)
+# - Feature: App-specific features (e.g., "BOL", "Releases", "Schedule")
+# - Role: Application-specific roles (e.g., "PrimeTrade Admin", "Senco Viewer")
+# - RoleFeaturePermission: Maps Role + Feature → Permissions
+# - UserAppRole: Assigns users to roles with optional tenant scope
+#
+# Backward Compatibility:
+# - JWT claims include both legacy 'role' and new 'permissions' structure
+# - Apps can check either format during transition
+# =============================================================================
+
+
+class Permission(models.Model):
+    """
+    Base permission actions available in the system.
+
+    Standard CRUD permissions plus special actions.
+    These are system-wide and not application-specific.
+
+    Example permissions:
+    - view: Can see/read data
+    - create: Can create new records
+    - modify: Can update existing records
+    - delete: Can remove records
+    - export: Can export/download data
+    - approve: Can approve workflows
+    """
+
+    code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Machine-readable code (e.g., 'view', 'create', 'modify', 'delete')",
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Human-readable name (e.g., 'View', 'Create', 'Modify', 'Delete')",
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Description of what this permission allows",
+    )
+    display_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Order for display in admin UI",
+    )
+
+    class Meta:
+        db_table = "sso_permissions"
+        ordering = ["display_order", "code"]
+
+    def __str__(self):
+        return self.name
+
+
+class Feature(models.Model):
+    """
+    Application features that can have permissions assigned.
+
+    Each application defines its own features. Features are the "what"
+    that permissions are applied to.
+
+    Example features for PrimeTrade:
+    - bol: Bill of Lading management
+    - releases: Release management
+    - schedule: Loading schedule
+    - products: Product catalog
+    - customers: Customer database
+    - reports: Reporting dashboard
+
+    Example features for Senco:
+    - coils: Coil inventory management
+    - shipments: Shipment tracking
+    - weights: Weight records
+    """
+
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="features",
+        help_text="Application this feature belongs to",
+    )
+    code = models.CharField(
+        max_length=50,
+        help_text="Machine-readable code (e.g., 'bol', 'releases', 'schedule')",
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Human-readable name (e.g., 'Bill of Lading', 'Releases')",
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Description of this feature",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive features won't be included in JWT claims",
+    )
+    display_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Order for display in admin UI",
+    )
+
+    class Meta:
+        db_table = "sso_features"
+        unique_together = ["application", "code"]
+        ordering = ["application", "display_order", "code"]
+
+    def __str__(self):
+        return f"{self.application.name}: {self.name}"
+
+
+class Role(models.Model):
+    """
+    Application-specific roles that group feature permissions.
+
+    Roles are defined per-application and can be customized by admins.
+    Each role contains a set of feature permissions.
+
+    Example roles for PrimeTrade:
+    - primetrade_admin: Full access to all features
+    - primetrade_office: Daily operations access
+    - primetrade_operator: Field worker access (limited features)
+    - primetrade_client: View-only access to specific features
+
+    Example roles for Senco:
+    - senco_admin: Full access
+    - senco_viewer: Read-only access
+    """
+
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="custom_roles",
+        help_text="Application this role belongs to",
+    )
+    code = models.CharField(
+        max_length=50,
+        help_text="Machine-readable code (e.g., 'primetrade_admin', 'senco_viewer')",
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Human-readable name (e.g., 'PrimeTrade Admin', 'Senco Viewer')",
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Description of this role's purpose and access level",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive roles cannot be assigned to users",
+    )
+    # Maps to legacy role for backward compatibility
+    legacy_role = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Legacy role code for backward compatibility (Admin/Office/Operator/Client)",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "sso_roles"
+        unique_together = ["application", "code"]
+        ordering = ["application", "name"]
+
+    def __str__(self):
+        return f"{self.application.name}: {self.name}"
+
+    def get_permissions_dict(self):
+        """
+        Get all permissions for this role as a dictionary.
+
+        Returns:
+            dict: {feature_code: [permission_codes]}
+
+        Example:
+            {
+                'bol': ['view', 'create', 'modify'],
+                'releases': ['view'],
+                'schedule': ['view', 'create', 'modify', 'delete'],
+            }
+        """
+        permissions = {}
+        for rfp in self.feature_permissions.select_related("feature", "permission"):
+            if rfp.feature.is_active:
+                if rfp.feature.code not in permissions:
+                    permissions[rfp.feature.code] = []
+                permissions[rfp.feature.code].append(rfp.permission.code)
+        return permissions
+
+
+class RoleFeaturePermission(models.Model):
+    """
+    Maps a Role + Feature to a Permission.
+
+    This is the many-to-many relationship that defines exactly
+    what each role can do with each feature.
+
+    Example entries:
+    - PrimeTrade Admin + BOL → view, create, modify, delete
+    - PrimeTrade Office + BOL → view, create, modify
+    - PrimeTrade Client + BOL → view
+    """
+
+    role = models.ForeignKey(
+        Role,
+        on_delete=models.CASCADE,
+        related_name="feature_permissions",
+    )
+    feature = models.ForeignKey(
+        Feature,
+        on_delete=models.CASCADE,
+        related_name="role_permissions",
+    )
+    permission = models.ForeignKey(
+        Permission,
+        on_delete=models.CASCADE,
+        related_name="role_feature_permissions",
+    )
+
+    class Meta:
+        db_table = "sso_role_feature_permissions"
+        unique_together = ["role", "feature", "permission"]
+        ordering = ["role", "feature", "permission"]
+
+    def __str__(self):
+        return f"{self.role.name} → {self.feature.name}: {self.permission.name}"
+
+
+class UserAppRole(models.Model):
+    """
+    Assigns a user to a role for a specific application.
+
+    This replaces ApplicationRole for the new RBAC system.
+    Supports tenant-scoped role assignments for multi-tenant apps.
+
+    Key differences from ApplicationRole:
+    - Uses Role model instead of hardcoded ROLE_CHOICES
+    - Supports optional tenant scoping
+    - Permissions derived from Role's feature permissions
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="app_roles",
+    )
+    role = models.ForeignKey(
+        Role,
+        on_delete=models.CASCADE,
+        related_name="user_assignments",
+        help_text="Role assigned to this user",
+    )
+    # Optional tenant scoping for multi-tenant applications
+    tenant_code = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Tenant code for multi-tenant apps (e.g., 'LIBERTY', 'SENCO')",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive assignments are ignored",
+    )
+    assigned_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="role_assignments_made",
+        help_text="User who made this assignment",
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    notes = models.TextField(
+        blank=True,
+        help_text="Optional notes about this assignment",
+    )
+
+    class Meta:
+        db_table = "sso_user_app_roles"
+        ordering = ["user", "role", "tenant_code"]
+        # Note: unique constraint is enforced at database level
+        # A user can have different roles for different tenants in the same app
+
+    def __str__(self):
+        tenant_str = f" ({self.tenant_code})" if self.tenant_code else ""
+        return f"{self.user}: {self.role.name}{tenant_str}"
+
+    def get_permissions(self):
+        """
+        Get all permissions for this user's role.
+
+        Returns:
+            dict: {feature_code: [permission_codes]}
+        """
+        return self.role.get_permissions_dict()
+
+    def has_permission(self, feature_code, permission_code):
+        """
+        Check if user has a specific permission for a feature.
+
+        Args:
+            feature_code: Feature to check (e.g., 'bol')
+            permission_code: Permission to check (e.g., 'modify')
+
+        Returns:
+            bool: True if user has the permission
+        """
+        permissions = self.get_permissions()
+        feature_perms = permissions.get(feature_code, [])
+        return permission_code in feature_perms

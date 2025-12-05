@@ -6,8 +6,13 @@ from .models import (
     Application,
     ApplicationRole,
     AuthorizationCode,
+    Feature,
+    Permission,
     RefreshToken,
+    Role,
+    RoleFeaturePermission,
     User,
+    UserAppRole,
     UserRole,
 )
 
@@ -301,3 +306,163 @@ class AuthorizationCodeAdmin(admin.ModelAdmin):
         ),
         ("Metadata", {"fields": ("created_at",), "classes": ("collapse",)}),
     )
+
+
+# =============================================================================
+# Phase 5: RBAC Admin Classes (December 2025)
+# =============================================================================
+
+
+@admin.register(Permission)
+class PermissionAdmin(admin.ModelAdmin):
+    """Admin for base permission types (view, create, modify, delete, etc.)."""
+
+    list_display = ["code", "name", "description", "display_order"]
+    list_editable = ["display_order"]
+    search_fields = ["code", "name"]
+    ordering = ["display_order", "code"]
+
+
+@admin.register(Feature)
+class FeatureAdmin(admin.ModelAdmin):
+    """Admin for application features."""
+
+    list_display = ["code", "name", "application", "is_active", "display_order"]
+    list_filter = ["application", "is_active"]
+    list_editable = ["is_active", "display_order"]
+    search_fields = ["code", "name", "application__name"]
+    autocomplete_fields = ["application"]
+    ordering = ["application", "display_order", "code"]
+
+    fieldsets = (
+        (None, {"fields": ("application", "code", "name", "description")}),
+        ("Status", {"fields": ("is_active", "display_order")}),
+    )
+
+
+class RoleFeaturePermissionInline(admin.TabularInline):
+    """Inline for assigning feature permissions to a role."""
+
+    model = RoleFeaturePermission
+    extra = 1
+    autocomplete_fields = ["feature", "permission"]
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related("feature", "permission")
+
+
+@admin.register(Role)
+class RoleAdmin(admin.ModelAdmin):
+    """Admin for application roles with inline permission assignments."""
+
+    list_display = [
+        "name",
+        "application",
+        "code",
+        "legacy_role",
+        "is_active",
+        "permission_count",
+    ]
+    list_filter = ["application", "is_active", "legacy_role"]
+    search_fields = ["code", "name", "application__name"]
+    autocomplete_fields = ["application"]
+    readonly_fields = ["created_at", "updated_at"]
+    inlines = [RoleFeaturePermissionInline]
+
+    @admin.display(description="Permissions")
+    def permission_count(self, obj):
+        count = obj.feature_permissions.count()
+        return f"{count} permission(s)"
+
+    fieldsets = (
+        (None, {"fields": ("application", "code", "name", "description")}),
+        (
+            "Backward Compatibility",
+            {
+                "fields": ("legacy_role",),
+                "description": "Map to legacy role for apps not yet migrated to new RBAC",
+            },
+        ),
+        ("Status", {"fields": ("is_active",)}),
+        (
+            "Metadata",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
+    )
+
+
+@admin.register(RoleFeaturePermission)
+class RoleFeaturePermissionAdmin(admin.ModelAdmin):
+    """Admin for individual role-feature-permission mappings."""
+
+    list_display = ["role", "feature", "permission"]
+    list_filter = ["role__application", "role", "feature", "permission"]
+    search_fields = [
+        "role__name",
+        "role__code",
+        "feature__name",
+        "feature__code",
+        "permission__name",
+    ]
+    autocomplete_fields = ["role", "feature", "permission"]
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("role", "role__application", "feature", "permission")
+        )
+
+
+@admin.register(UserAppRole)
+class UserAppRoleAdmin(admin.ModelAdmin):
+    """Admin for assigning users to roles."""
+
+    list_display = [
+        "user_identifier",
+        "role",
+        "application_name",
+        "tenant_code",
+        "is_active",
+        "assigned_at",
+    ]
+    list_filter = ["role__application", "role", "is_active", "tenant_code"]
+    search_fields = [
+        "user__email",
+        "user__display_name",
+        "user__username",
+        "user__anonymous_username",
+        "role__name",
+        "tenant_code",
+    ]
+    autocomplete_fields = ["user", "role", "assigned_by"]
+    readonly_fields = ["assigned_at", "updated_at"]
+    raw_id_fields = ["assigned_by"]
+
+    @admin.display(description="User", ordering="user__email")
+    def user_identifier(self, obj):
+        return obj.user.email or obj.user.anonymous_username or str(obj.user)
+
+    @admin.display(description="Application", ordering="role__application__name")
+    def application_name(self, obj):
+        return obj.role.application.name
+
+    fieldsets = (
+        ("Assignment", {"fields": ("user", "role", "tenant_code")}),
+        ("Status", {"fields": ("is_active",)}),
+        (
+            "Audit",
+            {
+                "fields": ("assigned_by", "notes", "assigned_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("user", "role", "role__application", "assigned_by")
+        )
