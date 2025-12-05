@@ -747,6 +747,11 @@ class Permission(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        if self.code:
+            self.code = self.code.lower()
+        super().save(*args, **kwargs)
+
 
 class Feature(models.Model):
     """
@@ -803,6 +808,11 @@ class Feature(models.Model):
 
     def __str__(self):
         return f"{self.application.name}: {self.name}"
+
+    def save(self, *args, **kwargs):
+        if self.code:
+            self.code = self.code.lower()
+        super().save(*args, **kwargs)
 
 
 class Role(models.Model):
