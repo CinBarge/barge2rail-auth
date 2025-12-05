@@ -1,126 +1,12 @@
 {% extends "admin/base_site.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block extrahead %}
 {{ block.super }}
-<style>
-    .compare-container {
-        padding: 20px;
-    }
-    .select-form {
-        background: #e8f4e8;
-        padding: 20px;
-        border-radius: 5px;
-        margin-bottom: 30px;
-        border-left: 4px solid #005500;
-    }
-    .select-form label {
-        font-weight: bold;
-        display: block;
-        margin-bottom: 5px;
-        color: #005500;
-    }
-    .select-form select {
-        padding: 10px;
-        font-size: 14px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        min-width: 200px;
-        margin-right: 15px;
-        margin-bottom: 10px;
-    }
-    .select-form button {
-        padding: 10px 20px;
-        background: #005500;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-    .select-form button:hover {
-        background: #003300;
-    }
-    .form-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 20px;
-        align-items: flex-end;
-        margin-top: 15px;
-    }
-    .form-group {
-        display: flex;
-        flex-direction: column;
-    }
-    .comparison-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 20px;
-    }
-    .comparison-table th,
-    .comparison-table td {
-        border: 1px solid #ddd;
-        padding: 10px;
-        text-align: center;
-    }
-    .comparison-table th {
-        background: #005500;
-        color: white;
-    }
-    .comparison-table th.feature-col {
-        width: 200px;
-        text-align: left;
-    }
-    .comparison-table td:first-child {
-        text-align: left;
-        font-weight: 500;
-    }
-    .comparison-table tr:nth-child(even) {
-        background: #f9f9f9;
-    }
-    .comparison-table tr:hover {
-        background: #e8f4e8;
-    }
-    .same {
-        color: #666;
-    }
-    .different {
-        background-color: #fff3cd !important;
-    }
-    .has-perm {
-        color: #28a745;
-        font-weight: bold;
-    }
-    .no-perm {
-        color: #ccc;
-    }
-    .legend {
-        margin-top: 20px;
-        padding: 10px;
-        background: #f5f5f5;
-        border-radius: 4px;
-        font-size: 14px;
-    }
-    .legend span {
-        margin-right: 20px;
-    }
-    .back-link {
-        display: inline-block;
-        margin-top: 20px;
-        padding: 10px 20px;
-        background: #005500;
-        color: white;
-        text-decoration: none;
-        border-radius: 4px;
-    }
-    .back-link:hover {
-        background: #003300;
-        color: white;
-    }
-    .perm-header {
-        font-size: 12px;
-    }
-</style>
+<link rel="stylesheet" href="{% static 'sso/css/rbac-theme.css' %}">
 {% endblock %}
+
+{% block bodyclass %}{{ block.super }} rbac-page{% endblock %}
 
 {% block breadcrumbs %}
 <div class="breadcrumbs">
@@ -132,94 +18,92 @@
 {% endblock %}
 
 {% block content %}
-<div class="compare-container">
-    <h1>Compare Roles</h1>
-    <p>Side-by-side comparison of permissions between two roles.</p>
+<h1>Compare Roles</h1>
+<p>Side-by-side comparison of permissions between two roles.</p>
 
-    <form method="get" class="select-form">
+<form method="get" class="select-form">
+    <div class="form-group">
+        <label for="app">Application:</label>
+        <select name="app" id="app" onchange="this.form.submit()">
+            <option value="">-- Select Application --</option>
+            {% for app in apps %}
+            <option value="{{ app.id }}" {% if selected_app and selected_app.id == app.id %}selected{% endif %}>
+                {{ app.name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    {% if selected_app %}
+    <div class="form-row">
         <div class="form-group">
-            <label for="app">Application:</label>
-            <select name="app" id="app" onchange="this.form.submit()">
-                <option value="">-- Select Application --</option>
-                {% for app in apps %}
-                <option value="{{ app.id }}" {% if selected_app and selected_app.id == app.id %}selected{% endif %}>
-                    {{ app.name }}
+            <label for="role1">Role 1:</label>
+            <select name="role1" id="role1">
+                <option value="">-- Select Role --</option>
+                {% for role in available_roles %}
+                <option value="{{ role.id }}" {% if role1 and role1.id == role.id %}selected{% endif %}>
+                    {{ role.name }}
                 </option>
                 {% endfor %}
             </select>
         </div>
-
-        {% if selected_app %}
-        <div class="form-row">
-            <div class="form-group">
-                <label for="role1">Role 1:</label>
-                <select name="role1" id="role1">
-                    <option value="">-- Select Role --</option>
-                    {% for role in available_roles %}
-                    <option value="{{ role.id }}" {% if role1 and role1.id == role.id %}selected{% endif %}>
-                        {{ role.name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="role2">Role 2:</label>
-                <select name="role2" id="role2">
-                    <option value="">-- Select Role --</option>
-                    {% for role in available_roles %}
-                    <option value="{{ role.id }}" {% if role2 and role2.id == role.id %}selected{% endif %}>
-                        {{ role.name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <button type="submit">Compare</button>
+        <div class="form-group">
+            <label for="role2">Role 2:</label>
+            <select name="role2" id="role2">
+                <option value="">-- Select Role --</option>
+                {% for role in available_roles %}
+                <option value="{{ role.id }}" {% if role2 and role2.id == role.id %}selected{% endif %}>
+                    {{ role.name }}
+                </option>
+                {% endfor %}
+            </select>
         </div>
-        {% endif %}
-    </form>
-
-    {% if role1 and role2 and comparison %}
-    <table class="comparison-table">
-        <thead>
-            <tr>
-                <th class="feature-col" rowspan="2">Feature</th>
-                {% for perm in comparison.0.permissions %}
-                <th colspan="2" class="perm-header">{{ perm.perm.name }}</th>
-                {% endfor %}
-            </tr>
-            <tr>
-                {% for perm in comparison.0.permissions %}
-                <th class="perm-header">{{ role1.name|truncatechars:15 }}</th>
-                <th class="perm-header">{{ role2.name|truncatechars:15 }}</th>
-                {% endfor %}
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in comparison %}
-            <tr>
-                <td>{{ row.feature.name }}</td>
-                {% for p in row.permissions %}
-                <td class="{% if p.diff == 'different' %}different{% endif %}">
-                    {% if p.role1 %}<span class="has-perm">&#10003;</span>{% else %}<span class="no-perm">&ndash;</span>{% endif %}
-                </td>
-                <td class="{% if p.diff == 'different' %}different{% endif %}">
-                    {% if p.role2 %}<span class="has-perm">&#10003;</span>{% else %}<span class="no-perm">&ndash;</span>{% endif %}
-                </td>
-                {% endfor %}
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <div class="legend">
-        <span><span class="has-perm">&#10003;</span> = Has permission</span>
-        <span><span class="no-perm">&ndash;</span> = No permission</span>
-        <span style="background: #fff3cd; padding: 2px 5px;">Yellow = Different</span>
+        <button type="submit">Compare</button>
     </div>
-    {% elif selected_app and not role1 %}
-    <p style="color: #666; font-style: italic;">Select two roles to compare.</p>
     {% endif %}
+</form>
 
-    <a href="{% url 'sso_rbac_dashboard' %}" class="back-link">Back to RBAC Dashboard</a>
+{% if role1 and role2 and comparison %}
+<table class="rbac-table comparison-table">
+    <thead>
+        <tr>
+            <th rowspan="2">Feature</th>
+            {% for perm in comparison.0.permissions %}
+            <th colspan="2" class="perm-header">{{ perm.perm.name }}</th>
+            {% endfor %}
+        </tr>
+        <tr>
+            {% for perm in comparison.0.permissions %}
+            <th class="perm-header">{{ role1.name|truncatechars:15 }}</th>
+            <th class="perm-header">{{ role2.name|truncatechars:15 }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in comparison %}
+        <tr>
+            <td>{{ row.feature.name }}</td>
+            {% for p in row.permissions %}
+            <td class="{% if p.diff == 'different' %}different{% endif %}">
+                {% if p.role1 %}<span class="has-perm">&#10003;</span>{% else %}<span class="no-perm">&ndash;</span>{% endif %}
+            </td>
+            <td class="{% if p.diff == 'different' %}different{% endif %}">
+                {% if p.role2 %}<span class="has-perm">&#10003;</span>{% else %}<span class="no-perm">&ndash;</span>{% endif %}
+            </td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="legend">
+    <span><span class="has-perm">&#10003;</span> = Has permission</span>
+    <span><span class="no-perm">&ndash;</span> = No permission</span>
+    <span style="background: rgba(245, 158, 11, 0.2); padding: 2px 8px; border-radius: 4px;">Yellow = Different</span>
 </div>
+{% elif selected_app and not role1 %}
+<p class="empty-message">Select two roles to compare.</p>
+{% endif %}
+
+<a href="{% url 'sso_rbac_dashboard' %}" class="back-link">Back to Dashboard</a>
 {% endblock %}

@@ -1,116 +1,12 @@
 {% extends "admin/base_site.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block extrahead %}
 {{ block.super }}
-<style>
-    .search-container {
-        padding: 20px;
-    }
-    .search-form {
-        background: #e8f4e8;
-        padding: 20px;
-        border-radius: 5px;
-        margin-bottom: 30px;
-        border-left: 4px solid #005500;
-    }
-    .search-form label {
-        font-weight: bold;
-        display: block;
-        margin-bottom: 5px;
-        color: #005500;
-    }
-    .search-form select {
-        padding: 10px;
-        font-size: 14px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        min-width: 200px;
-        margin-right: 15px;
-        margin-bottom: 10px;
-    }
-    .search-form button {
-        padding: 10px 20px;
-        background: #005500;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-    .search-form button:hover {
-        background: #003300;
-    }
-    .form-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 20px;
-        align-items: flex-end;
-    }
-    .form-group {
-        display: flex;
-        flex-direction: column;
-    }
-    .results-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 20px;
-    }
-    .results-table th,
-    .results-table td {
-        border: 1px solid #ddd;
-        padding: 12px;
-        text-align: left;
-    }
-    .results-table th {
-        background: #005500;
-        color: white;
-    }
-    .results-table tr:nth-child(even) {
-        background: #f9f9f9;
-    }
-    .results-table tr:hover {
-        background: #e8f4e8;
-    }
-    .results-table a {
-        color: #005500;
-        font-weight: bold;
-    }
-    .results-count {
-        background: #005500;
-        color: white;
-        padding: 5px 10px;
-        border-radius: 4px;
-        font-size: 14px;
-        margin-bottom: 10px;
-        display: inline-block;
-    }
-    .no-results {
-        color: #666;
-        font-style: italic;
-        padding: 20px;
-        text-align: center;
-    }
-    .back-link {
-        display: inline-block;
-        margin-top: 20px;
-        padding: 10px 20px;
-        background: #005500;
-        color: white;
-        text-decoration: none;
-        border-radius: 4px;
-    }
-    .back-link:hover {
-        background: #003300;
-        color: white;
-    }
-    .user-count {
-        background: #e8f4e8;
-        padding: 3px 8px;
-        border-radius: 3px;
-        font-size: 13px;
-    }
-</style>
+<link rel="stylesheet" href="{% static 'sso/css/rbac-theme.css' %}">
 {% endblock %}
+
+{% block bodyclass %}{{ block.super }} rbac-page{% endblock %}
 
 {% block breadcrumbs %}
 <div class="breadcrumbs">
@@ -122,87 +18,85 @@
 {% endblock %}
 
 {% block content %}
-<div class="search-container">
-    <h1>Permission Search</h1>
-    <p>Find which roles have a specific permission on a feature. Answer questions like "Who can delete BOLs?"</p>
+<h1>Permission Search</h1>
+<p>Find which roles have a specific permission on a feature. Answer questions like "Who can delete BOLs?"</p>
 
-    <form method="get" class="search-form">
-        <div class="form-row">
-            <div class="form-group">
-                <label for="app">Application (optional):</label>
-                <select name="app" id="app">
-                    <option value="">All Applications</option>
-                    {% for app in apps %}
-                    <option value="{{ app.id }}" {% if selected_app == app.id|stringformat:"i" %}selected{% endif %}>
-                        {{ app.name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="feature">Feature:</label>
-                <select name="feature" id="feature" required>
-                    <option value="">-- Select Feature --</option>
-                    {% for feature in features %}
-                    <option value="{{ feature.code }}" {% if selected_feature == feature.code %}selected{% endif %}>
-                        {{ feature.application.name }} - {{ feature.name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="permission">Permission:</label>
-                <select name="permission" id="permission" required>
-                    <option value="">-- Select Permission --</option>
-                    {% for perm in permissions %}
-                    <option value="{{ perm.code }}" {% if selected_permission == perm.code %}selected{% endif %}>
-                        {{ perm.name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <button type="submit">Search</button>
-        </div>
-    </form>
-
-    {% if selected_feature and selected_permission %}
-        {% if results %}
-        <div class="results-count">{{ results|length }} role(s) found</div>
-        <table class="results-table">
-            <thead>
-                <tr>
-                    <th>Application</th>
-                    <th>Role</th>
-                    <th>Feature</th>
-                    <th>Users with Role</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for result in results %}
-                <tr>
-                    <td>{{ result.role.application.name }}</td>
-                    <td>
-                        <a href="{% url 'admin:sso_role_change' result.role.id %}">
-                            {{ result.role.name }}
-                        </a>
-                    </td>
-                    <td>{{ result.feature.name }}</td>
-                    <td>
-                        <span class="user-count">{{ result.user_count }} user(s)</span>
-                    </td>
-                    <td>
-                        <a href="{% url 'sso_role_permission_matrix' result.role.id %}">Edit Permissions</a>
-                    </td>
-                </tr>
+<form method="get" class="select-form">
+    <div class="form-row">
+        <div class="form-group">
+            <label for="app">Application (optional):</label>
+            <select name="app" id="app">
+                <option value="">All Applications</option>
+                {% for app in apps %}
+                <option value="{{ app.id }}" {% if selected_app == app.id|stringformat:"i" %}selected{% endif %}>
+                    {{ app.name }}
+                </option>
                 {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p class="no-results">No roles found with "{{ selected_permission }}" permission on "{{ selected_feature }}" feature.</p>
-        {% endif %}
-    {% endif %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="feature">Feature:</label>
+            <select name="feature" id="feature" required>
+                <option value="">-- Select Feature --</option>
+                {% for feature in features %}
+                <option value="{{ feature.code }}" {% if selected_feature == feature.code %}selected{% endif %}>
+                    {{ feature.application.name }} - {{ feature.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="permission">Permission:</label>
+            <select name="permission" id="permission" required>
+                <option value="">-- Select Permission --</option>
+                {% for perm in permissions %}
+                <option value="{{ perm.code }}" {% if selected_permission == perm.code %}selected{% endif %}>
+                    {{ perm.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit">Search</button>
+    </div>
+</form>
 
-    <a href="{% url 'sso_rbac_dashboard' %}" class="back-link">Back to RBAC Dashboard</a>
-</div>
+{% if selected_feature and selected_permission %}
+    {% if results %}
+    <div class="results-count">{{ results|length }} role(s) found</div>
+    <table class="rbac-table">
+        <thead>
+            <tr>
+                <th>Application</th>
+                <th>Role</th>
+                <th>Feature</th>
+                <th>Users with Role</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result in results %}
+            <tr>
+                <td>{{ result.role.application.name }}</td>
+                <td>
+                    <a href="{% url 'admin:sso_role_change' result.role.id %}">
+                        {{ result.role.name }}
+                    </a>
+                </td>
+                <td>{{ result.feature.name }}</td>
+                <td>
+                    <span class="user-count">{{ result.user_count }} user(s)</span>
+                </td>
+                <td>
+                    <a href="{% url 'sso_role_permission_matrix' result.role.id %}">Edit Permissions</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="no-results">No roles found with "{{ selected_permission }}" permission on "{{ selected_feature }}" feature.</p>
+    {% endif %}
+{% endif %}
+
+<a href="{% url 'sso_rbac_dashboard' %}" class="back-link">Back to Dashboard</a>
 {% endblock %}
