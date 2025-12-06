@@ -31,7 +31,7 @@ class CustomScopeClaims(ScopeClaims):
     {
         "application_roles": {
             "primetrade": {
-                "role": "PrimeTrade Admin",
+                "role": "Admin",  # Uses legacy_role for backward compat
                 "permissions": [],
                 "features": {
                     "bol": ["view", "create", "modify"],
@@ -123,15 +123,17 @@ class CustomScopeClaims(ScopeClaims):
             user_app_role = self._get_user_app_role(user, requesting_app)
 
             if user_app_role:
+                role = user_app_role.role
                 role_data = {
-                    "role": user_app_role.role.name,
+                    # legacy_role for compat (apps expect "Admin" not full name)
+                    "role": role.legacy_role or role.name,
                     "permissions": [],  # Legacy field, kept for compatibility
                     "features": user_app_role.get_permissions(),
                 }
                 roles[requesting_app.slug] = role_data
                 logger.debug(
                     f"[OIDC CLAIMS] Added role for {requesting_app.slug}: "
-                    f"{user_app_role.role.code}"
+                    f"{role.code}"
                 )
             else:
                 logger.debug(
@@ -165,15 +167,17 @@ class CustomScopeClaims(ScopeClaims):
             user_app_role = self._get_user_app_role(user, requesting_app)
 
             if user_app_role:
+                role = user_app_role.role
                 role_data = {
-                    "role": user_app_role.role.name,
+                    # legacy_role for compat (apps expect "Admin" not full name)
+                    "role": role.legacy_role or role.name,
                     "permissions": [],  # Legacy field, kept for compatibility
                     "features": user_app_role.get_permissions(),
                 }
                 roles[requesting_app.slug] = role_data
                 logger.debug(
                     f"[OIDC CLAIMS] scope_roles: Added role for "
-                    f"{requesting_app.slug}: {user_app_role.role.code}"
+                    f"{requesting_app.slug}: {role.code}"
                 )
         else:
             security_logger.warning(

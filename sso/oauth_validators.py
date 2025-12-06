@@ -227,7 +227,8 @@ class CustomOAuth2Validator(OAuth2Validator):
                     feature_perms = uar.get_permissions()
 
                     application_roles[app_slug] = {
-                        "role": uar.role.name,
+                        # legacy_role for compat (apps expect "Admin" not full name)
+                        "role": uar.role.legacy_role or uar.role.name,
                         "permissions": [],  # Legacy field, kept for compatibility
                         "features": feature_perms,
                     }
