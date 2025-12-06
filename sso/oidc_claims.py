@@ -43,6 +43,43 @@ class CustomScopeClaims(ScopeClaims):
                 return self.request.client
         return None
 
+    def _get_user_app_role(self, user, application):
+        """Get UserAppRole for user and application.
+
+        Returns:
+            UserAppRole or None: The user's RBAC role assignment, or None if not found.
+        """
+        try:
+            return (
+                UserAppRole.objects.select_related("role")
+                .prefetch_related(
+                    "role__feature_permissions__feature",
+                    "role__feature_permissions__permission",
+                )
+                .get(
+                    user=user,
+                    role__application=application,
+                    is_active=True,
+                )
+            )
+        except UserAppRole.DoesNotExist:
+            return None
+        except UserAppRole.MultipleObjectsReturned:
+            # If multiple roles exist, get first active one
+            return (
+                UserAppRole.objects.select_related("role")
+                .prefetch_related(
+                    "role__feature_permissions__feature",
+                    "role__feature_permissions__permission",
+                )
+                .filter(
+                    user=user,
+                    role__application=application,
+                    is_active=True,
+                )
+                .first()
+            )
+
     def _get_rbac_permissions(self, user, application):
         """Get permissions from new RBAC system (UserAppRole).
 
@@ -113,8 +150,12 @@ class CustomScopeClaims(ScopeClaims):
 
         SECURITY FIX: Only include role for the requesting application.
 
-        Includes both legacy role and new feature permissions for backward
-        compatibility during RBAC transition.
+        RBAC FIX (Dec 2025): Check UserAppRole FIRST as primary source.
+        Previously only checked legacy ApplicationRole, ignoring RBAC-only users.
+
+        Priority:
+        1. UserAppRole (new RBAC system) - includes feature permissions
+        2. ApplicationRole (legacy) - backward compatibility fallback
         """
         logger.debug("[OIDC CLAIMS] scope_profile() called")
 
@@ -134,28 +175,37 @@ class CustomScopeClaims(ScopeClaims):
         roles = {}
 
         if requesting_app:
-            # Try legacy ApplicationRole first (backward compatibility)
-            app_roles = ApplicationRole.objects.filter(
-                user=user, application=requesting_app
-            ).only("application", "role", "permissions")
+            # RBAC FIX: Check UserAppRole FIRST (new RBAC system)
+            user_app_role = self._get_user_app_role(user, requesting_app)
 
-            for ar in app_roles:
+            if user_app_role:
+                # Use RBAC role as primary source
                 role_data = {
-                    "role": ar.role,
-                    "permissions": ar.permissions or [],
+                    "role": user_app_role.role.name,
+                    "permissions": [],  # Legacy permissions not used in RBAC
+                    "features": user_app_role.get_permissions(),
                 }
+                roles[requesting_app.slug] = role_data
+                logger.debug(
+                    f"[OIDC CLAIMS] Added RBAC role for {requesting_app.slug}: "
+                    f"{user_app_role.role.code}"
+                )
+            else:
+                # Fallback: Try legacy ApplicationRole (backward compatibility)
+                app_roles = ApplicationRole.objects.filter(
+                    user=user, application=requesting_app
+                ).only("application", "role", "permissions")
 
-                # NEW: Add feature-level permissions from RBAC system
-                feature_perms = self._get_rbac_permissions(user, requesting_app)
-                if feature_perms:
-                    role_data["features"] = feature_perms
+                for ar in app_roles:
+                    role_data = {
+                        "role": ar.role,
+                        "permissions": ar.permissions or [],
+                    }
+                    roles[ar.application.slug] = role_data
                     logger.debug(
-                        f"[OIDC CLAIMS] Added RBAC features for {ar.application.slug}: "
-                        f"{list(feature_perms.keys())}"
+                        f"[OIDC CLAIMS] Added legacy role for {ar.application.slug}: "
+                        f"{ar.role}"
                     )
-
-                roles[ar.application.slug] = role_data
-                logger.debug(f"[OIDC CLAIMS] Added {ar.application.slug}: {ar.role}")
         else:
             # Fallback: if no requesting app context, return empty roles
             # This prevents leaking roles when app context is unknown
@@ -173,8 +223,12 @@ class CustomScopeClaims(ScopeClaims):
 
         SECURITY FIX: Only include role for the requesting application.
 
-        Includes both legacy role and new feature permissions for backward
-        compatibility during RBAC transition.
+        RBAC FIX (Dec 2025): Check UserAppRole FIRST as primary source.
+        Previously only checked legacy ApplicationRole, ignoring RBAC-only users.
+
+        Priority:
+        1. UserAppRole (new RBAC system) - includes feature permissions
+        2. ApplicationRole (legacy) - backward compatibility fallback
         """
         logger.debug("[OIDC CLAIMS] scope_roles() called")
 
@@ -184,23 +238,37 @@ class CustomScopeClaims(ScopeClaims):
         roles = {}
 
         if requesting_app:
-            # Try legacy ApplicationRole first (backward compatibility)
-            app_roles = ApplicationRole.objects.filter(
-                user=user, application=requesting_app
-            ).only("application", "role", "permissions")
+            # RBAC FIX: Check UserAppRole FIRST (new RBAC system)
+            user_app_role = self._get_user_app_role(user, requesting_app)
 
-            for ar in app_roles:
+            if user_app_role:
+                # Use RBAC role as primary source
                 role_data = {
-                    "role": ar.role,
-                    "permissions": ar.permissions or [],
+                    "role": user_app_role.role.name,
+                    "permissions": [],  # Legacy permissions not used in RBAC
+                    "features": user_app_role.get_permissions(),
                 }
+                roles[requesting_app.slug] = role_data
+                logger.debug(
+                    f"[OIDC CLAIMS] scope_roles: Added RBAC role for "
+                    f"{requesting_app.slug}: {user_app_role.role.code}"
+                )
+            else:
+                # Fallback: Try legacy ApplicationRole (backward compatibility)
+                app_roles = ApplicationRole.objects.filter(
+                    user=user, application=requesting_app
+                ).only("application", "role", "permissions")
 
-                # NEW: Add feature-level permissions from RBAC system
-                feature_perms = self._get_rbac_permissions(user, requesting_app)
-                if feature_perms:
-                    role_data["features"] = feature_perms
-
-                roles[ar.application.slug] = role_data
+                for ar in app_roles:
+                    role_data = {
+                        "role": ar.role,
+                        "permissions": ar.permissions or [],
+                    }
+                    roles[ar.application.slug] = role_data
+                    logger.debug(
+                        f"[OIDC CLAIMS] scope_roles: Added legacy role for "
+                        f"{ar.application.slug}: {ar.role}"
+                    )
         else:
             security_logger.warning(
                 f"[OIDC CLAIMS] No requesting app context for user {user.email} "
