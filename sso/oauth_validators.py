@@ -225,6 +225,64 @@ class CustomOAuth2Validator(OAuth2Validator):
                         f"[CLAIMS] Added role: {ar.application.slug} -> {ar.role}"
                     )
 
+                    # Add feature-level permissions from RBAC system (UserAppRole)
+                    try:
+                        from .models import UserAppRole
+
+                        user_app_role = (
+                            UserAppRole.objects.select_related("role")
+                            .prefetch_related(
+                                "role__feature_permissions__feature",
+                                "role__feature_permissions__permission",
+                            )
+                            .get(
+                                user=user,
+                                role__application=ar.application,
+                                is_active=True,
+                            )
+                        )
+                        feature_perms = user_app_role.get_permissions()
+                        if feature_perms:
+                            application_roles[ar.application.slug][
+                                "features"
+                            ] = feature_perms
+                            logger.info(
+                                f"[CLAIMS] Added RBAC features for "
+                                f"{ar.application.slug}: {list(feature_perms.keys())}"
+                            )
+                    except UserAppRole.DoesNotExist:
+                        logger.info(
+                            f"[CLAIMS] No UserAppRole found for "
+                            f"{ar.application.slug}, skipping features"
+                        )
+                    except UserAppRole.MultipleObjectsReturned:
+                        # Use first active one if multiple exist
+                        user_app_role = (
+                            UserAppRole.objects.select_related("role")
+                            .prefetch_related(
+                                "role__feature_permissions__feature",
+                                "role__feature_permissions__permission",
+                            )
+                            .filter(
+                                user=user,
+                                role__application=ar.application,
+                                is_active=True,
+                            )
+                            .first()
+                        )
+                        if user_app_role:
+                            feature_perms = user_app_role.get_permissions()
+                            if feature_perms:
+                                application_roles[ar.application.slug][
+                                    "features"
+                                ] = feature_perms
+                                logger.info(
+                                    "[CLAIMS] Added RBAC features (multi) "
+                                    "for %s: %s",
+                                    ar.application.slug,
+                                    list(feature_perms.keys()),
+                                )
+
                 if application_roles:
                     claims["application_roles"] = application_roles
                     app_list = list(application_roles.keys())
