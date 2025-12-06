@@ -202,86 +202,39 @@ class CustomOAuth2Validator(OAuth2Validator):
 
             logger.info(f"[CLAIMS] Added basic profile claims for {user.email}")
 
-            # Application-specific roles from ApplicationRole model
+            # Application-specific roles from UserAppRole (RBAC system)
+            # DEPRECATED: ApplicationRole is no longer used as of Dec 2025
             try:
-                from .models import ApplicationRole
+                from .models import UserAppRole
 
-                app_roles_qs = ApplicationRole.objects.filter(user=user).only(
-                    "application", "role", "permissions"
+                user_app_roles = (
+                    UserAppRole.objects.select_related("role", "role__application")
+                    .prefetch_related(
+                        "role__feature_permissions__feature",
+                        "role__feature_permissions__permission",
+                    )
+                    .filter(user=user, is_active=True)
                 )
 
-                logger.info(f"[CLAIMS] Querying ApplicationRole for user {user.email}")
+                logger.info(f"[CLAIMS] Querying UserAppRole for user {user.email}")
                 logger.info(
-                    f"[CLAIMS] Found {app_roles_qs.count()} ApplicationRole records"
+                    f"[CLAIMS] Found {user_app_roles.count()} UserAppRole records"
                 )
 
                 application_roles = {}
-                for ar in app_roles_qs:
-                    application_roles[ar.application.slug] = {
-                        "role": ar.role,
-                        "permissions": ar.permissions or [],
+                for uar in user_app_roles:
+                    app_slug = uar.role.application.slug
+                    feature_perms = uar.get_permissions()
+
+                    application_roles[app_slug] = {
+                        "role": uar.role.name,
+                        "permissions": [],  # Legacy field, kept for compatibility
+                        "features": feature_perms,
                     }
                     logger.info(
-                        f"[CLAIMS] Added role: {ar.application.slug} -> {ar.role}"
+                        f"[CLAIMS] Added role: {app_slug} -> {uar.role.code} "
+                        f"with features: {list(feature_perms.keys())}"
                     )
-
-                    # Add feature-level permissions from RBAC system (UserAppRole)
-                    try:
-                        from .models import UserAppRole
-
-                        user_app_role = (
-                            UserAppRole.objects.select_related("role")
-                            .prefetch_related(
-                                "role__feature_permissions__feature",
-                                "role__feature_permissions__permission",
-                            )
-                            .get(
-                                user=user,
-                                role__application=ar.application,
-                                is_active=True,
-                            )
-                        )
-                        feature_perms = user_app_role.get_permissions()
-                        if feature_perms:
-                            application_roles[ar.application.slug][
-                                "features"
-                            ] = feature_perms
-                            logger.info(
-                                f"[CLAIMS] Added RBAC features for "
-                                f"{ar.application.slug}: {list(feature_perms.keys())}"
-                            )
-                    except UserAppRole.DoesNotExist:
-                        logger.info(
-                            f"[CLAIMS] No UserAppRole found for "
-                            f"{ar.application.slug}, skipping features"
-                        )
-                    except UserAppRole.MultipleObjectsReturned:
-                        # Use first active one if multiple exist
-                        user_app_role = (
-                            UserAppRole.objects.select_related("role")
-                            .prefetch_related(
-                                "role__feature_permissions__feature",
-                                "role__feature_permissions__permission",
-                            )
-                            .filter(
-                                user=user,
-                                role__application=ar.application,
-                                is_active=True,
-                            )
-                            .first()
-                        )
-                        if user_app_role:
-                            feature_perms = user_app_role.get_permissions()
-                            if feature_perms:
-                                application_roles[ar.application.slug][
-                                    "features"
-                                ] = feature_perms
-                                logger.info(
-                                    "[CLAIMS] Added RBAC features (multi) "
-                                    "for %s: %s",
-                                    ar.application.slug,
-                                    list(feature_perms.keys()),
-                                )
 
                 if application_roles:
                     claims["application_roles"] = application_roles
@@ -292,12 +245,12 @@ class CustomOAuth2Validator(OAuth2Validator):
                     )
                 else:
                     logger.warning(
-                        f"[CLAIMS] No ApplicationRole records found "
+                        f"[CLAIMS] No UserAppRole records found "
                         f"for user {user.email}"
                     )
 
             except ImportError as e:
-                logger.error(f"[CLAIMS] Failed to import ApplicationRole model: {e}")
+                logger.error(f"[CLAIMS] Failed to import UserAppRole model: {e}")
             except Exception as e:
                 logger.error(f"[CLAIMS] Error building application_roles claim: {e}")
 
