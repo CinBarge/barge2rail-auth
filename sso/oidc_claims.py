@@ -1,8 +1,18 @@
+"""
+OIDC Claims for SSO.
+
+Provides application roles and feature permissions in JWT claims.
+
+DEPRECATION (Dec 2025): ApplicationRole is fully deprecated.
+UserAppRole (RBAC system) is now the only source of truth.
+Run `python manage.py migrate_roles` to migrate legacy entries.
+"""
+
 import logging
 
 from oauth2_provider.contrib.oidc.claims import ScopeClaims
 
-from .models import ApplicationRole, UserAppRole
+from .models import UserAppRole
 
 logger = logging.getLogger(__name__)
 security_logger = logging.getLogger("django.security")
@@ -14,17 +24,16 @@ class CustomScopeClaims(ScopeClaims):
     SECURITY FIX: Only exposes roles for the REQUESTING application.
     Previously leaked all application roles to any requesting app.
 
-    Phase 5 (Dec 2025): Added feature-level permissions support.
-    JWT now includes both legacy 'role' and new 'permissions' structure
-    for backward compatibility during transition period.
+    RBAC (Dec 2025): UserAppRole is the only source of truth.
+    ApplicationRole is fully deprecated.
 
     JWT claim format:
     {
         "application_roles": {
             "primetrade": {
-                "role": "Office",           # Legacy role (backward compat)
-                "permissions": ["read", "write"],  # Legacy permissions
-                "features": {               # NEW: Feature-level permissions
+                "role": "PrimeTrade Admin",
+                "permissions": [],
+                "features": {
                     "bol": ["view", "create", "modify"],
                     "releases": ["view", "create"],
                     ...
@@ -63,9 +72,17 @@ class CustomScopeClaims(ScopeClaims):
                 )
             )
         except UserAppRole.DoesNotExist:
+            logger.debug(
+                f"[OIDC CLAIMS] No UserAppRole found for user={user.email}, "
+                f"app={application.slug}"
+            )
             return None
         except UserAppRole.MultipleObjectsReturned:
-            # If multiple roles exist, get first active one
+            # If multiple roles exist (e.g., different tenants), use first active one
+            logger.debug(
+                f"[OIDC CLAIMS] Multiple UserAppRoles found for user={user.email}, "
+                f"app={application.slug}, using first"
+            )
             return (
                 UserAppRole.objects.select_related("role")
                 .prefetch_related(
@@ -80,88 +97,16 @@ class CustomScopeClaims(ScopeClaims):
                 .first()
             )
 
-    def _get_rbac_permissions(self, user, application):
-        """Get permissions from new RBAC system (UserAppRole).
-
-        Returns:
-            dict or None: Feature permissions dict, or None if no RBAC role assigned.
-
-        Example return:
-            {
-                "bol": ["view", "create", "modify"],
-                "releases": ["view"],
-            }
-        """
-        logger.info(
-            f"[RBAC JWT] Looking up permissions for user={user.email}, "
-            f"app={application.slug if application else 'None'}"
-        )
-
-        try:
-            user_app_role = (
-                UserAppRole.objects.select_related("role")
-                .prefetch_related(
-                    "role__feature_permissions__feature",
-                    "role__feature_permissions__permission",
-                )
-                .get(
-                    user=user,
-                    role__application=application,
-                    is_active=True,
-                )
-            )
-            logger.info(f"[RBAC JWT] Found UserAppRole: {user_app_role.role.code}")
-            feature_perms = user_app_role.get_permissions()
-            logger.info(f"[RBAC JWT] Returning feature_perms: {feature_perms}")
-            return feature_perms
-        except UserAppRole.DoesNotExist:
-            logger.info(
-                "[RBAC JWT] No UserAppRole found for user=%s, app=%s",
-                user.email,
-                application.slug,
-            )
-            return None
-        except UserAppRole.MultipleObjectsReturned:
-            # If multiple roles exist (e.g., different tenants), get first active one
-            logger.info("[RBAC JWT] Multiple UserAppRoles found, using first")
-            user_app_role = (
-                UserAppRole.objects.select_related("role")
-                .prefetch_related(
-                    "role__feature_permissions__feature",
-                    "role__feature_permissions__permission",
-                )
-                .filter(
-                    user=user,
-                    role__application=application,
-                    is_active=True,
-                )
-                .first()
-            )
-            if user_app_role:
-                logger.info(f"[RBAC JWT] Using UserAppRole: {user_app_role.role.code}")
-                feature_perms = user_app_role.get_permissions()
-                logger.info(f"[RBAC JWT] Returning feature_perms: {feature_perms}")
-                return feature_perms
-            logger.info("[RBAC JWT] No active UserAppRole found after filter")
-            return None
-
     def scope_profile(self):
         """Override profile scope to include application roles.
 
         SECURITY FIX: Only include role for the requesting application.
-
-        RBAC FIX (Dec 2025): Check UserAppRole FIRST as primary source.
-        Previously only checked legacy ApplicationRole, ignoring RBAC-only users.
-
-        Priority:
-        1. UserAppRole (new RBAC system) - includes feature permissions
-        2. ApplicationRole (legacy) - backward compatibility fallback
+        Uses UserAppRole (RBAC system) exclusively.
         """
         logger.debug("[OIDC CLAIMS] scope_profile() called")
 
         # Get standard profile claims from parent
         claims = super().scope_profile()
-        logger.debug(f"[OIDC CLAIMS] Standard profile claims: {list(claims.keys())}")
 
         user = self.user
         requesting_app = self._get_requesting_application()
@@ -175,60 +120,39 @@ class CustomScopeClaims(ScopeClaims):
         roles = {}
 
         if requesting_app:
-            # RBAC FIX: Check UserAppRole FIRST (new RBAC system)
             user_app_role = self._get_user_app_role(user, requesting_app)
 
             if user_app_role:
-                # Use RBAC role as primary source
                 role_data = {
                     "role": user_app_role.role.name,
-                    "permissions": [],  # Legacy permissions not used in RBAC
+                    "permissions": [],  # Legacy field, kept for compatibility
                     "features": user_app_role.get_permissions(),
                 }
                 roles[requesting_app.slug] = role_data
                 logger.debug(
-                    f"[OIDC CLAIMS] Added RBAC role for {requesting_app.slug}: "
+                    f"[OIDC CLAIMS] Added role for {requesting_app.slug}: "
                     f"{user_app_role.role.code}"
                 )
             else:
-                # Fallback: Try legacy ApplicationRole (backward compatibility)
-                app_roles = ApplicationRole.objects.filter(
-                    user=user, application=requesting_app
-                ).only("application", "role", "permissions")
-
-                for ar in app_roles:
-                    role_data = {
-                        "role": ar.role,
-                        "permissions": ar.permissions or [],
-                    }
-                    roles[ar.application.slug] = role_data
-                    logger.debug(
-                        f"[OIDC CLAIMS] Added legacy role for {ar.application.slug}: "
-                        f"{ar.role}"
-                    )
+                logger.debug(
+                    f"[OIDC CLAIMS] No role found for user={user.email}, "
+                    f"app={requesting_app.slug}"
+                )
         else:
-            # Fallback: if no requesting app context, return empty roles
-            # This prevents leaking roles when app context is unknown
+            # No requesting app context - return empty roles
             security_logger.warning(
                 f"[OIDC CLAIMS] No requesting app context for user {user.email}. "
                 "Returning empty application_roles."
             )
 
         claims["application_roles"] = roles
-        logger.debug(f"[OIDC CLAIMS] Returning claims with keys: {list(claims.keys())}")
         return claims
 
     def scope_roles(self):
         """Custom roles scope.
 
         SECURITY FIX: Only include role for the requesting application.
-
-        RBAC FIX (Dec 2025): Check UserAppRole FIRST as primary source.
-        Previously only checked legacy ApplicationRole, ignoring RBAC-only users.
-
-        Priority:
-        1. UserAppRole (new RBAC system) - includes feature permissions
-        2. ApplicationRole (legacy) - backward compatibility fallback
+        Uses UserAppRole (RBAC system) exclusively.
         """
         logger.debug("[OIDC CLAIMS] scope_roles() called")
 
@@ -238,37 +162,19 @@ class CustomScopeClaims(ScopeClaims):
         roles = {}
 
         if requesting_app:
-            # RBAC FIX: Check UserAppRole FIRST (new RBAC system)
             user_app_role = self._get_user_app_role(user, requesting_app)
 
             if user_app_role:
-                # Use RBAC role as primary source
                 role_data = {
                     "role": user_app_role.role.name,
-                    "permissions": [],  # Legacy permissions not used in RBAC
+                    "permissions": [],  # Legacy field, kept for compatibility
                     "features": user_app_role.get_permissions(),
                 }
                 roles[requesting_app.slug] = role_data
                 logger.debug(
-                    f"[OIDC CLAIMS] scope_roles: Added RBAC role for "
+                    f"[OIDC CLAIMS] scope_roles: Added role for "
                     f"{requesting_app.slug}: {user_app_role.role.code}"
                 )
-            else:
-                # Fallback: Try legacy ApplicationRole (backward compatibility)
-                app_roles = ApplicationRole.objects.filter(
-                    user=user, application=requesting_app
-                ).only("application", "role", "permissions")
-
-                for ar in app_roles:
-                    role_data = {
-                        "role": ar.role,
-                        "permissions": ar.permissions or [],
-                    }
-                    roles[ar.application.slug] = role_data
-                    logger.debug(
-                        f"[OIDC CLAIMS] scope_roles: Added legacy role for "
-                        f"{ar.application.slug}: {ar.role}"
-                    )
         else:
             security_logger.warning(
                 f"[OIDC CLAIMS] No requesting app context for user {user.email} "

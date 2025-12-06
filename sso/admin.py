@@ -239,9 +239,23 @@ class UserRoleAdmin(admin.ModelAdmin):
     )
 
 
+# =============================================================================
+# DEPRECATED: ApplicationRole is replaced by UserAppRole (RBAC system)
+# Run `python manage.py migrate_roles` to migrate legacy entries.
+# This admin section kept for viewing/auditing existing legacy data.
+# Do not create new entries here - use UserAppRole instead.
+# Safe to remove after Jan 2026 once all legacy data migrated.
+# =============================================================================
 @admin.register(ApplicationRole)
 class ApplicationRoleAdmin(admin.ModelAdmin):
-    list_display = ["user", "application", "role", "assigned_date"]
+    """
+    DEPRECATED: Use UserAppRole (RBAC) instead.
+
+    This admin is kept for viewing/auditing legacy ApplicationRole entries.
+    Run `python manage.py migrate_roles` to migrate to UserAppRole.
+    """
+
+    list_display = ["user", "application", "role", "assigned_date", "migration_status"]
     list_filter = ["application", "role", "assigned_date"]
     search_fields = [
         "user__email",
@@ -252,7 +266,17 @@ class ApplicationRoleAdmin(admin.ModelAdmin):
     autocomplete_fields = ["user"]
 
     fieldsets = (
-        ("Role Assignment", {"fields": ("user", "application", "role")}),
+        (
+            "⚠️ DEPRECATED - Use UserAppRole Instead",
+            {
+                "fields": ("user", "application", "role"),
+                "description": (
+                    "This system is deprecated. "
+                    "Use RBAC > User App Roles for new assignments. "
+                    "Run 'python manage.py migrate_roles' to migrate."
+                ),
+            },
+        ),
         (
             "Additional Details",
             {"fields": ("permissions", "notes"), "classes": ("collapse",)},
@@ -260,7 +284,32 @@ class ApplicationRoleAdmin(admin.ModelAdmin):
     )
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("user")
+        return super().get_queryset(request).select_related("user", "application")
+
+    @admin.display(description="Migrated?")
+    def migration_status(self, obj):
+        """Check if this legacy role has been migrated to UserAppRole."""
+        from .models import Role, UserAppRole
+
+        # Find matching RBAC role
+        try:
+            rbac_role = Role.objects.get(
+                application=obj.application,
+                legacy_role__iexact=obj.role,
+                is_active=True,
+            )
+            # Check if UserAppRole exists
+            if UserAppRole.objects.filter(user=obj.user, role=rbac_role).exists():
+                return "✅ Yes"
+        except Role.DoesNotExist:
+            return "⚠️ No RBAC role"
+        except Role.MultipleObjectsReturned:
+            return "⚠️ Multiple roles"
+        return "❌ No"
+
+    def has_add_permission(self, request):
+        """Prevent creating new legacy ApplicationRole entries."""
+        return False
 
 
 @admin.register(RefreshToken)
