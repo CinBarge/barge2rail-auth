@@ -55,6 +55,11 @@ class CustomScopeClaims(ScopeClaims):
                 "releases": ["view"],
             }
         """
+        logger.info(
+            f"[RBAC JWT] Looking up permissions for user={user.email}, "
+            f"app={application.slug if application else 'None'}"
+        )
+
         try:
             user_app_role = (
                 UserAppRole.objects.select_related("role")
@@ -68,11 +73,20 @@ class CustomScopeClaims(ScopeClaims):
                     is_active=True,
                 )
             )
-            return user_app_role.get_permissions()
+            logger.info(f"[RBAC JWT] Found UserAppRole: {user_app_role.role.code}")
+            feature_perms = user_app_role.get_permissions()
+            logger.info(f"[RBAC JWT] Returning feature_perms: {feature_perms}")
+            return feature_perms
         except UserAppRole.DoesNotExist:
+            logger.info(
+                "[RBAC JWT] No UserAppRole found for user=%s, app=%s",
+                user.email,
+                application.slug,
+            )
             return None
         except UserAppRole.MultipleObjectsReturned:
             # If multiple roles exist (e.g., different tenants), get first active one
+            logger.info("[RBAC JWT] Multiple UserAppRoles found, using first")
             user_app_role = (
                 UserAppRole.objects.select_related("role")
                 .prefetch_related(
@@ -87,7 +101,11 @@ class CustomScopeClaims(ScopeClaims):
                 .first()
             )
             if user_app_role:
-                return user_app_role.get_permissions()
+                logger.info(f"[RBAC JWT] Using UserAppRole: {user_app_role.role.code}")
+                feature_perms = user_app_role.get_permissions()
+                logger.info(f"[RBAC JWT] Returning feature_perms: {feature_perms}")
+                return feature_perms
+            logger.info("[RBAC JWT] No active UserAppRole found after filter")
             return None
 
     def scope_profile(self):
