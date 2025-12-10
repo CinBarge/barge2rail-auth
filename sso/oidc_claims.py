@@ -129,6 +129,7 @@ class CustomScopeClaims(ScopeClaims):
                     "role": role.legacy_role or role.name,
                     "permissions": [],  # Legacy field, kept for compatibility
                     "features": user_app_role.get_permissions(),
+                    "tenant_code": user_app_role.tenant_code,  # Multi-tenant support
                 }
                 roles[requesting_app.slug] = role_data
                 logger.debug(
@@ -173,6 +174,7 @@ class CustomScopeClaims(ScopeClaims):
                     "role": role.legacy_role or role.name,
                     "permissions": [],  # Legacy field, kept for compatibility
                     "features": user_app_role.get_permissions(),
+                    "tenant_code": user_app_role.tenant_code,  # Multi-tenant support
                 }
                 roles[requesting_app.slug] = role_data
                 logger.debug(

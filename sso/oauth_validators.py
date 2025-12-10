@@ -231,6 +231,7 @@ class CustomOAuth2Validator(OAuth2Validator):
                         "role": uar.role.legacy_role or uar.role.name,
                         "permissions": [],  # Legacy field, kept for compatibility
                         "features": feature_perms,
+                        "tenant_code": uar.tenant_code,  # Multi-tenant support
                     }
                     logger.info(
                         f"[CLAIMS] Added role: {app_slug} -> {uar.role.code} "

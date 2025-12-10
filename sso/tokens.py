@@ -74,6 +74,8 @@ class CustomRefreshToken(BaseRefreshToken):
                     "permissions": legacy_permissions,
                     # NEW: Feature-level permissions from RBAC
                     "features": uar.get_permissions(),
+                    # Multi-tenant support
+                    "tenant_code": uar.tenant_code,
                 }
 
             logger.debug(
