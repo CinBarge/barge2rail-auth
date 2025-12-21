@@ -1334,3 +1334,199 @@ def profile_page(request):
     """
     serializer = UserSerializer(request.user)
     return Response(serializer.data)
+
+
+
+# ============================================================================
+# Internal API: User Management (for Command Center integration)
+# ============================================================================
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])  # Protected by API key instead
+def internal_create_user(request):
+    """
+    Internal API endpoint for creating users from Command Center.
+
+    Protected by INTERNAL_API_KEY header, not JWT.
+    This allows Command Center to create users without requiring
+    a logged-in user context.
+
+    Request body:
+    {
+        "email": "user@example.com",  # Required for google/password
+        "username": "jsmith",          # Required for anonymous
+        "first_name": "John",
+        "last_name": "Smith",
+        "auth_method": "google|password|anonymous",
+        "password": "...",            # Required for password auth
+        "pin": "1234"                 # Required for anonymous auth
+    }
+
+    Returns:
+    {
+        "success": true,
+        "user_id": "uuid",
+        "email": "user@example.com",
+        "message": "User created"
+    }
+    """
+    # Verify internal API key
+    api_key = request.headers.get("X-Internal-API-Key")
+    expected_key = getattr(settings, "INTERNAL_API_KEY", None)
+
+    if not expected_key or api_key != expected_key:
+        security_logger.warning(
+            f"Invalid internal API key attempt from {request.META.get('REMOTE_ADDR')}"
+        )
+        return Response(
+            {"success": False, "error": "Unauthorized"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    # Parse request data
+    data = request.data
+    auth_method = data.get("auth_method", "google")
+    email = data.get("email", "").strip().lower()
+    username = data.get("username", "").strip().lower()
+    first_name = data.get("first_name", "").strip()
+    last_name = data.get("last_name", "").strip()
+    password = data.get("password", "")
+    pin = data.get("pin", "")
+
+    try:
+        # Validation based on auth method
+        if auth_method == "anonymous":
+            if not username:
+                return Response(
+                    {"success": False, "error": "Username is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not pin or len(pin) != 4 or not pin.isdigit():
+                return Response(
+                    {"success": False, "error": "PIN must be exactly 4 digits"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if User.objects.filter(anonymous_username=username).exists():
+                return Response(
+                    {"success": False, "error": f"Username '{username}' already exists"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            if not email:
+                return Response(
+                    {"success": False, "error": "Email is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if User.objects.filter(email=email).exists():
+                return Response(
+                    {"success": False, "error": f"Email '{email}' already exists"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        if auth_method == "password":
+            if not password or len(password) < 8:
+                return Response(
+                    {"success": False, "error": "Password must be at least 8 characters"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Create user based on auth method
+        if auth_method == "anonymous":
+            user = User(
+                first_name=first_name,
+                last_name=last_name,
+                auth_type="anonymous",
+                auth_method="password",
+                anonymous_username=username,
+                is_active=True,
+            )
+            user.set_password(pin)
+            user.save()
+            identifier = username
+        elif auth_method == "password":
+            user = User.objects.create_user(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                password=password,
+            )
+            user.auth_type = "email"
+            user.auth_method = "password"
+            user.save()
+            identifier = email
+        else:  # google
+            user = User.objects.create_user(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                password=None,
+            )
+            user.auth_type = "google"
+            user.auth_method = "google"
+            user.save()
+            identifier = email
+
+        logger.info(f"Internal API: Created user {identifier} via Command Center")
+
+        return Response({
+            "success": True,
+            "user_id": str(user.id),
+            "email": user.email,
+            "username": user.anonymous_username,
+            "message": f"User created successfully",
+        }, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        logger.error(f"Internal API user creation error: {str(e)}")
+        return Response(
+            {"success": False, "error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def internal_check_user(request):
+    """
+    Check if a user exists by email or username.
+
+    Protected by INTERNAL_API_KEY header.
+
+    Query params:
+    - email: Check by email
+    - username: Check by username
+
+    Returns:
+    {
+        "exists": true/false,
+        "user_id": "uuid" (if exists)
+    }
+    """
+    api_key = request.headers.get("X-Internal-API-Key")
+    expected_key = getattr(settings, "INTERNAL_API_KEY", None)
+
+    if not expected_key or api_key != expected_key:
+        return Response(
+            {"success": False, "error": "Unauthorized"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    email = request.query_params.get("email", "").strip().lower()
+    username = request.query_params.get("username", "").strip().lower()
+
+    user = None
+    if email:
+        user = User.objects.filter(email=email).first()
+    elif username:
+        user = User.objects.filter(anonymous_username=username).first()
+
+    if user:
+        return Response({
+            "exists": True,
+            "user_id": str(user.id),
+            "email": user.email,
+            "username": user.anonymous_username,
+        })
+    else:
+        return Response({"exists": False})

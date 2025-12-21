@@ -473,3 +473,8 @@ DJANGO_MCP_TOOLSETS = [
     "sso.mcp_toolsets.UserToolset",
     "sso.mcp_toolsets.ApplicationRoleToolset",
 ]
+
+
+# Internal API Key (for Command Center integration)
+# Used to authenticate internal API calls between services
+INTERNAL_API_KEY = config("INTERNAL_API_KEY", default=None)

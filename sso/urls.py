@@ -109,4 +109,7 @@ urlpatterns = [
     path(
         "user-roles/<uuid:pk>/", UserRoleDetailView.as_view(), name="user_role_detail"
     ),
+    # Internal API (for Command Center integration)
+    path("api/internal/users/create/", views.internal_create_user, name="internal_create_user"),
+    path("api/internal/users/check/", views.internal_check_user, name="internal_check_user"),
 ]
