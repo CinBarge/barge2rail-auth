@@ -1,0 +1,111 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'sso/css/rbac-theme.css' %}">
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} rbac-page{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
+    &rsaquo; Users
+</div>
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="toast-container">
+    {% for message in messages %}
+    <div class="toast {% if message.tags %}{{ message.tags }}{% endif %}">
+        {{ message|safe }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<h1>👤 User Management</h1>
+<p>Manage users who can access applications via SSO. Users authenticate with Google OAuth.</p>
+
+<div class="filter-bar">
+    <form method="get" class="filter-form">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search by email or name..." class="search-input">
+        <select name="status" onchange="this.form.submit()">
+            <option value="">All Status</option>
+            <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+        <button type="submit" class="btn-secondary">Search</button>
+    </form>
+    <a href="{% url 'sso_user_create' %}" class="btn-primary">+ Add User</a>
+</div>
+
+<p class="results-count">Showing {{ user_data|length }} of {{ total_count }} users</p>
+
+<table class="rbac-table">
+    <thead>
+        <tr>
+            <th>Email</th>
+            <th>Name</th>
+            <th>Roles</th>
+            <th>Active</th>
+            <th>Last Login</th>
+            <th>Joined</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in user_data %}
+        <tr>
+            <td><strong>{{ item.user.email }}</strong></td>
+            <td>{{ item.user.first_name }} {{ item.user.last_name }}</td>
+            <td>{{ item.role_count }}</td>
+            <td>{% if item.user.is_active %}<span class="badge-active">Yes</span>{% else %}<span class="badge-inactive">No</span>{% endif %}</td>
+            <td>{% if item.user.last_login %}{{ item.user.last_login|date:"M d, Y" }}{% else %}<em>Never</em>{% endif %}</td>
+            <td>{{ item.user.date_joined|date:"M d, Y" }}</td>
+            <td class="actions">
+                <a href="{% url 'sso_user_edit' user_id=item.user.id %}" class="btn-icon" title="Edit User">&#9998;</a>
+                <a href="{% url 'sso_effective_permissions' %}?user_id={{ item.user.id }}" class="btn-icon" title="View Permissions">&#128274;</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" class="empty-state">No users found. <a href="{% url 'sso_user_create' %}">Add one</a>.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="page-actions">
+    <a href="{% url 'sso_rbac_dashboard' %}" class="btn-secondary">&larr; Back to Dashboard</a>
+</div>
+
+<style>
+.search-input {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 250px;
+}
+.results-count {
+    color: #666;
+    font-size: 13px;
+    margin: -10px 0 15px 0;
+}
+</style>
+
+<script>
+setTimeout(function() {
+    document.querySelectorAll('.toast').forEach(toast => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    });
+}, 5000);
+</script>
+{% endblock %}

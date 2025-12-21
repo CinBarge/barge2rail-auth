@@ -27,6 +27,9 @@ from sso.admin_views import (
     role_history,
     role_list,
     role_permission_matrix,
+    user_create,
+    user_edit,
+    user_list,
 )
 from sso.jwks_views import jwks_endpoint
 from sso.views import google_auth_callback
@@ -144,6 +147,22 @@ urlpatterns = [
         "admin/sso/rbac/assignments/<int:assignment_id>/delete/",
         assignment_delete,
         name="sso_assignment_delete",
+    ),
+    # User management (for Command Center integration)
+    path(
+        "admin/sso/users/",
+        user_list,
+        name="sso_user_list",
+    ),
+    path(
+        "admin/sso/users/add/",
+        user_create,
+        name="sso_user_create",
+    ),
+    path(
+        "admin/sso/users/<uuid:user_id>/edit/",
+        user_edit,
+        name="sso_user_edit",
     ),
     path("admin/", admin.site.urls),
     # Admin OAuth URLs (Phase 4) - must come before general auth includes

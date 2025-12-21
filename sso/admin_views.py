@@ -1029,3 +1029,122 @@ def assignment_delete(request, assignment_id):
         "title": f"Remove Assignment: {assignment.user.email}",
     }
     return render(request, "admin/sso/assignment_delete.html", context)
+
+
+# =============================================================================
+# User Management (for Command Center integration)
+# =============================================================================
+
+
+@staff_member_required
+def user_list(request):
+    """List all users with search/filter."""
+    from django.db.models import Q
+
+    users = User.objects.all().order_by("-date_joined")
+
+    q = request.GET.get("q", "").strip()
+    if q:
+        users = users.filter(
+            Q(email__icontains=q)
+            | Q(first_name__icontains=q)
+            | Q(last_name__icontains=q)
+        )
+
+    status = request.GET.get("status", "")
+    if status == "active":
+        users = users.filter(is_active=True)
+    elif status == "inactive":
+        users = users.filter(is_active=False)
+
+    # Get role count for each user
+    user_data = []
+    for user in users[:100]:
+        role_count = UserAppRole.objects.filter(user=user, is_active=True).count()
+        user_data.append({"user": user, "role_count": role_count})
+
+    context = {
+        "user_data": user_data,
+        "q": q,
+        "status": status,
+        "total_count": users.count(),
+        "title": "User Management",
+    }
+    return render(request, "admin/sso/user_list.html", context)
+
+
+@staff_member_required
+def user_create(request):
+    """Create a new user (for SSO/Google OAuth login)."""
+    return_url = request.GET.get("return_url", "")
+
+    if request.method == "POST":
+        email = request.POST.get("email", "").strip().lower()
+        first_name = request.POST.get("first_name", "").strip()
+        last_name = request.POST.get("last_name", "").strip()
+
+        if not email:
+            messages.error(request, "Email is required.")
+            return redirect("sso_user_create")
+
+        if User.objects.filter(email=email).exists():
+            messages.error(request, f"User with email {email} already exists.")
+            return redirect("sso_user_create")
+
+        # Create user (no password - they use Google OAuth)
+        user = User.objects.create_user(
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            password=None,  # No password - OAuth only
+        )
+        # Mark as OAuth user
+        if hasattr(user, "auth_method"):
+            user.auth_method = "google"
+            user.save()
+
+        messages.success(
+            request, f"User {email} created. They can now log in via Google SSO."
+        )
+
+        # Return to Command Center if return_url provided
+        return_url = request.POST.get("return_url", "")
+        if return_url and (
+            return_url.startswith("https://") or return_url.startswith("http://")
+        ):
+            return redirect(return_url)
+
+        return redirect("sso_user_list")
+
+    context = {
+        "return_url": return_url,
+        "title": "Add User",
+    }
+    return render(request, "admin/sso/user_form.html", context)
+
+
+@staff_member_required
+def user_edit(request, user_id):
+    """Edit an existing user."""
+    user = get_object_or_404(User, pk=user_id)
+
+    if request.method == "POST":
+        user.first_name = request.POST.get("first_name", "").strip()
+        user.last_name = request.POST.get("last_name", "").strip()
+        user.is_active = request.POST.get("is_active") == "on"
+        user.save()
+
+        messages.success(request, f"User {user.email} updated.")
+        return redirect("sso_user_list")
+
+    # Get user's role assignments
+    assignments = UserAppRole.objects.filter(user=user).select_related(
+        "role", "role__application"
+    )
+
+    context = {
+        "edit_user": user,
+        "assignments": assignments,
+        "title": f"Edit User: {user.email}",
+    }
+    return render(request, "admin/sso/user_form.html", context)

@@ -1,0 +1,224 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'sso/css/rbac-theme.css' %}">
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} rbac-page{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
+    &rsaquo; <a href="{% url 'sso_user_list' %}">Users</a>
+    &rsaquo; {% if edit_user %}Edit{% else %}Add{% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="toast-container">
+    {% for message in messages %}
+    <div class="toast {% if message.tags %}{{ message.tags }}{% endif %}">
+        {{ message|safe }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<h1>{% if edit_user %}Edit User: {{ edit_user.email }}{% else %}Add User{% endif %}</h1>
+
+{% if not edit_user %}
+<div class="info-box">
+    <strong>ℹ️ How user access works:</strong>
+    Users authenticate via Google SSO. Adding a user here registers their email so when they
+    first sign in with Google, the system recognizes them. No password needed.
+</div>
+{% endif %}
+
+<form method="post" class="rbac-form">
+    {% csrf_token %}
+    {% if return_url %}
+    <input type="hidden" name="return_url" value="{{ return_url }}">
+    {% endif %}
+
+    <div class="form-section">
+        <h3>👤 Identity</h3>
+
+        <div class="form-row">
+            <label for="email">Email Address <span class="required">*</span></label>
+            {% if edit_user %}
+            <input type="email" id="email" name="email" value="{{ edit_user.email }}" readonly class="readonly">
+            <span class="help-text">Email is tied to SSO identity and cannot be changed.</span>
+            {% else %}
+            <input type="email" id="email" name="email" placeholder="user@company.com" required>
+            <span class="help-text">Must match the Google account email they'll use to sign in.</span>
+            {% endif %}
+        </div>
+
+        <div class="form-row-inline">
+            <div class="form-row">
+                <label for="first_name">First Name</label>
+                <input type="text" id="first_name" name="first_name"
+                       value="{% if edit_user %}{{ edit_user.first_name }}{% endif %}"
+                       placeholder="John">
+            </div>
+            <div class="form-row">
+                <label for="last_name">Last Name</label>
+                <input type="text" id="last_name" name="last_name"
+                       value="{% if edit_user %}{{ edit_user.last_name }}{% endif %}"
+                       placeholder="Smith">
+            </div>
+        </div>
+    </div>
+
+    {% if edit_user %}
+    <div class="form-section">
+        <h3>🔐 Status</h3>
+
+        <div class="form-row">
+            <label class="checkbox-label">
+                <input type="checkbox" name="is_active" {% if edit_user.is_active %}checked{% endif %}>
+                <span>Account Active</span>
+            </label>
+            <span class="help-text">Inactive users cannot log in.</span>
+        </div>
+    </div>
+
+    {% if assignments %}
+    <div class="form-section">
+        <h3>📋 Role Assignments</h3>
+        <table class="rbac-table compact">
+            <thead>
+                <tr>
+                    <th>Application</th>
+                    <th>Role</th>
+                    <th>Tenant</th>
+                    <th>Active</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for assign in assignments %}
+                <tr>
+                    <td>{{ assign.role.application.name }}</td>
+                    <td>{{ assign.role.name }}</td>
+                    <td>{% if assign.tenant_code %}{{ assign.tenant_code }}{% else %}<em>All</em>{% endif %}</td>
+                    <td>{% if assign.is_active %}<span class="badge-active">Yes</span>{% else %}<span class="badge-inactive">No</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p class="help-text">
+            <a href="{% url 'sso_bulk_assign_role' %}">Manage role assignments →</a>
+        </p>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <div class="form-actions">
+        <button type="submit" class="btn-primary">
+            {% if edit_user %}💾 Save Changes{% else %}✓ Create User{% endif %}
+        </button>
+        {% if return_url %}
+        <a href="{{ return_url }}" class="btn-secondary">Cancel & Return</a>
+        {% else %}
+        <a href="{% url 'sso_user_list' %}" class="btn-secondary">Cancel</a>
+        {% endif %}
+    </div>
+</form>
+
+<style>
+.info-box {
+    background: #e8f4fd;
+    border: 1px solid #b3d9f7;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: #1a5276;
+}
+.form-section {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.form-section h3 {
+    margin: 0 0 15px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 16px;
+}
+.form-row {
+    margin-bottom: 15px;
+}
+.form-row label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+.form-row input[type="text"],
+.form-row input[type="email"] {
+    width: 100%;
+    max-width: 400px;
+    padding: 10px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+.form-row input.readonly {
+    background: #f5f5f5;
+    color: #666;
+}
+.form-row-inline {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+.help-text {
+    display: block;
+    margin-top: 5px;
+    font-size: 12px;
+    color: #666;
+}
+.required {
+    color: #c00;
+}
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: normal;
+    cursor: pointer;
+}
+.checkbox-label input {
+    width: 18px;
+    height: 18px;
+}
+.form-actions {
+    display: flex;
+    gap: 10px;
+    padding-top: 10px;
+}
+.rbac-table.compact {
+    font-size: 13px;
+}
+.rbac-table.compact td, .rbac-table.compact th {
+    padding: 8px 12px;
+}
+</style>
+
+<script>
+setTimeout(function() {
+    document.querySelectorAll('.toast').forEach(toast => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    });
+}, 5000);
+</script>
+{% endblock %}
