@@ -3,122 +3,442 @@
 
 {% block extrahead %}
 {{ block.super }}
-<link rel="stylesheet" href="{% static 'sso/css/rbac-theme.css' %}">
-{% endblock %}
+<style>
+/* Force light theme for this form */
+.user-form-page {
+    background: #f5f5f5 !important;
+    min-height: 100vh;
+    padding: 20px;
+}
+.user-form-page * {
+    color: #333 !important;
+}
+.user-form-page a {
+    color: #2563eb !important;
+}
 
-{% block bodyclass %}{{ block.super }} rbac-page{% endblock %}
+.user-form-container {
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.user-form-container h1 {
+    font-size: 24px;
+    margin-bottom: 20px;
+    color: #1f2937 !important;
+}
+
+.info-box {
+    background: #dbeafe;
+    border: 1px solid #93c5fd;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    color: #1e40af !important;
+}
+
+.form-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.form-card-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+    border-radius: 8px 8px 0 0;
+}
+.form-card-header h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #374151 !important;
+}
+.form-card-body {
+    padding: 20px;
+}
+
+.form-group {
+    margin-bottom: 18px;
+}
+.form-group:last-child {
+    margin-bottom: 0;
+}
+.form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-size: 14px;
+    color: #374151 !important;
+}
+.required {
+    color: #dc2626 !important;
+}
+
+.form-input,
+.form-select {
+    width: 100%;
+    max-width: 400px;
+    padding: 10px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff !important;
+    color: #1f2937 !important;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.form-input:focus,
+.form-select:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.form-input::placeholder {
+    color: #9ca3af !important;
+}
+.form-input.readonly {
+    background: #f3f4f6 !important;
+    color: #6b7280 !important;
+}
+
+.form-help {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    color: #6b7280 !important;
+    line-height: 1.4;
+}
+
+.form-row-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+@media (max-width: 600px) {
+    .form-row-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.auth-method-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.auth-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+.auth-option:hover {
+    border-color: #93c5fd;
+    background: #f0f9ff;
+}
+.auth-option.selected {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+.auth-option input[type="radio"] {
+    margin-top: 2px;
+}
+.auth-option-content {
+    flex: 1;
+}
+.auth-option-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1f2937 !important;
+}
+.auth-option-desc {
+    font-size: 12px;
+    color: #6b7280 !important;
+    margin-top: 2px;
+}
+
+.password-fields {
+    display: none;
+    margin-top: 15px;
+    padding: 15px;
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    border-radius: 6px;
+}
+.password-fields.visible {
+    display: block;
+}
+.password-fields .form-group {
+    margin-bottom: 12px;
+}
+.password-fields .form-input {
+    max-width: 100%;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: normal;
+    cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    padding-top: 10px;
+}
+.btn-primary {
+    background: #16a34a !important;
+    color: #fff !important;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.btn-primary:hover {
+    background: #15803d !important;
+}
+.btn-secondary {
+    background: #f3f4f6 !important;
+    color: #374151 !important;
+    border: 1px solid #d1d5db;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+.btn-secondary:hover {
+    background: #e5e7eb !important;
+}
+
+/* Table styling */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.data-table th,
+.data-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+.data-table th {
+    background: #f9fafb;
+    font-weight: 600;
+    color: #374151 !important;
+}
+.badge-active {
+    background: #dcfce7;
+    color: #166534 !important;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+.badge-inactive {
+    background: #fee2e2;
+    color: #991b1b !important;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+</style>
+{% endblock %}
 
 {% block content_title %}{% endblock %}
-
-{% block breadcrumbs %}
-<div class="breadcrumbs">
-    <a href="{% url 'admin:index' %}">Home</a>
-    &rsaquo; <a href="{% url 'admin:app_list' app_label='sso' %}">SSO</a>
-    &rsaquo; <a href="{% url 'sso_user_list' %}">Users</a>
-    &rsaquo; {% if edit_user %}Edit{% else %}Add{% endif %}
-</div>
-{% endblock %}
+{% block breadcrumbs %}{% endblock %}
 
 {% block content %}
+<div class="user-form-page">
+<div class="user-form-container">
+
+<div style="margin-bottom: 15px; font-size: 13px;">
+    <a href="{% url 'admin:index' %}">Home</a> ›
+    <a href="{% url 'sso_user_list' %}">Users</a> ›
+    {% if edit_user %}Edit{% else %}Add{% endif %}
+</div>
+
+<h1>{% if edit_user %}Edit User: {{ edit_user.email }}{% else %}Add User{% endif %}</h1>
+
 {% if messages %}
-<div class="toast-container">
+<div style="margin-bottom: 20px;">
     {% for message in messages %}
-    <div class="toast {% if message.tags %}{{ message.tags }}{% endif %}">
+    <div style="padding: 12px 16px; border-radius: 6px; margin-bottom: 10px;
+                {% if message.tags == 'error' %}background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b !important;
+                {% else %}background: #dcfce7; border: 1px solid #86efac; color: #166534 !important;{% endif %}">
         {{ message|safe }}
     </div>
     {% endfor %}
 </div>
 {% endif %}
 
-<h1>{% if edit_user %}Edit User: {{ edit_user.email }}{% else %}Add User{% endif %}</h1>
-
 {% if not edit_user %}
 <div class="info-box">
-    <strong>ℹ️ How user access works:</strong>
-    Users authenticate via Google SSO. Adding a user here registers their email so when they
-    first sign in with Google, the system recognizes them. No password needed.
+    <strong>ℹ️ Adding a user:</strong>
+    Choose the authentication method based on how this user will log in.
+    Google OAuth users just need an email. Password users will set their password on first login.
 </div>
 {% endif %}
 
-<form method="post" class="rbac-form">
+<form method="post">
     {% csrf_token %}
     {% if return_url %}
     <input type="hidden" name="return_url" value="{{ return_url }}">
     {% endif %}
 
-    <div class="form-section">
-        <h3>👤 Identity</h3>
-
-        <div class="form-row">
-            <label for="email">Email Address <span class="required">*</span></label>
-            {% if edit_user %}
-            <input type="email" id="email" name="email" value="{{ edit_user.email }}" readonly class="readonly">
-            <span class="help-text">Email is tied to SSO identity and cannot be changed.</span>
-            {% else %}
-            <input type="email" id="email" name="email" placeholder="user@company.com" required>
-            <span class="help-text">Must match the Google account email they'll use to sign in.</span>
-            {% endif %}
+    <!-- Identity Section -->
+    <div class="form-card">
+        <div class="form-card-header">
+            <h3>👤 Identity</h3>
         </div>
-
-        <div class="form-row-inline">
-            <div class="form-row">
-                <label for="first_name">First Name</label>
-                <input type="text" id="first_name" name="first_name"
-                       value="{% if edit_user %}{{ edit_user.first_name }}{% endif %}"
-                       placeholder="John">
+        <div class="form-card-body">
+            <div class="form-group">
+                <label for="email">Email Address <span class="required">*</span></label>
+                {% if edit_user %}
+                <input type="email" id="email" name="email" class="form-input readonly"
+                       value="{{ edit_user.email }}" readonly>
+                <span class="form-help">Email is tied to identity and cannot be changed.</span>
+                {% else %}
+                <input type="email" id="email" name="email" class="form-input"
+                       placeholder="user@company.com" required>
+                <span class="form-help">Primary identifier for this user account.</span>
+                {% endif %}
             </div>
-            <div class="form-row">
-                <label for="last_name">Last Name</label>
-                <input type="text" id="last_name" name="last_name"
-                       value="{% if edit_user %}{{ edit_user.last_name }}{% endif %}"
-                       placeholder="Smith">
+
+            <div class="form-row-grid">
+                <div class="form-group">
+                    <label for="first_name">First Name</label>
+                    <input type="text" id="first_name" name="first_name" class="form-input"
+                           value="{% if edit_user %}{{ edit_user.first_name }}{% endif %}"
+                           placeholder="John">
+                </div>
+                <div class="form-group">
+                    <label for="last_name">Last Name</label>
+                    <input type="text" id="last_name" name="last_name" class="form-input"
+                           value="{% if edit_user %}{{ edit_user.last_name }}{% endif %}"
+                           placeholder="Smith">
+                </div>
             </div>
         </div>
     </div>
 
-    {% if edit_user %}
-    <div class="form-section">
-        <h3>🔐 Status</h3>
+    {% if not edit_user %}
+    <!-- Authentication Method Section (new users only) -->
+    <div class="form-card">
+        <div class="form-card-header">
+            <h3>🔐 Authentication Method</h3>
+        </div>
+        <div class="form-card-body">
+            <div class="auth-method-options">
+                <label class="auth-option selected" data-method="google">
+                    <input type="radio" name="auth_method" value="google" checked>
+                    <div class="auth-option-content">
+                        <div class="auth-option-title">🌐 Google OAuth (Recommended)</div>
+                        <div class="auth-option-desc">User logs in with their Google account. No password needed.</div>
+                    </div>
+                </label>
+                <label class="auth-option" data-method="password">
+                    <input type="radio" name="auth_method" value="password">
+                    <div class="auth-option-content">
+                        <div class="auth-option-title">📧 Email + Password</div>
+                        <div class="auth-option-desc">User logs in with email and a password you set.</div>
+                    </div>
+                </label>
+            </div>
 
-        <div class="form-row">
-            <label class="checkbox-label">
-                <input type="checkbox" name="is_active" {% if edit_user.is_active %}checked{% endif %}>
-                <span>Account Active</span>
-            </label>
-            <span class="help-text">Inactive users cannot log in.</span>
+            <div class="password-fields" id="passwordFields">
+                <div class="form-group">
+                    <label for="password">Initial Password <span class="required">*</span></label>
+                    <input type="password" id="password" name="password" class="form-input"
+                           placeholder="Set a temporary password" minlength="8">
+                    <span class="form-help">Minimum 8 characters. User should change this after first login.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if edit_user %}
+    <!-- Status Section (edit mode) -->
+    <div class="form-card">
+        <div class="form-card-header">
+            <h3>🔐 Account Status</h3>
+        </div>
+        <div class="form-card-body">
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="is_active" {% if edit_user.is_active %}checked{% endif %}>
+                    <span>Account Active</span>
+                </label>
+                <span class="form-help">Inactive users cannot log in.</span>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label>Auth Method</label>
+                <div style="padding: 8px 0; font-size: 14px;">
+                    {% if edit_user.auth_method == 'google' %}
+                    🌐 Google OAuth
+                    {% else %}
+                    📧 Email + Password
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
 
     {% if assignments %}
-    <div class="form-section">
-        <h3>📋 Role Assignments</h3>
-        <table class="rbac-table compact">
-            <thead>
-                <tr>
-                    <th>Application</th>
-                    <th>Role</th>
-                    <th>Tenant</th>
-                    <th>Active</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for assign in assignments %}
-                <tr>
-                    <td>{{ assign.role.application.name }}</td>
-                    <td>{{ assign.role.name }}</td>
-                    <td>{% if assign.tenant_code %}{{ assign.tenant_code }}{% else %}<em>All</em>{% endif %}</td>
-                    <td>{% if assign.is_active %}<span class="badge-active">Yes</span>{% else %}<span class="badge-inactive">No</span>{% endif %}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <p class="help-text">
-            <a href="{% url 'sso_bulk_assign_role' %}">Manage role assignments →</a>
-        </p>
+    <!-- Role Assignments Section -->
+    <div class="form-card">
+        <div class="form-card-header">
+            <h3>📋 Role Assignments</h3>
+        </div>
+        <div class="form-card-body">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Application</th>
+                        <th>Role</th>
+                        <th>Tenant</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for assign in assignments %}
+                    <tr>
+                        <td>{{ assign.role.application.name }}</td>
+                        <td>{{ assign.role.name }}</td>
+                        <td>{% if assign.tenant_code %}{{ assign.tenant_code }}{% else %}<em>All</em>{% endif %}</td>
+                        <td>{% if assign.is_active %}<span class="badge-active">Active</span>{% else %}<span class="badge-inactive">Inactive</span>{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="form-help" style="margin-top: 12px;">
+                <a href="{% url 'sso_bulk_assign_role' %}">Manage role assignments →</a>
+            </div>
+        </div>
     </div>
     {% endif %}
     {% endif %}
 
+    <!-- Actions -->
     <div class="form-actions">
         <button type="submit" class="btn-primary">
             {% if edit_user %}💾 Save Changes{% else %}✓ Create User{% endif %}
@@ -131,94 +451,35 @@
     </div>
 </form>
 
-<style>
-.info-box {
-    background: #e8f4fd;
-    border: 1px solid #b3d9f7;
-    border-radius: 6px;
-    padding: 12px 16px;
-    margin-bottom: 20px;
-    font-size: 14px;
-    color: #1a5276;
-}
-.form-section {
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 20px;
-    margin-bottom: 20px;
-}
-.form-section h3 {
-    margin: 0 0 15px 0;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #eee;
-    font-size: 16px;
-}
-.form-row {
-    margin-bottom: 15px;
-}
-.form-row label {
-    display: block;
-    font-weight: 600;
-    margin-bottom: 5px;
-}
-.form-row input[type="text"],
-.form-row input[type="email"] {
-    width: 100%;
-    max-width: 400px;
-    padding: 10px 12px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 14px;
-}
-.form-row input.readonly {
-    background: #f5f5f5;
-    color: #666;
-}
-.form-row-inline {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-}
-.help-text {
-    display: block;
-    margin-top: 5px;
-    font-size: 12px;
-    color: #666;
-}
-.required {
-    color: #c00;
-}
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: normal;
-    cursor: pointer;
-}
-.checkbox-label input {
-    width: 18px;
-    height: 18px;
-}
-.form-actions {
-    display: flex;
-    gap: 10px;
-    padding-top: 10px;
-}
-.rbac-table.compact {
-    font-size: 13px;
-}
-.rbac-table.compact td, .rbac-table.compact th {
-    padding: 8px 12px;
-}
-</style>
+</div>
+</div>
 
 <script>
-setTimeout(function() {
-    document.querySelectorAll('.toast').forEach(toast => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
+document.addEventListener('DOMContentLoaded', function() {
+    const authOptions = document.querySelectorAll('.auth-option');
+    const passwordFields = document.getElementById('passwordFields');
+    const passwordInput = document.getElementById('password');
+
+    authOptions.forEach(option => {
+        const radio = option.querySelector('input[type="radio"]');
+
+        option.addEventListener('click', function() {
+            // Update visual selection
+            authOptions.forEach(o => o.classList.remove('selected'));
+            option.classList.add('selected');
+            radio.checked = true;
+
+            // Show/hide password fields
+            if (radio.value === 'password') {
+                passwordFields.classList.add('visible');
+                passwordInput.required = true;
+            } else {
+                passwordFields.classList.remove('visible');
+                passwordInput.required = false;
+                passwordInput.value = '';
+            }
+        });
     });
-}, 5000);
+});
 </script>
 {% endblock %}

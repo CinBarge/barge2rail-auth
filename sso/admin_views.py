@@ -1075,13 +1075,15 @@ def user_list(request):
 
 @staff_member_required
 def user_create(request):
-    """Create a new user (for SSO/Google OAuth login)."""
+    """Create a new user with chosen auth method."""
     return_url = request.GET.get("return_url", "")
 
     if request.method == "POST":
         email = request.POST.get("email", "").strip().lower()
         first_name = request.POST.get("first_name", "").strip()
         last_name = request.POST.get("last_name", "").strip()
+        auth_method = request.POST.get("auth_method", "google")
+        password = request.POST.get("password", "").strip()
 
         if not email:
             messages.error(request, "Email is required.")
@@ -1091,21 +1093,38 @@ def user_create(request):
             messages.error(request, f"User with email {email} already exists.")
             return redirect("sso_user_create")
 
-        # Create user (no password - they use Google OAuth)
-        user = User.objects.create_user(
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
-            password=None,  # No password - OAuth only
-        )
-        # Mark as OAuth user
-        if hasattr(user, "auth_method"):
+        # Validate password if password auth selected
+        if auth_method == "password":
+            if not password or len(password) < 8:
+                messages.error(request, "Password must be at least 8 characters.")
+                return redirect("sso_user_create")
+
+        # Create user based on auth method
+        if auth_method == "password":
+            user = User.objects.create_user(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                password=password,
+            )
+            user.auth_method = "password"
+            user.save()
+            messages.success(
+                request, f"User {email} created with email/password login."
+            )
+        else:
+            # Google OAuth - no password
+            user = User.objects.create_user(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                password=None,
+            )
             user.auth_method = "google"
             user.save()
-
-        messages.success(
-            request, f"User {email} created. They can now log in via Google SSO."
-        )
+            messages.success(
+                request, f"User {email} created. They can log in via Google SSO."
+            )
 
         # Return to Command Center if return_url provided
         return_url = request.POST.get("return_url", "")
