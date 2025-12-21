@@ -1084,14 +1084,29 @@ def user_create(request):
         last_name = request.POST.get("last_name", "").strip()
         auth_method = request.POST.get("auth_method", "google")
         password = request.POST.get("password", "").strip()
+        username = request.POST.get("username", "").strip().lower()
+        pin = request.POST.get("pin", "").strip()
 
-        if not email:
-            messages.error(request, "Email is required.")
-            return redirect("sso_user_create")
-
-        if User.objects.filter(email=email).exists():
-            messages.error(request, f"User with email {email} already exists.")
-            return redirect("sso_user_create")
+        # Validation based on auth method
+        if auth_method == "anonymous":
+            # Username + PIN validation
+            if not username:
+                messages.error(request, "Username is required.")
+                return redirect("sso_user_create")
+            if not pin or len(pin) != 4 or not pin.isdigit():
+                messages.error(request, "PIN must be exactly 4 digits.")
+                return redirect("sso_user_create")
+            if User.objects.filter(anonymous_username=username).exists():
+                messages.error(request, f"Username '{username}' already exists.")
+                return redirect("sso_user_create")
+        else:
+            # Email-based auth validation
+            if not email:
+                messages.error(request, "Email is required.")
+                return redirect("sso_user_create")
+            if User.objects.filter(email=email).exists():
+                messages.error(request, f"User with email {email} already exists.")
+                return redirect("sso_user_create")
 
         # Validate password if password auth selected
         if auth_method == "password":
@@ -1100,13 +1115,30 @@ def user_create(request):
                 return redirect("sso_user_create")
 
         # Create user based on auth method
-        if auth_method == "password":
+        if auth_method == "anonymous":
+            # Username + PIN user
+            user = User(
+                first_name=first_name,
+                last_name=last_name,
+                auth_type="anonymous",
+                auth_method="password",
+                anonymous_username=username,
+                is_active=True,
+            )
+            user.set_password(pin)
+            user.save()
+            display_name = f"{first_name} {last_name}".strip() or username
+            messages.success(
+                request, f"User '{username}' created with PIN login."
+            )
+        elif auth_method == "password":
             user = User.objects.create_user(
                 email=email,
                 first_name=first_name,
                 last_name=last_name,
                 password=password,
             )
+            user.auth_type = "email"
             user.auth_method = "password"
             user.save()
             messages.success(
@@ -1120,6 +1152,7 @@ def user_create(request):
                 last_name=last_name,
                 password=None,
             )
+            user.auth_type = "google"
             user.auth_method = "google"
             user.save()
             messages.success(

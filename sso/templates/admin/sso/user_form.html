@@ -163,7 +163,7 @@
     margin-top: 2px;
 }
 
-.password-fields {
+.extra-fields {
     display: none;
     margin-top: 15px;
     padding: 15px;
@@ -171,13 +171,13 @@
     border: 1px solid #fcd34d;
     border-radius: 6px;
 }
-.password-fields.visible {
+.extra-fields.visible {
     display: block;
 }
-.password-fields .form-group {
+.extra-fields .form-group {
     margin-bottom: 12px;
 }
-.password-fields .form-input {
+.extra-fields .form-input {
     max-width: 100%;
 }
 
@@ -259,6 +259,11 @@
     border-radius: 4px;
     font-size: 12px;
 }
+
+/* Email field visibility */
+#emailGroup.hidden {
+    display: none;
+}
 </style>
 {% endblock %}
 
@@ -275,7 +280,7 @@
     {% if edit_user %}Edit{% else %}Add{% endif %}
 </div>
 
-<h1>{% if edit_user %}Edit User: {{ edit_user.email }}{% else %}Add User{% endif %}</h1>
+<h1>{% if edit_user %}Edit User: {{ edit_user.email|default:edit_user.anonymous_username }}{% else %}Add User{% endif %}</h1>
 
 {% if messages %}
 <div style="margin-bottom: 20px;">
@@ -293,7 +298,6 @@
 <div class="info-box">
     <strong>ℹ️ Adding a user:</strong>
     Choose the authentication method based on how this user will log in.
-    Google OAuth users just need an email. Password users will set their password on first login.
 </div>
 {% endif %}
 
@@ -303,23 +307,66 @@
     <input type="hidden" name="return_url" value="{{ return_url }}">
     {% endif %}
 
+    {% if not edit_user %}
+    <!-- Authentication Method Section (new users only) - FIRST -->
+    <div class="form-card">
+        <div class="form-card-header">
+            <h3>🔐 Authentication Method</h3>
+        </div>
+        <div class="form-card-body">
+            <div class="auth-method-options">
+                <label class="auth-option selected" data-method="google">
+                    <input type="radio" name="auth_method" value="google" checked>
+                    <div class="auth-option-content">
+                        <div class="auth-option-title">🌐 Google OAuth</div>
+                        <div class="auth-option-desc">User logs in with their Google account. Best for office staff.</div>
+                    </div>
+                </label>
+                <label class="auth-option" data-method="password">
+                    <input type="radio" name="auth_method" value="password">
+                    <div class="auth-option-content">
+                        <div class="auth-option-title">📧 Email + Password</div>
+                        <div class="auth-option-desc">User logs in with email and password. For users without Google.</div>
+                    </div>
+                </label>
+                <label class="auth-option" data-method="anonymous">
+                    <input type="radio" name="auth_method" value="anonymous">
+                    <div class="auth-option-content">
+                        <div class="auth-option-title">👤 Username + PIN</div>
+                        <div class="auth-option-desc">Simple login with username and 4-digit PIN. Best for dock workers.</div>
+                    </div>
+                </label>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Identity Section -->
     <div class="form-card">
         <div class="form-card-header">
             <h3>👤 Identity</h3>
         </div>
         <div class="form-card-body">
-            <div class="form-group">
-                <label for="email">Email Address <span class="required">*</span></label>
+            <!-- Email (shown for google/password, hidden for anonymous) -->
+            <div class="form-group" id="emailGroup">
+                <label for="email">Email Address <span class="required" id="emailRequired">*</span></label>
                 {% if edit_user %}
                 <input type="email" id="email" name="email" class="form-input readonly"
                        value="{{ edit_user.email }}" readonly>
                 <span class="form-help">Email is tied to identity and cannot be changed.</span>
                 {% else %}
                 <input type="email" id="email" name="email" class="form-input"
-                       placeholder="user@company.com" required>
+                       placeholder="user@company.com">
                 <span class="form-help">Primary identifier for this user account.</span>
                 {% endif %}
+            </div>
+
+            <!-- Username (shown for anonymous only) -->
+            <div class="form-group hidden" id="usernameGroup">
+                <label for="username">Username <span class="required">*</span></label>
+                <input type="text" id="username" name="username" class="form-input"
+                       placeholder="jsmith" pattern="[a-zA-Z0-9_]+" maxlength="50">
+                <span class="form-help">Letters, numbers, underscores only. This is their login ID.</span>
             </div>
 
             <div class="form-row-grid">
@@ -336,34 +383,9 @@
                            placeholder="Smith">
                 </div>
             </div>
-        </div>
-    </div>
 
-    {% if not edit_user %}
-    <!-- Authentication Method Section (new users only) -->
-    <div class="form-card">
-        <div class="form-card-header">
-            <h3>🔐 Authentication Method</h3>
-        </div>
-        <div class="form-card-body">
-            <div class="auth-method-options">
-                <label class="auth-option selected" data-method="google">
-                    <input type="radio" name="auth_method" value="google" checked>
-                    <div class="auth-option-content">
-                        <div class="auth-option-title">🌐 Google OAuth (Recommended)</div>
-                        <div class="auth-option-desc">User logs in with their Google account. No password needed.</div>
-                    </div>
-                </label>
-                <label class="auth-option" data-method="password">
-                    <input type="radio" name="auth_method" value="password">
-                    <div class="auth-option-content">
-                        <div class="auth-option-title">📧 Email + Password</div>
-                        <div class="auth-option-desc">User logs in with email and a password you set.</div>
-                    </div>
-                </label>
-            </div>
-
-            <div class="password-fields" id="passwordFields">
+            <!-- Password fields (shown for password auth) -->
+            <div class="extra-fields" id="passwordFields">
                 <div class="form-group">
                     <label for="password">Initial Password <span class="required">*</span></label>
                     <input type="password" id="password" name="password" class="form-input"
@@ -371,9 +393,19 @@
                     <span class="form-help">Minimum 8 characters. User should change this after first login.</span>
                 </div>
             </div>
+
+            <!-- PIN fields (shown for anonymous auth) -->
+            <div class="extra-fields" id="pinFields">
+                <div class="form-group">
+                    <label for="pin">4-Digit PIN <span class="required">*</span></label>
+                    <input type="text" id="pin" name="pin" class="form-input"
+                           placeholder="1234" pattern="[0-9]{4}" maxlength="4"
+                           style="max-width: 120px; text-align: center; font-size: 18px; letter-spacing: 8px;">
+                    <span class="form-help">Simple 4-digit code for quick login.</span>
+                </div>
+            </div>
         </div>
     </div>
-    {% endif %}
 
     {% if edit_user %}
     <!-- Status Section (edit mode) -->
@@ -393,7 +425,9 @@
             <div class="form-group" style="margin-top: 15px;">
                 <label>Auth Method</label>
                 <div style="padding: 8px 0; font-size: 14px;">
-                    {% if edit_user.auth_method == 'google' %}
+                    {% if edit_user.auth_type == 'anonymous' %}
+                    👤 Username + PIN
+                    {% elif edit_user.auth_method == 'google' %}
                     🌐 Google OAuth
                     {% else %}
                     📧 Email + Password
@@ -457,8 +491,46 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const authOptions = document.querySelectorAll('.auth-option');
+    const emailGroup = document.getElementById('emailGroup');
+    const emailInput = document.getElementById('email');
+    const emailRequired = document.getElementById('emailRequired');
+    const usernameGroup = document.getElementById('usernameGroup');
+    const usernameInput = document.getElementById('username');
     const passwordFields = document.getElementById('passwordFields');
     const passwordInput = document.getElementById('password');
+    const pinFields = document.getElementById('pinFields');
+    const pinInput = document.getElementById('pin');
+
+    function updateFieldVisibility(method) {
+        // Reset all
+        emailGroup.classList.remove('hidden');
+        usernameGroup.classList.add('hidden');
+        passwordFields.classList.remove('visible');
+        pinFields.classList.remove('visible');
+
+        // Set required states
+        emailInput.required = false;
+        usernameInput.required = false;
+        passwordInput.required = false;
+        pinInput.required = false;
+
+        if (method === 'google') {
+            emailInput.required = true;
+            emailRequired.style.display = 'inline';
+        } else if (method === 'password') {
+            emailInput.required = true;
+            emailRequired.style.display = 'inline';
+            passwordFields.classList.add('visible');
+            passwordInput.required = true;
+        } else if (method === 'anonymous') {
+            emailGroup.classList.add('hidden');
+            emailRequired.style.display = 'none';
+            usernameGroup.classList.remove('hidden');
+            usernameInput.required = true;
+            pinFields.classList.add('visible');
+            pinInput.required = true;
+        }
+    }
 
     authOptions.forEach(option => {
         const radio = option.querySelector('input[type="radio"]');
@@ -469,17 +541,30 @@ document.addEventListener('DOMContentLoaded', function() {
             option.classList.add('selected');
             radio.checked = true;
 
-            // Show/hide password fields
-            if (radio.value === 'password') {
-                passwordFields.classList.add('visible');
-                passwordInput.required = true;
-            } else {
-                passwordFields.classList.remove('visible');
-                passwordInput.required = false;
-                passwordInput.value = '';
-            }
+            // Update field visibility
+            updateFieldVisibility(radio.value);
         });
     });
+
+    // PIN input - numbers only
+    if (pinInput) {
+        pinInput.addEventListener('input', function() {
+            this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);
+        });
+    }
+
+    // Username input - alphanumeric and underscore only
+    if (usernameInput) {
+        usernameInput.addEventListener('input', function() {
+            this.value = this.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+        });
+    }
 });
 </script>
+
+<style>
+.hidden {
+    display: none !important;
+}
+</style>
 {% endblock %}
