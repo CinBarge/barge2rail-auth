@@ -52,8 +52,8 @@
         <label for="tenant_code">Tenant Code:</label>
         <select name="tenant_code" id="tenant_code">
             <option value="">-- No tenant (global) --</option>
-            {% for code in tenant_codes %}
-            <option value="{{ code }}" {% if assignment.tenant_code == code %}selected{% endif %}>{{ code }}</option>
+            {% for tenant in tenants %}
+            <option value="{{ tenant.code }}" {% if assignment.tenant_code == tenant.code %}selected{% endif %}>{{ tenant.code }} - {{ tenant.name }}</option>
             {% endfor %}
         </select>
         <p class="help-text">For multi-tenant applications, specify which tenant this assignment applies to.</p>

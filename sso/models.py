@@ -939,6 +939,45 @@ class RoleFeaturePermission(models.Model):
         return f"{self.role.name} → {self.feature.name}: {self.permission.name}"
 
 
+class Tenant(models.Model):
+    """
+    Available tenant codes for role assignment.
+
+    Simple reference table - individual apps (PrimeTrade, etc.) may have their
+    own full Tenant models with additional fields. This SSO-level model provides:
+    - Dropdown choices for bulk role assignment
+    - Validation of tenant codes across the system
+    - Centralized tenant management
+
+    Example tenants:
+    - GNP: GNP Commodities
+    - HLR: Hiller Carbon
+    - TRX: Traxys
+    """
+
+    code = models.CharField(
+        max_length=10,
+        unique=True,
+        help_text="Short code (e.g., HLR, GNP, TRX)",
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Display name (e.g., Hiller Carbon)",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive tenants won't appear in dropdowns",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "sso_tenants"
+        ordering = ["code"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
 class UserAppRole(models.Model):
     """
     Assigns a user to a role for a specific application.

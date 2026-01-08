@@ -50,8 +50,8 @@
         <label for="tenant_code">Tenant Code (optional):</label>
         <select name="tenant_code" id="tenant_code">
             <option value="">-- No tenant (global) --</option>
-            {% for code in tenant_codes %}
-            <option value="{{ code }}">{{ code }}</option>
+            {% for tenant in tenants %}
+            <option value="{{ tenant.code }}">{{ tenant.code }} - {{ tenant.name }}</option>
             {% endfor %}
         </select>
         <p class="help-text">Select a tenant if this role assignment is tenant-specific.</p>

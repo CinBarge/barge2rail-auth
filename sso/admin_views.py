@@ -20,6 +20,7 @@ from .models import (
     Permission,
     Role,
     RoleFeaturePermission,
+    Tenant,
     User,
     UserAppRole,
 )
@@ -392,19 +393,13 @@ def bulk_assign_role(request):
     roles = Role.objects.select_related("application").filter(is_active=True)
     users = User.objects.filter(is_active=True).order_by("email")
 
-    # Get unique tenant codes for dropdown
-    tenant_codes = (
-        UserAppRole.objects.exclude(tenant_code__isnull=True)
-        .exclude(tenant_code="")
-        .values_list("tenant_code", flat=True)
-        .distinct()
-        .order_by("tenant_code")
-    )
+    # Get tenants for dropdown (active tenants from Tenant model)
+    tenants = Tenant.objects.filter(is_active=True)
 
     context = {
         "roles": roles,
         "users": users,
-        "tenant_codes": list(tenant_codes),
+        "tenants": tenants,
         "title": "Bulk Role Assignment",
     }
     return render(request, "admin/sso/bulk_assign_role.html", context)
@@ -992,18 +987,12 @@ def assignment_edit(request, assignment_id):
         )
         return redirect("sso_assignment_list")
 
-    # Get existing tenant codes for dropdown
-    tenant_codes = (
-        UserAppRole.objects.exclude(tenant_code__isnull=True)
-        .exclude(tenant_code="")
-        .values_list("tenant_code", flat=True)
-        .distinct()
-        .order_by("tenant_code")
-    )
+    # Get tenants for dropdown (active tenants from Tenant model)
+    tenants = Tenant.objects.filter(is_active=True)
 
     context = {
         "assignment": assignment,
-        "tenant_codes": list(tenant_codes),
+        "tenants": tenants,
         "title": f"Edit Assignment: {assignment.user.email}",
     }
     return render(request, "admin/sso/assignment_form.html", context)
@@ -1127,10 +1116,7 @@ def user_create(request):
             )
             user.set_password(pin)
             user.save()
-            display_name = f"{first_name} {last_name}".strip() or username
-            messages.success(
-                request, f"User '{username}' created with PIN login."
-            )
+            messages.success(request, f"User '{username}' created with PIN login.")
         elif auth_method == "password":
             user = User.objects.create_user(
                 email=email,

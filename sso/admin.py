@@ -11,6 +11,7 @@ from .models import (
     RefreshToken,
     Role,
     RoleFeaturePermission,
+    Tenant,
     User,
     UserAppRole,
     UserRole,
@@ -360,6 +361,18 @@ class AuthorizationCodeAdmin(admin.ModelAdmin):
 # =============================================================================
 # Phase 5: RBAC Admin Classes (December 2025)
 # =============================================================================
+
+
+@admin.register(Tenant)
+class TenantAdmin(admin.ModelAdmin):
+    """Admin for managing tenant codes available in role assignment dropdowns."""
+
+    list_display = ["code", "name", "is_active", "created_at"]
+    list_filter = ["is_active"]
+    search_fields = ["code", "name"]
+    ordering = ["code"]
+
+    fieldsets = ((None, {"fields": ("code", "name", "is_active")}),)
 
 
 @admin.register(Permission)
