@@ -24,9 +24,9 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login
-from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.views.decorators.http import require_http_methods
+from django_ratelimit.decorators import ratelimit
 
 # Import OAuth utilities from existing infrastructure
 try:
@@ -110,6 +110,7 @@ def validate_oauth_state(state_from_callback, state_from_session, timeout=300):
 
 
 @require_http_methods(["GET"])
+@ratelimit(key="ip", rate="10/h", method="GET", block=True)
 def admin_oauth_login(request):
     """
     Initiate Google OAuth flow for Django admin access.
@@ -202,6 +203,7 @@ def admin_oauth_login(request):
 
 
 @require_http_methods(["GET"])
+@ratelimit(key="ip", rate="10/h", method="GET", block=True)
 def admin_oauth_callback(request):
     """
     Handle Google OAuth callback for Django admin access.
