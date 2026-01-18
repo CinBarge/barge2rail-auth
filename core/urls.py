@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.http import HttpResponse
 from django.urls import include, path
 
 from core.views import Health, SecureEcho  # add
@@ -34,7 +35,22 @@ from sso.admin_views import (
 from sso.jwks_views import jwks_endpoint
 from sso.views import google_auth_callback
 
+
+def robots_txt(request):
+    content = """User-agent: *
+Allow: /
+Disallow: /cbrt-ops/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /o/
+Disallow: /sso/
+"""
+    return HttpResponse(content, content_type="text/plain")
+
+
 urlpatterns = [
+    # robots.txt for search engines
+    path("robots.txt", robots_txt, name="robots_txt"),
     # JWKS endpoint - must be at root for standard OAuth2/OIDC compliance
     path(".well-known/jwks.json", jwks_endpoint, name="jwks"),
     # Custom admin views (must come before admin.site.urls)
