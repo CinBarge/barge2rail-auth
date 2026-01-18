@@ -39,132 +39,132 @@ urlpatterns = [
     path(".well-known/jwks.json", jwks_endpoint, name="jwks"),
     # Custom admin views (must come before admin.site.urls)
     path(
-        "admin/sso/role/<int:role_id>/permissions/",
+        "cbrt-ops/sso/role/<int:role_id>/permissions/",
         role_permission_matrix,
         name="sso_role_permission_matrix",
     ),
     path(
-        "admin/sso/role/<int:role_id>/clone/",
+        "cbrt-ops/sso/role/<int:role_id>/clone/",
         clone_role,
         name="sso_clone_role",
     ),
     path(
-        "admin/sso/role/<int:role_id>/history/",
+        "cbrt-ops/sso/role/<int:role_id>/history/",
         role_history,
         name="sso_role_history",
     ),
     # RBAC management views
-    path("admin/sso/rbac/", rbac_dashboard, name="sso_rbac_dashboard"),
+    path("cbrt-ops/sso/rbac/", rbac_dashboard, name="sso_rbac_dashboard"),
     path(
-        "admin/sso/rbac/effective-permissions/",
+        "cbrt-ops/sso/rbac/effective-permissions/",
         effective_permissions,
         name="sso_effective_permissions",
     ),
     path(
-        "admin/sso/rbac/compare-roles/",
+        "cbrt-ops/sso/rbac/compare-roles/",
         compare_roles,
         name="sso_compare_roles",
     ),
     path(
-        "admin/sso/rbac/bulk-assign/",
+        "cbrt-ops/sso/rbac/bulk-assign/",
         bulk_assign_role,
         name="sso_bulk_assign_role",
     ),
     path(
-        "admin/sso/rbac/permission-search/",
+        "cbrt-ops/sso/rbac/permission-search/",
         permission_search,
         name="sso_permission_search",
     ),
     path(
-        "admin/sso/rbac/export/",
+        "cbrt-ops/sso/rbac/export/",
         export_roles,
         name="sso_export_roles",
     ),
     path(
-        "admin/sso/rbac/export/<int:app_id>/",
+        "cbrt-ops/sso/rbac/export/<int:app_id>/",
         export_roles,
         name="sso_export_roles_app",
     ),
     path(
-        "admin/sso/rbac/import/",
+        "cbrt-ops/sso/rbac/import/",
         import_roles,
         name="sso_import_roles",
     ),
     # Feature management (RBAC Dashboard v2)
     path(
-        "admin/sso/rbac/features/",
+        "cbrt-ops/sso/rbac/features/",
         feature_list,
         name="sso_feature_list",
     ),
     path(
-        "admin/sso/rbac/features/add/",
+        "cbrt-ops/sso/rbac/features/add/",
         feature_create,
         name="sso_feature_create",
     ),
     path(
-        "admin/sso/rbac/features/<int:feature_id>/edit/",
+        "cbrt-ops/sso/rbac/features/<int:feature_id>/edit/",
         feature_edit,
         name="sso_feature_edit",
     ),
     path(
-        "admin/sso/rbac/features/<int:feature_id>/delete/",
+        "cbrt-ops/sso/rbac/features/<int:feature_id>/delete/",
         feature_delete,
         name="sso_feature_delete",
     ),
     # Role management (RBAC Dashboard v2)
     path(
-        "admin/sso/rbac/roles/",
+        "cbrt-ops/sso/rbac/roles/",
         role_list,
         name="sso_role_list",
     ),
     path(
-        "admin/sso/rbac/roles/add/",
+        "cbrt-ops/sso/rbac/roles/add/",
         role_create,
         name="sso_role_create",
     ),
     path(
-        "admin/sso/rbac/roles/<int:role_id>/edit/",
+        "cbrt-ops/sso/rbac/roles/<int:role_id>/edit/",
         role_edit,
         name="sso_role_edit",
     ),
     path(
-        "admin/sso/rbac/roles/<int:role_id>/delete/",
+        "cbrt-ops/sso/rbac/roles/<int:role_id>/delete/",
         role_delete,
         name="sso_role_delete",
     ),
     # Assignment management (RBAC Dashboard v2)
     path(
-        "admin/sso/rbac/assignments/",
+        "cbrt-ops/sso/rbac/assignments/",
         assignment_list,
         name="sso_assignment_list",
     ),
     path(
-        "admin/sso/rbac/assignments/<int:assignment_id>/edit/",
+        "cbrt-ops/sso/rbac/assignments/<int:assignment_id>/edit/",
         assignment_edit,
         name="sso_assignment_edit",
     ),
     path(
-        "admin/sso/rbac/assignments/<int:assignment_id>/delete/",
+        "cbrt-ops/sso/rbac/assignments/<int:assignment_id>/delete/",
         assignment_delete,
         name="sso_assignment_delete",
     ),
     # User management (for Command Center integration)
     path(
-        "admin/sso/users/",
+        "cbrt-ops/sso/users/",
         user_list,
         name="sso_user_list",
     ),
     path(
-        "admin/sso/users/add/",
+        "cbrt-ops/sso/users/add/",
         user_create,
         name="sso_user_create",
     ),
     path(
-        "admin/sso/users/<uuid:user_id>/edit/",
+        "cbrt-ops/sso/users/<uuid:user_id>/edit/",
         user_edit,
         name="sso_user_edit",
     ),
-    path("admin/", admin.site.urls),
+    path("cbrt-ops/", admin.site.urls),
     # Admin OAuth URLs (Phase 4) - must come before general auth includes
     path("sso/admin/oauth/login/", admin_oauth_login, name="admin_oauth_login"),
     path(

@@ -458,7 +458,7 @@ def google_auth_callback(request):
         # CHECK IF THIS IS AN ADMIN LOGIN (has next URL in session)
         next_url = request.session.pop("oauth_next_url", None)
 
-        if next_url and "/admin/" in next_url:
+        if next_url and "/cbrt-ops/" in next_url:
             # This is admin login - use Django's built-in auth
             from django.contrib.auth import login as django_login
 

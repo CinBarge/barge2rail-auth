@@ -441,14 +441,14 @@ class RoleAdmin(admin.ModelAdmin):
     def edit_permissions_link(self, obj):
         from django.utils.html import format_html
 
-        url = f"/admin/sso/role/{obj.pk}/permissions/"
+        url = f"/cbrt-ops/sso/role/{obj.pk}/permissions/"
         return format_html('<a href="{}">Edit Permissions</a>', url)
 
     @admin.display(description="Permission Matrix")
     def permission_matrix_link(self, obj):
         from django.utils.html import format_html
 
-        url = f"/admin/sso/role/{obj.pk}/permissions/"
+        url = f"/cbrt-ops/sso/role/{obj.pk}/permissions/"
         return format_html(
             '<a href="{}" class="button" style="padding: 10px 15px;">'
             "Open Permission Matrix Editor</a>",

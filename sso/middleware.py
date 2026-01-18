@@ -248,7 +248,7 @@ class OAuthAdminMiddleware:
             This covers all admin URLs including login, dashboard, models, etc.
         """
         path = request.path_info
-        is_admin = path.startswith("/admin/")
+        is_admin = path.startswith("/cbrt-ops/")
 
         if is_admin:
             oauth_logger.debug(f"OAuthAdminMiddleware: Admin request detected: {path}")

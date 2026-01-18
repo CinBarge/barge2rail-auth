@@ -148,14 +148,14 @@ def admin_oauth_login(request):
         messages.error(
             request, "Google authentication is not available. Please contact support."
         )
-        return redirect("/admin/login/")
+        return redirect("/cbrt-ops/login/")
 
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
         logger.error("admin_oauth_login: Google OAuth not configured")
         messages.error(
             request, "Google OAuth is not configured. Please contact support."
         )
-        return redirect("/admin/login/")
+        return redirect("/cbrt-ops/login/")
 
     # Generate and store state parameter for CSRF protection
     state = generate_oauth_state()
@@ -166,7 +166,7 @@ def admin_oauth_login(request):
         request.session.create()
 
     request.session["admin_oauth_state"] = state
-    request.session["admin_oauth_next"] = request.GET.get("next", "/admin/")
+    request.session["admin_oauth_next"] = request.GET.get("next", "/cbrt-ops/")
 
     # Mark session as modified to ensure cookie is set
     request.session.modified = True
@@ -252,7 +252,7 @@ def admin_oauth_callback(request):
         messages.warning(
             request, "Google authentication was cancelled. Please try again."
         )
-        return redirect("/admin/login/")
+        return redirect("/cbrt-ops/login/")
 
     # Extract parameters
     code = request.GET.get("code")
@@ -261,7 +261,7 @@ def admin_oauth_callback(request):
     if not code:
         logger.error("admin_oauth_callback: Missing authorization code")
         messages.error(request, "Authentication failed: Missing authorization code.")
-        return redirect("/admin/login/")
+        return redirect("/cbrt-ops/login/")
 
     # Validate state parameter (CSRF protection)
     state_from_session = request.session.get("admin_oauth_state")
@@ -276,7 +276,7 @@ def admin_oauth_callback(request):
             del request.session["admin_oauth_state"]
         if "admin_oauth_next" in request.session:
             del request.session["admin_oauth_next"]
-        return redirect("/admin/login/")
+        return redirect("/cbrt-ops/login/")
 
     # Clear state from session (one-time use)
     del request.session["admin_oauth_state"]
@@ -292,14 +292,14 @@ def admin_oauth_callback(request):
             messages.error(
                 request, "Authentication failed: Could not exchange authorization code."
             )
-            return redirect("/admin/login/")
+            return redirect("/cbrt-ops/login/")
 
         # Extract ID token
         id_token_str = token_data.get("id_token")
         if not id_token_str:
             logger.error("admin_oauth_callback: No ID token in response")
             messages.error(request, "Authentication failed: Invalid token response.")
-            return redirect("/admin/login/")
+            return redirect("/cbrt-ops/login/")
 
         logger.info("admin_oauth_callback: ID token received, validating with Google")
 
@@ -309,7 +309,7 @@ def admin_oauth_callback(request):
         if not user_info:
             logger.error("admin_oauth_callback: ID token validation failed")
             messages.error(request, "Authentication failed: Token validation failed.")
-            return redirect("/admin/login/")
+            return redirect("/cbrt-ops/login/")
 
         logger.info(
             f"admin_oauth_callback: ID token validated for {user_info.get('email')}"
@@ -332,7 +332,7 @@ def admin_oauth_callback(request):
                 "Authentication failed: You do not have permission to access the admin interface. "
                 "Please contact an administrator if you believe this is an error.",
             )
-            return redirect("/admin/login/")
+            return redirect("/cbrt-ops/login/")
 
         # Check if user has admin permissions
         if not user.is_staff:
@@ -344,7 +344,7 @@ def admin_oauth_callback(request):
                 "You do not have permission to access the admin interface. "
                 "Please contact an administrator.",
             )
-            return redirect("/admin/login/")
+            return redirect("/cbrt-ops/login/")
 
         # Log user in via Django session
         login(request, user, backend="sso.backends.OAuthBackend")
@@ -359,7 +359,7 @@ def admin_oauth_callback(request):
         logger.info("admin_oauth_callback: Stored OAuth token in session")
 
         # Get next URL from session (or default to /admin/)
-        next_url = request.session.pop("admin_oauth_next", "/admin/")
+        next_url = request.session.pop("admin_oauth_next", "/cbrt-ops/")
         logger.info(f"admin_oauth_callback: Redirecting to {next_url}")
 
         # Success message
@@ -377,7 +377,7 @@ def admin_oauth_callback(request):
         if "admin_oauth_next" in request.session:
             del request.session["admin_oauth_next"]
 
-        return redirect("/admin/login/")
+        return redirect("/cbrt-ops/login/")
 
 
 # ===========================================================================
