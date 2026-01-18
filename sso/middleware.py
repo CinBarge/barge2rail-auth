@@ -364,3 +364,31 @@ class OAuthAdminMiddleware:
                 exc_info=True,
             )
             return None
+
+
+
+class SecurityHeadersMiddleware:
+    """
+    Add security headers to all responses.
+    Protects against clickjacking, XSS, MIME sniffing attacks.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+
+        # Prevent clickjacking
+        response["X-Frame-Options"] = "SAMEORIGIN"
+
+        # Prevent MIME type sniffing
+        response["X-Content-Type-Options"] = "nosniff"
+
+        # Control referrer information
+        response["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+        # Restrict browser features
+        response["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+        return response
