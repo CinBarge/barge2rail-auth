@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block title %}Access Denied - Barge2Rail SSO{% endblock %}
+
+{% block content %}
+<div style="max-width: 500px; margin: 4rem auto; text-align: center;">
+    <h2 style="margin-bottom: 1rem; color: #c0392b;">Access Denied</h2>
+    <p style="margin-bottom: 2rem; color: #666; font-size: 1.1rem;">
+        You don't have permission to view the SSO admin dashboard.
+    </p>
+
+    <div style="display: flex; flex-direction: column; gap: 0.75rem; align-items: center;">
+        <a href="https://cbrtconnect.com" class="btn" style="width: 280px;">
+            Go to CBRT Connect
+        </a>
+        <a href="https://prt.barge2rail.com" class="btn" style="width: 280px; background: #555;">
+            Go to PrimeTrade
+        </a>
+        <a href="{% url 'dashboard:logout' %}" style="margin-top: 1rem; color: #666; font-size: 0.9rem;">
+            Sign out
+        </a>
+    </div>
+
+    <p style="margin-top: 3rem; color: #999; font-size: 0.8rem;">
+        If you believe you should have access, contact your administrator.
+    </p>
+</div>
+{% endblock %}

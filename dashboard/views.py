@@ -1,10 +1,13 @@
+import logging
+
 from django.contrib import messages
-from django.contrib.auth import login, logout
+from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
-from django.views.decorators.http import require_http_methods
 
 from sso.models import Application, User, UserRole
+
+security_logger = logging.getLogger("django.security")
 
 
 def index(request):
@@ -85,6 +88,19 @@ def logout_view(request):
 
 @login_required
 def dashboard(request):
+    # SECURITY: Dashboard exposes cross-tenant PII (user emails, app client IDs).
+    # Only SSO admins and staff may view it.
+    if not (request.user.is_sso_admin or request.user.is_staff):
+        security_logger.warning(
+            "Unauthorized SSO dashboard access attempt: "
+            "user=%s, ip=%s, is_staff=%s, is_sso_admin=%s",
+            request.user.email,
+            request.META.get("REMOTE_ADDR"),
+            request.user.is_staff,
+            request.user.is_sso_admin,
+        )
+        return render(request, "dashboard/access_denied.html", status=403)
+
     context = {
         "user_count": User.objects.count(),
         "app_count": Application.objects.count(),
