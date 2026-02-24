@@ -156,6 +156,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "sso.middleware.OAuthAdminMiddleware",  # OAuth authentication for admin
+    "sso.middleware.SSOAdminViewMiddleware",  # Safety net for admin views
     "sso.middleware.OAuthSessionDiagnosticMiddleware",  # Session diagnostics
     "sso.middleware.SessionActivityMiddleware",  # Gate 7: Session timeout tracking
     "simple_history.middleware.HistoryRequestMiddleware",  # Audit trail

@@ -366,6 +366,64 @@ class OAuthAdminMiddleware:
             return None
 
 
+class SSOAdminViewMiddleware:
+    """
+    Safety-net middleware: blocks non-admin users from admin-facing URLs.
+
+    Individual views should still have their own permission checks,
+    but this middleware catches anything that slips through.
+
+    Protected: /dashboard/ and any URL exposing cross-tenant data.
+    Whitelisted: public/auth endpoints, static files, OAuth provider.
+
+    Added 2026-02-24 after security incident where an HLR client user
+    saw the SSO admin dashboard due to missing view-level permission check.
+    """
+
+    # URLs that are safe for any user (public, auth, or already protected)
+    WHITELIST_PREFIXES = (
+        "/api/auth/",
+        "/auth/",
+        "/sso/",
+        "/o/",
+        "/cbrt-ops/",  # Already has OAuthAdminMiddleware
+        "/health/",
+        "/static/",
+        "/login/",
+        "/logout/",
+        "/test/",
+        "/.well-known/",
+        "/robots.txt",
+        "/favicon.ico",
+    )
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        # Skip for whitelisted URLs
+        path = request.path_info
+        if any(path.startswith(prefix) for prefix in self.WHITELIST_PREFIXES):
+            return self.get_response(request)
+
+        # Skip for unauthenticated users (they'll hit @login_required and redirect)
+        if not request.user.is_authenticated:
+            return self.get_response(request)
+
+        # Block non-admin users from non-whitelisted URLs (dashboard, etc.)
+        if not (getattr(request.user, "is_sso_admin", False) or request.user.is_staff):
+            logger.warning(
+                "SSOAdminViewMiddleware blocked access: " "user=%s, path=%s, ip=%s",
+                request.user.email,
+                path,
+                request.META.get("REMOTE_ADDR"),
+            )
+            from django.shortcuts import render
+
+            return render(request, "dashboard/access_denied.html", status=403)
+
+        return self.get_response(request)
+
 
 class SecurityHeadersMiddleware:
     """
