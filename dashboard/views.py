@@ -93,8 +93,9 @@ def dashboard(request):
     if not (request.user.is_sso_admin or request.user.is_staff):
         security_logger.warning(
             "Unauthorized SSO dashboard access attempt: "
-            "user=%s, ip=%s, is_staff=%s, is_sso_admin=%s",
+            "user=%s, path=%s, ip=%s, is_staff=%s, is_sso_admin=%s",
             request.user.email,
+            request.path,
             request.META.get("REMOTE_ADDR"),
             request.user.is_staff,
             request.user.is_sso_admin,

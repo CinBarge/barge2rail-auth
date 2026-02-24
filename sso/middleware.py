@@ -413,10 +413,13 @@ class SSOAdminViewMiddleware:
         # Block non-admin users from non-whitelisted URLs (dashboard, etc.)
         if not (getattr(request.user, "is_sso_admin", False) or request.user.is_staff):
             logger.warning(
-                "SSOAdminViewMiddleware blocked access: " "user=%s, path=%s, ip=%s",
+                "SSOAdminViewMiddleware blocked access: "
+                "user=%s, path=%s, ip=%s, is_staff=%s, is_sso_admin=%s",
                 request.user.email,
                 path,
                 request.META.get("REMOTE_ADDR"),
+                request.user.is_staff,
+                getattr(request.user, "is_sso_admin", False),
             )
             from django.shortcuts import render
 
