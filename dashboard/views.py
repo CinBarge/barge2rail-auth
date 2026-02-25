@@ -44,15 +44,6 @@ def simple_test_view(request):
     return render(request, "dashboard/simple_test.html")
 
 
-def google_diagnostic_view(request):
-    from django.conf import settings
-
-    context = {
-        "google_client_id": settings.GOOGLE_CLIENT_ID,
-    }
-    return render(request, "dashboard/google_diagnostic.html", context)
-
-
 def google_success_view(request):
     """Handle successful Google OAuth callback"""
     access_token = request.GET.get("access_token")

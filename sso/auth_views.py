@@ -459,39 +459,6 @@ def generate_token_response(
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
-def debug_google_config(request):
-    """Debug endpoint to verify Google OAuth configuration.
-
-    Security: Disabled in production (only available when DEBUG=True).
-    """
-    from django.conf import settings
-
-    # Security: Block debug endpoint in production
-    if not settings.DEBUG:
-        return Response(
-            {"error": "Debug endpoint disabled in production"},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    return Response(
-        {
-            "client_id_from_decouple": GOOGLE_CLIENT_ID,
-            "client_id_from_settings": getattr(settings, "GOOGLE_CLIENT_ID", "NOT SET"),
-            "google_auth_available": GOOGLE_AUTH_AVAILABLE,
-            "current_origin": f"{request.scheme}://{request.get_host()}",
-            "request_meta_host": request.headers.get("host"),
-            "debug_info": {
-                "scheme": request.scheme,
-                "host": request.get_host(),
-                "path": request.path,
-                "full_url": request.build_absolute_uri(),
-            },
-        }
-    )
-
-
-@api_view(["GET"])
-@permission_classes([AllowAny])
 def google_auth_callback(request):
     """Handle Google OAuth redirect callback"""
 

@@ -295,29 +295,6 @@ def generate_token_response(user, created=False, anonymous_credentials=None):
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
-def debug_google_config(request):
-    """Debug endpoint to verify Google OAuth configuration"""
-    from django.conf import settings
-
-    return Response(
-        {
-            "client_id_from_decouple": GOOGLE_CLIENT_ID,
-            "client_id_from_settings": getattr(settings, "GOOGLE_CLIENT_ID", "NOT SET"),
-            "google_auth_available": GOOGLE_AUTH_AVAILABLE,
-            "current_origin": f"{request.scheme}://{request.get_host()}",
-            "request_meta_host": request.headers.get("host"),
-            "debug_info": {
-                "scheme": request.scheme,
-                "host": request.get_host(),
-                "path": request.path,
-                "full_url": request.build_absolute_uri(),
-            },
-        }
-    )
-
-
-@api_view(["GET"])
-@permission_classes([AllowAny])
 def google_auth_callback(request):
     """Handle Google OAuth redirect callback"""
 
@@ -390,7 +367,7 @@ def google_auth_callback(request):
             },
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
-    except requests.HTTPError as e:
+    except requests.HTTPError:
         logger.error(
             f"[GOOGLE CALLBACK] Token exchange failed: HTTP {response.status_code}",
             extra={

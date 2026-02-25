@@ -53,13 +53,10 @@ urlpatterns = [
     path("profile/", views.user_profile, name="user_profile"),  # API endpoint
     path("verify/", views.verify_access, name="verify_access"),
     path("health/", views.health_check, name="health_check"),
-    path("config/google/", views.google_config_check, name="google_config_check"),
     # Core Authentication
     path("register/", views.register, name="register"),
     path("login/", views.login_web, name="login"),
     path("logout/", views.logout, name="logout"),
-    # Debug
-    path("debug/google/", auth_views.debug_google_config, name="debug_google_config"),
     # Password Management (Phase 1)
     path("change-password/", password_views.change_password, name="change_password"),
     path("forgot-password/", password_views.forgot_password, name="forgot_password"),
@@ -110,6 +107,14 @@ urlpatterns = [
         "user-roles/<uuid:pk>/", UserRoleDetailView.as_view(), name="user_role_detail"
     ),
     # Internal API (for Command Center integration)
-    path("api/internal/users/create/", views.internal_create_user, name="internal_create_user"),
-    path("api/internal/users/check/", views.internal_check_user, name="internal_check_user"),
+    path(
+        "api/internal/users/create/",
+        views.internal_create_user,
+        name="internal_create_user",
+    ),
+    path(
+        "api/internal/users/check/",
+        views.internal_check_user,
+        name="internal_check_user",
+    ),
 ]

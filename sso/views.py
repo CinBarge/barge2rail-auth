@@ -702,28 +702,6 @@ def google_oauth_url(request):
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
-def google_config_check(request):
-    """Check Google OAuth configuration"""
-    config_status = {
-        "google_client_id": bool(settings.GOOGLE_CLIENT_ID),
-        "google_client_secret": bool(settings.GOOGLE_CLIENT_SECRET),
-        "base_url": settings.BASE_URL,
-        "redirect_uri": f"{request.scheme}://{request.get_host()}/auth/google/callback/",
-        "current_host": request.get_host(),
-    }
-
-    # Check if all required settings are present
-    all_configured = all(
-        [settings.GOOGLE_CLIENT_ID, settings.GOOGLE_CLIENT_SECRET, settings.BASE_URL]
-    )
-
-    config_status["fully_configured"] = all_configured
-
-    return Response(config_status)
-
-
-@api_view(["GET"])
-@permission_classes([AllowAny])
 def exchange_session_for_tokens(request, session_id):
     """
     Exchange a TokenExchangeSession ID for access/refresh tokens.
@@ -1336,7 +1314,6 @@ def profile_page(request):
     return Response(serializer.data)
 
 
-
 # ============================================================================
 # Internal API: User Management (for Command Center integration)
 # ============================================================================
@@ -1409,7 +1386,10 @@ def internal_create_user(request):
                 )
             if User.objects.filter(anonymous_username=username).exists():
                 return Response(
-                    {"success": False, "error": f"Username '{username}' already exists"},
+                    {
+                        "success": False,
+                        "error": f"Username '{username}' already exists",
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         else:
@@ -1427,7 +1407,10 @@ def internal_create_user(request):
         if auth_method == "password":
             if not password or len(password) < 8:
                 return Response(
-                    {"success": False, "error": "Password must be at least 8 characters"},
+                    {
+                        "success": False,
+                        "error": "Password must be at least 8 characters",
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -1469,13 +1452,16 @@ def internal_create_user(request):
 
         logger.info(f"Internal API: Created user {identifier} via Command Center")
 
-        return Response({
-            "success": True,
-            "user_id": str(user.id),
-            "email": user.email,
-            "username": user.anonymous_username,
-            "message": f"User created successfully",
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            {
+                "success": True,
+                "user_id": str(user.id),
+                "email": user.email,
+                "username": user.anonymous_username,
+                "message": "User created successfully",
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     except Exception as e:
         logger.error(f"Internal API user creation error: {str(e)}")
@@ -1522,11 +1508,13 @@ def internal_check_user(request):
         user = User.objects.filter(anonymous_username=username).first()
 
     if user:
-        return Response({
-            "exists": True,
-            "user_id": str(user.id),
-            "email": user.email,
-            "username": user.anonymous_username,
-        })
+        return Response(
+            {
+                "exists": True,
+                "user_id": str(user.id),
+                "email": user.email,
+                "username": user.anonymous_username,
+            }
+        )
     else:
         return Response({"exists": False})

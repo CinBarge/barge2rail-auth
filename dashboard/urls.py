@@ -13,11 +13,6 @@ urlpatterns = [
     path("login/google-onetap/", views.google_onetap_view, name="google_onetap"),
     path("login/google-success/", views.google_success_view, name="google_success"),
     path("test/", views.simple_test_view, name="simple_test"),
-    path(
-        "login/google-diagnostic/",
-        views.google_diagnostic_view,
-        name="google_diagnostic",
-    ),
     path("logout/", views.logout_view, name="logout"),
     # Add auth callback for Google OAuth
     path(
