@@ -75,8 +75,10 @@ class Command(BaseCommand):
         with transaction.atomic():
             result = self._execute(cfg, plan, actor)
 
-        self._append_audit(cfg, actor, result, dry_run=False)
-
+        # Banners FIRST — secrets must reach the operator even if audit I/O fails.
+        # DB records are already committed; if we hid the banner behind an I/O
+        # failure, the operator would have a provisioned tenant with no
+        # recoverable client_secret or temp passwords.
         if result["client_secret_plaintext"]:
             self._print_secret_banner(
                 result["client_id"], result["client_secret_plaintext"]
@@ -91,6 +93,19 @@ class Command(BaseCommand):
 
         if result["email_user_credentials"]:
             self._print_email_credentials_banner(result["email_user_credentials"])
+
+        # Audit LAST. Warn-and-continue on I/O failure; provisioning succeeded
+        # and the secrets have been shown, so don't mislead the operator with a
+        # non-zero exit.
+        try:
+            self._append_audit(cfg, actor, result, dry_run=False)
+        except OSError as e:
+            self.stderr.write(
+                self.style.WARNING(
+                    f"Audit log write failed: {e}. "
+                    "Provisioning succeeded; any secrets were displayed above."
+                )
+            )
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -142,6 +157,17 @@ class Command(BaseCommand):
         tenant = Tenant.objects.filter(code=cfg.tenant_code).first()
         app = Application.objects.filter(name=cfg.application.name).first()
 
+        # Finding 3: reject mismatched slug BEFORE any writes (and before
+        # dry-run returns a misleading SKIP plan). Catches copy-paste errors
+        # where tenant_code was changed but application.name was not.
+        if app is not None and app.slug != slug:
+            raise CommandError(
+                f"Application '{cfg.application.name}' already exists with slug "
+                f"'{app.slug}' but this YAML implies slug '{slug}'. "
+                f"Either the tenant_code or the application.name is wrong. "
+                f"Refusing to reuse the existing application."
+            )
+
         roles_plan: List[Dict[str, Any]] = []
         if app:
             existing_role_codes = set(
@@ -152,19 +178,34 @@ class Command(BaseCommand):
         for r in cfg.roles:
             roles_plan.append({"spec": r, "exists": r.code in existing_role_codes})
 
-        users_plan: List[Dict[str, Any]] = []
-        existing_users: Dict[str, User] = {
-            u.email: u
-            for u in User.objects.filter(email__in=[str(u.email) for u in cfg.users])
-        }
+        # Finding 2: normalize emails and look up case-insensitively. A legacy
+        # DB row with mixed-case email matches a lowercase YAML entry; if two
+        # rows differ only by case (historical data), fail fast.
+        existing_users: Dict[str, User] = {}
         for u in cfg.users:
-            existing = existing_users.get(str(u.email))
+            email_str = str(u.email).strip().lower()
+            try:
+                existing = User.objects.get(email__iexact=email_str)
+            except User.DoesNotExist:
+                continue
+            except User.MultipleObjectsReturned:
+                raise CommandError(
+                    f"Multiple users match email '{email_str}' (case-insensitive). "
+                    "Deduplicate in /cbrt-ops/ before re-running."
+                )
+            existing_users[email_str] = existing
+
+        users_plan: List[Dict[str, Any]] = []
+        for u in cfg.users:
+            email_str = str(u.email).strip().lower()
+            existing = existing_users.get(email_str)
             mismatch = None
             if existing is not None and existing.auth_type != u.auth_type:
                 mismatch = f"yaml={u.auth_type}, db={existing.auth_type}"
             users_plan.append(
                 {
                     "spec": u,
+                    "email": email_str,
                     "exists": existing is not None,
                     "auth_type_mismatch": mismatch,
                 }
@@ -172,7 +213,8 @@ class Command(BaseCommand):
 
         bindings_plan: List[Dict[str, Any]] = []
         for u in cfg.users:
-            user_obj = existing_users.get(str(u.email))
+            email_str = str(u.email).strip().lower()
+            user_obj = existing_users.get(email_str)
             role_exists = u.role in existing_role_codes
             binding_exists = False
             if app and user_obj and role_exists:
@@ -182,7 +224,7 @@ class Command(BaseCommand):
                         user=user_obj, role=role_obj, tenant_code=cfg.tenant_code
                     ).exists()
             bindings_plan.append(
-                {"email": str(u.email), "role": u.role, "exists": binding_exists}
+                {"email": email_str, "role": u.role, "exists": binding_exists}
             )
 
         return {
@@ -227,7 +269,7 @@ class Command(BaseCommand):
             detail = f"auth_type={up['spec'].auth_type}"
             if up["auth_type_mismatch"]:
                 detail += f"  [auth_type mismatch: {up['auth_type_mismatch']} - existing row NOT modified]"
-            line(f"User {str(up['spec'].email)!r}", up["exists"], detail)
+            line(f"User {up['email']!r}", up["exists"], detail)
         for bp in plan["bindings"]:
             line(
                 f"UserAppRole user={bp['email']!r} role={bp['role']!r} tenant={cfg.tenant_code!r}",
@@ -284,13 +326,15 @@ class Command(BaseCommand):
                 roles_created.append(r.code)
             role_objs[r.code] = role_obj
 
-        # Users
+        # Users — emails are normalized to lowercase on creation, and
+        # existence checks are case-insensitive so a legacy mixed-case DB row
+        # still matches a lowercase YAML entry.
         users_created: List[str] = []
         user_objs: Dict[str, User] = {}
         email_user_credentials: List[tuple[str, str]] = []
         for u in cfg.users:
-            email_str = str(u.email)
-            existing = User.objects.filter(email=email_str).first()
+            email_str = str(u.email).strip().lower()
+            existing = User.objects.filter(email__iexact=email_str).first()
             if existing is None:
                 if u.auth_type == "email":
                     temp_password = secrets.token_urlsafe(18)
@@ -321,7 +365,7 @@ class Command(BaseCommand):
         # Bindings
         bindings_created = 0
         for u in cfg.users:
-            email_str = str(u.email)
+            email_str = str(u.email).strip().lower()
             user_obj = user_objs[email_str]
             role_obj = role_objs[u.role]
             existing_binding = UserAppRole.objects.filter(

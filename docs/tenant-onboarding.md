@@ -37,7 +37,12 @@ Edit `tenants/msp.yaml`:
   from the JWT (`application_roles.<slug>.role`); use `Admin` / `Operator` / `Client`
   to match CBRTConnect's expectations unless you know otherwise.
 - `users`: one entry per (user, role) binding. A user with multiple roles gets
-  multiple entries. Each user has an `auth_type`:
+  multiple entries. **Emails are normalized to lowercase** before any DB
+  interaction — `Bjackson@domain.com` and `bjackson@domain.com` are treated as
+  the same user, and the row is stored as `bjackson@domain.com`. If the DB
+  already contains two rows that differ only by case (legacy data), the
+  command refuses to run and tells you to deduplicate in `/cbrt-ops/` first.
+  Each user has an `auth_type`:
   - `email` (default) — user will have an email + temp password. Use for tenant
     clients who are **not** on Google Workspace (e.g. `@marianshipping.com`).
     The command generates a 24-char cryptographic password per user and prints
