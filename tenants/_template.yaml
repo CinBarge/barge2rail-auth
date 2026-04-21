@@ -1,0 +1,58 @@
+# Tenant provisioning template.
+#
+# Copy this file to tenants/<tenant_code>.yaml (e.g. tenants/msp.yaml), fill in
+# real values, then run:
+#
+#   python manage.py provision_tenant --config tenants/<file>.yaml --dry-run
+#   python manage.py provision_tenant --config tenants/<file>.yaml --actor you@barge2rail.com
+#
+# DO NOT commit the filled-in file. tenants/.gitignore ignores everything
+# except this template. The YAML may contain user PII (emails, names).
+
+tenant_code: XXX                                  # 1-10 chars, uppercase alphanumeric (MSP, OPT, HLR...)
+display_name: "Full Tenant Name"                  # used for the Tenant reference row
+
+application:
+  name: "CBRTConnect - XXX"                       # unique across all SSO apps
+  redirect_uris:
+    - https://cbrtconnect.com/oauth/callback/
+    - https://dev.cbrtconnect.com/oauth/callback/
+
+# Roles created on the new Application. legacy_role is what client apps read
+# from the JWT (application_roles.<slug>.role). The code is machine-readable
+# and must be unique within this application.
+roles:
+  - code: cbrtconnect_xxx_admin
+    name: "CBRTConnect XXX Admin"
+    legacy_role: Admin
+  - code: cbrtconnect_xxx_operator
+    name: "CBRTConnect XXX Operator"
+    legacy_role: Operator
+  - code: cbrtconnect_xxx_viewer
+    name: "CBRTConnect XXX Viewer"
+    legacy_role: Client
+
+# Users bound to roles under this tenant. One role per user per run;
+# add another YAML entry to give a user multiple roles.
+#
+# auth_type: "email" (default) or "google".
+#   - email   → user gets a temp password (printed once at end of real run)
+#                that they change at https://sso.barge2rail.com/change-password/.
+#                Use for tenant client users who are NOT Google Workspace accounts.
+#   - google  → user signs in via Google OAuth; no password is set. Use for
+#                barge2rail staff on @barge2rail.com.
+#   - anonymous → NOT supported by provision_tenant. Create via /cbrt-ops/.
+users:
+  # Example email/password user (the common case for tenant clients):
+  - email: contact@example.com
+    first_name: First
+    last_name: Last
+    role: cbrtconnect_xxx_admin
+    auth_type: email
+
+  # Example Google OAuth user (staff on barge2rail.com):
+  # - email: staff@barge2rail.com
+  #   first_name: Staff
+  #   last_name: Member
+  #   role: cbrtconnect_xxx_admin
+  #   auth_type: google
