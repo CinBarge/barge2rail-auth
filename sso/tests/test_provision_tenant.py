@@ -1,4 +1,4 @@
-"""Tests for the provision_tenant management command."""
+"""Tests for the provision_tenant management command (bind-to-existing mode)."""
 
 from __future__ import annotations
 
@@ -18,29 +18,26 @@ VALID_YAML = """
 tenant_code: TSTP
 display_name: "Test Provision"
 
-application:
-  name: "CBRTConnect - TSTP"
-  redirect_uris:
-    - https://example.com/oauth/callback/
+application_slug: testapp
 
 roles:
-  - code: cbrtconnect_tstp_admin
-    name: "CBRTConnect TSTP Admin"
+  - code: testapp_tstp_admin
+    name: "TestApp TSTP Admin"
     legacy_role: Admin
-  - code: cbrtconnect_tstp_viewer
-    name: "CBRTConnect TSTP Viewer"
+  - code: testapp_tstp_viewer
+    name: "TestApp TSTP Viewer"
     legacy_role: Client
 
 users:
   - email: alice@tstp.example.com
     first_name: Alice
     last_name: Anderson
-    role: cbrtconnect_tstp_admin
+    role: testapp_tstp_admin
     auth_type: google
   - email: bob@tstp.example.com
     first_name: Bob
     last_name: Brown
-    role: cbrtconnect_tstp_viewer
+    role: testapp_tstp_viewer
     auth_type: google
 """
 
@@ -50,20 +47,22 @@ def _yaml_with_users(users_block: str) -> str:
     return (
         "tenant_code: TSTE\n"
         'display_name: "Test Email"\n'
-        "application:\n"
-        '  name: "CBRTConnect - TSTE"\n'
-        "  redirect_uris:\n"
-        "    - https://example.com/oauth/callback/\n"
+        "application_slug: testapp\n"
         "roles:\n"
-        "  - code: cbrtconnect_tste_client\n"
-        '    name: "CBRTConnect TSTE Client"\n'
+        "  - code: testapp_tste_client\n"
+        '    name: "TestApp TSTE Client"\n'
         "    legacy_role: Client\n"
         "users:\n" + users_block
     )
 
 
 class ProvisionTenantTestBase(TestCase):
-    """Shared setup: temp dir for YAML + audit file, actor user."""
+    """Shared setup: temp dir for YAML + audit file, actor user, target Application.
+
+    Every test gets a pre-existing OAuth Application with slug='testapp' to
+    bind to. Tests that need a different pre-existing app can create one
+    explicitly.
+    """
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -79,6 +78,17 @@ class ProvisionTenantTestBase(TestCase):
             last_name="Badante",
             auth_type="google",
             auth_method="google",
+        )
+
+        self.target_app = Application.objects.create(
+            name="TestApp",
+            slug="testapp",
+            client_id="app_testapp_0001",
+            client_secret="testapp-secret-not-real",  # pragma: allowlist secret
+            redirect_uris="https://example.com/oauth/callback/",
+            client_type=Application.CLIENT_CONFIDENTIAL,
+            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
+            user=self.actor,
         )
 
     def _write_yaml(self, content: str, name: str = "tenant.yaml") -> str:
@@ -110,10 +120,9 @@ class DryRunTests(ProvisionTenantTestBase):
         cfg = self._write_yaml(VALID_YAML)
         out = self._run("--config", cfg, "--dry-run")
 
-        self.assertEqual(Application.objects.count(), 0)
+        # Target Application exists from setUp — no new Application created.
+        self.assertEqual(Application.objects.count(), 1)
         self.assertEqual(Role.objects.count(), 0)
-        # Only users that should exist: the actor we created in setUp plus
-        # any seeded by migrations. Neither of the YAML's users should exist.
         self.assertEqual(
             User.objects.filter(
                 email__in=["alice@tstp.example.com", "bob@tstp.example.com"]
@@ -124,6 +133,8 @@ class DryRunTests(ProvisionTenantTestBase):
         self.assertEqual(Tenant.objects.filter(code="TSTP").count(), 0)
         self.assertIn("CREATE", out)
         self.assertIn("DRY-RUN PLAN", out)
+        self.assertIn("Bound to Application:", out)
+        self.assertIn("'testapp'", out)
         self.assertEqual(self._audit_lines(), [])
 
 
@@ -132,14 +143,16 @@ class HappyPathTests(ProvisionTenantTestBase):
         cfg = self._write_yaml(VALID_YAML)
         out = self._run("--config", cfg, "--actor", "clif@barge2rail.com")
 
-        self.assertEqual(
-            Application.objects.filter(name="CBRTConnect - TSTP").count(), 1
-        )
-        app = Application.objects.get(name="CBRTConnect - TSTP")
-        self.assertEqual(app.slug, "tstp")
-        self.assertEqual(app.user, self.actor)
+        # No new Application created — the target one is reused.
+        self.assertEqual(Application.objects.count(), 1)
+        app = Application.objects.get(slug="testapp")
+        self.assertEqual(app.id, self.target_app.id)
 
+        # Roles attach to the pre-existing target Application.
         self.assertEqual(Role.objects.filter(application=app).count(), 2)
+        for role in Role.objects.filter(application=app):
+            self.assertEqual(role.application.slug, "testapp")
+
         self.assertEqual(
             User.objects.filter(
                 email__in=["alice@tstp.example.com", "bob@tstp.example.com"]
@@ -153,21 +166,32 @@ class HappyPathTests(ProvisionTenantTestBase):
         self.assertEqual(alice.auth_type, "google")
         self.assertFalse(alice.has_usable_password())
 
-        self.assertIn("COPY THIS NOW", out)
-        self.assertIn(app.client_id, out)
+        # No client_secret banner — we don't create Applications.
+        self.assertNotIn("client_secret", out.lower())
 
         audit = self._audit_lines()
         self.assertEqual(len(audit), 1)
         rec = audit[0]
         self.assertEqual(rec["tenant_code"], "TSTP")
         self.assertEqual(rec["actor"], "clif@barge2rail.com")
+        self.assertEqual(rec["application_slug"], "testapp")
         self.assertEqual(
             sorted(rec["users_created"]),
             ["alice@tstp.example.com", "bob@tstp.example.com"],
         )
         self.assertEqual(rec["bindings_created"], 2)
         self.assertNotIn("client_secret", rec)
-        self.assertNotIn("client_id", rec)
+
+    def test_uar_role_application_matches_resolved(self):
+        """Critical integration check: every UserAppRole.role.application must
+        equal the resolved target Application — otherwise the JWT wouldn't
+        surface the role for logins on that Application."""
+        cfg = self._write_yaml(VALID_YAML)
+        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+
+        for uar in UserAppRole.objects.all():
+            self.assertEqual(uar.role.application.slug, "testapp")
+            self.assertEqual(uar.role.application.id, self.target_app.id)
 
 
 class IdempotencyTests(ProvisionTenantTestBase):
@@ -187,12 +211,10 @@ class IdempotencyTests(ProvisionTenantTestBase):
         self.assertEqual(User.objects.count(), user_count)
         self.assertEqual(UserAppRole.objects.count(), binding_count)
         self.assertIn("SKIP (exists)", out)
-        self.assertNotIn("COPY THIS NOW", out)
 
         audit = self._audit_lines()
         self.assertEqual(len(audit), 2)
         self.assertEqual(audit[1]["bindings_created"], 0)
-        self.assertTrue(audit[1]["application_skipped"])
 
 
 class ValidationTests(ProvisionTenantTestBase):
@@ -204,14 +226,12 @@ class ValidationTests(ProvisionTenantTestBase):
         self.assertIn("tenant_code", str(ctx.exception))
 
     def test_invalid_role_reference(self):
-        bad = VALID_YAML.replace(
-            "role: cbrtconnect_tstp_admin", "role: cbrtconnect_tstp_ghost"
-        )
+        bad = VALID_YAML.replace("role: testapp_tstp_admin", "role: testapp_tstp_ghost")
         cfg = self._write_yaml(bad)
         with self.assertRaises(CommandError) as ctx:
             self._run("--config", cfg, "--actor", "clif@barge2rail.com")
         msg = str(ctx.exception)
-        self.assertIn("cbrtconnect_tstp_ghost", msg)
+        self.assertIn("testapp_tstp_ghost", msg)
 
     def test_invalid_tenant_code(self):
         bad = VALID_YAML.replace("tenant_code: TSTP", "tenant_code: tstp-bad")
@@ -219,6 +239,108 @@ class ValidationTests(ProvisionTenantTestBase):
         with self.assertRaises(CommandError) as ctx:
             self._run("--config", cfg, "--actor", "clif@barge2rail.com")
         self.assertIn("tenant_code", str(ctx.exception))
+
+
+class ApplicationSlugTests(ProvisionTenantTestBase):
+    """New-schema tests for application_slug: required, must resolve to an
+    existing Application, and Roles attach to that resolved Application."""
+
+    def test_application_slug_required(self):
+        bad = VALID_YAML.replace("application_slug: testapp\n", "")
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertIn("application_slug", str(ctx.exception))
+        # Nothing written
+        self.assertEqual(Role.objects.count(), 0)
+        self.assertEqual(Tenant.objects.filter(code="TSTP").count(), 0)
+
+    def test_application_slug_not_found(self):
+        bad = VALID_YAML.replace(
+            "application_slug: testapp", "application_slug: nonexistent"
+        )
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        msg = str(ctx.exception)
+        self.assertIn("nonexistent", msg)
+        self.assertIn("Existing slugs", msg)
+        # The existing target_app slug appears in the list
+        self.assertIn("testapp", msg)
+        # Nothing written
+        self.assertEqual(Role.objects.count(), 0)
+        self.assertEqual(Tenant.objects.filter(code="TSTP").count(), 0)
+
+    def test_application_slug_not_found_on_dry_run(self):
+        """Dry-run must also surface the missing-slug error; operators should
+        never discover bad slugs only at real-run time."""
+        bad = VALID_YAML.replace(
+            "application_slug: testapp", "application_slug: nonexistent"
+        )
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--dry-run")
+        self.assertIn("nonexistent", str(ctx.exception))
+
+    def test_application_slug_resolves_existing(self):
+        """With multiple candidate Applications present, the slug must pick
+        the right one — Roles attach to the chosen App, not the other one."""
+        other_app = Application.objects.create(
+            name="OtherApp",
+            slug="otherapp",
+            client_id="app_other_0002",
+            client_secret="other-secret-not-real",  # pragma: allowlist secret
+            redirect_uris="https://example.com/oauth/callback/",
+            client_type=Application.CLIENT_CONFIDENTIAL,
+            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
+            user=self.actor,
+        )
+        cfg = self._write_yaml(VALID_YAML)
+        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+
+        # Roles attach to testapp, not otherapp
+        self.assertEqual(Role.objects.filter(application=self.target_app).count(), 2)
+        self.assertEqual(Role.objects.filter(application=other_app).count(), 0)
+
+    def test_application_slug_invalid_format_rejected(self):
+        """Schema-level rejection: uppercase slug, underscore, trailing hyphen."""
+        for bad_slug in ("TestApp", "test_app", "testapp-"):
+            with self.subTest(slug=bad_slug):
+                bad = VALID_YAML.replace(
+                    "application_slug: testapp", f"application_slug: {bad_slug}"
+                )
+                cfg = self._write_yaml(bad)
+                with self.assertRaises(CommandError) as ctx:
+                    self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+                self.assertIn("application_slug", str(ctx.exception))
+
+
+class NoClientSecretBannerTests(ProvisionTenantTestBase):
+    """This command never creates Applications, so client_secret must never
+    appear in command output."""
+
+    def test_no_client_secret_banner_real_run(self):
+        cfg = self._write_yaml(VALID_YAML)
+        out = self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertNotIn("client_secret", out.lower())
+        self.assertNotIn("COPY THIS NOW", out.split("Email/password users", 1)[0])
+
+    def test_no_client_secret_banner_dry_run(self):
+        cfg = self._write_yaml(VALID_YAML)
+        out = self._run("--config", cfg, "--dry-run")
+        self.assertNotIn("client_secret", out.lower())
+        self.assertNotIn("COPY THIS NOW", out)
+
+
+class AuditFieldsTests(ProvisionTenantTestBase):
+    def test_audit_records_application_slug(self):
+        cfg = self._write_yaml(VALID_YAML)
+        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        audit = self._audit_lines()
+        self.assertEqual(len(audit), 1)
+        self.assertEqual(audit[0]["application_slug"], "testapp")
+        self.assertEqual(audit[0]["application_id"], str(self.target_app.id))
+        self.assertEqual(audit[0]["application_name"], "TestApp")
 
 
 class ActorTests(ProvisionTenantTestBase):
@@ -243,8 +365,9 @@ class ActorTests(ProvisionTenantTestBase):
     def test_actor_case_insensitive(self):
         cfg = self._write_yaml(VALID_YAML)
         self._run("--config", cfg, "--actor", "CLIF@BARGE2RAIL.COM")
-        app = Application.objects.get(name="CBRTConnect - TSTP")
-        self.assertEqual(app.user, self.actor)
+        # UserAppRole was assigned by the case-insensitive-resolved actor
+        uar = UserAppRole.objects.first()
+        self.assertEqual(uar.assigned_by, self.actor)
 
 
 class RollbackTests(ProvisionTenantTestBase):
@@ -263,10 +386,8 @@ class RollbackTests(ProvisionTenantTestBase):
             with self.assertRaises(RuntimeError):
                 self._run("--config", cfg, "--actor", "clif@barge2rail.com")
 
-        # All writes rolled back
-        self.assertEqual(
-            Application.objects.filter(name="CBRTConnect - TSTP").count(), 0
-        )
+        # All writes rolled back: Roles, Users, Bindings, Tenant.
+        # The target Application is unaffected (not created by this run).
         self.assertEqual(Role.objects.count(), 0)
         self.assertEqual(
             User.objects.filter(
@@ -276,6 +397,9 @@ class RollbackTests(ProvisionTenantTestBase):
         )
         self.assertEqual(UserAppRole.objects.count(), 0)
         self.assertEqual(Tenant.objects.filter(code="TSTP").count(), 0)
+
+        # Target Application still there
+        self.assertEqual(Application.objects.filter(slug="testapp").count(), 1)
 
         # No audit line written (audit happens after successful commit)
         self.assertEqual(self._audit_lines(), [])
@@ -288,7 +412,7 @@ class EmailAuthTests(ProvisionTenantTestBase):
         "  - email: briana@marianshipping.example.com\n"
         "    first_name: Briana\n"
         "    last_name: Jackson\n"
-        "    role: cbrtconnect_tste_client\n"
+        "    role: testapp_tste_client\n"
         "    auth_type: email\n"
     )
 
@@ -296,7 +420,7 @@ class EmailAuthTests(ProvisionTenantTestBase):
         "  - email: staff@barge2rail.com\n"
         "    first_name: Staff\n"
         "    last_name: Person\n"
-        "    role: cbrtconnect_tste_client\n"
+        "    role: testapp_tste_client\n"
         "    auth_type: google\n"
     )
 
@@ -304,7 +428,7 @@ class EmailAuthTests(ProvisionTenantTestBase):
         "  - email: noauth@example.com\n"
         "    first_name: Default\n"
         "    last_name: Auth\n"
-        "    role: cbrtconnect_tste_client\n"
+        "    role: testapp_tste_client\n"
         # auth_type omitted on purpose
     )
 
@@ -312,12 +436,12 @@ class EmailAuthTests(ProvisionTenantTestBase):
         "  - email: briana@marianshipping.example.com\n"
         "    first_name: Briana\n"
         "    last_name: Jackson\n"
-        "    role: cbrtconnect_tste_client\n"
+        "    role: testapp_tste_client\n"
         "    auth_type: email\n"
         "  - email: staff@barge2rail.com\n"
         "    first_name: Staff\n"
         "    last_name: Person\n"
-        "    role: cbrtconnect_tste_client\n"
+        "    role: testapp_tste_client\n"
         "    auth_type: google\n"
     )
 
@@ -325,7 +449,7 @@ class EmailAuthTests(ProvisionTenantTestBase):
         "  - email: anon@example.com\n"
         "    first_name: Anon\n"
         "    last_name: User\n"
-        "    role: cbrtconnect_tste_client\n"
+        "    role: testapp_tste_client\n"
         "    auth_type: anonymous\n"
     )
 
@@ -336,7 +460,6 @@ class EmailAuthTests(ProvisionTenantTestBase):
             stripped = raw.strip()
             if stripped.startswith(email):
                 parts = stripped.split()
-                # Line format: "<email>  <password>"
                 if len(parts) >= 2:
                     return parts[-1]
         raise AssertionError(f"No password line found for {email!r} in stdout")
@@ -355,7 +478,7 @@ class EmailAuthTests(ProvisionTenantTestBase):
         temp_password = self._extract_password_for(
             out, "briana@marianshipping.example.com"
         )
-        self.assertGreaterEqual(len(temp_password), 20)  # token_urlsafe(18) ~= 24 chars
+        self.assertGreaterEqual(len(temp_password), 20)
         self.assertTrue(user.check_password(temp_password))
 
     def test_email_user_password_not_in_audit(self):
@@ -368,7 +491,6 @@ class EmailAuthTests(ProvisionTenantTestBase):
         audit_path = self.tmp_path / "tenant_provisioning.jsonl"
         audit_content = audit_path.read_text()
         self.assertNotIn(temp_password, audit_content)
-        # Defense-in-depth: field names that would leak secrets
         self.assertNotIn("temp_password", audit_content)
         self.assertNotIn("password", audit_content)
 
@@ -393,7 +515,6 @@ class EmailAuthTests(ProvisionTenantTestBase):
         self.assertEqual(staff.auth_type, "google")
         self.assertFalse(staff.has_usable_password())
 
-        # Credentials banner lists only the email user
         self.assertIn("Email/password users", out)
         banner_section = out.split("Email/password users", 1)[1]
         self.assertIn("briana@marianshipping.example.com", banner_section)
@@ -416,10 +537,7 @@ class EmailAuthTests(ProvisionTenantTestBase):
         self.assertIn("auth_type", msg)
         self.assertIn("anonymous", msg)
         self.assertIn("users.0.auth_type", msg)
-        # Nothing should have been created
-        self.assertEqual(
-            Application.objects.filter(name="CBRTConnect - TSTE").count(), 0
-        )
+        self.assertEqual(Role.objects.count(), 0)
 
     def test_existing_google_user_skipped_with_mismatch_warning(self):
         User.objects.create_user(
@@ -434,10 +552,8 @@ class EmailAuthTests(ProvisionTenantTestBase):
 
         self.assertIn("auth_type mismatch", out)
         user = User.objects.get(email="briana@marianshipping.example.com")
-        # Existing auth_type preserved, not clobbered
         self.assertEqual(user.auth_type, "google")
         self.assertFalse(user.has_usable_password())
-        # No temp password printed for a SKIP'd user
         banner_split = out.split("Email/password users")
         if len(banner_split) > 1:
             self.assertNotIn("briana@marianshipping.example.com", banner_split[1])
@@ -453,12 +569,11 @@ class EmailAuthTests(ProvisionTenantTestBase):
 
         self.assertNotIn("Email/password users", out2)
         user = User.objects.get(email="briana@marianshipping.example.com")
-        # Password not rotated on re-run
         self.assertTrue(user.check_password(original_password))
 
 
 class AuditFailureTests(ProvisionTenantTestBase):
-    """Codex finding 1: banner must print even if audit I/O fails."""
+    """Banner must print even if audit I/O fails."""
 
     def test_audit_failure_does_not_block_banner(self):
         cfg = self._write_yaml(EmailAuthTests.EMAIL_USER_YAML)
@@ -469,7 +584,6 @@ class AuditFailureTests(ProvisionTenantTestBase):
         with mock.patch.object(
             Command, "_append_audit", side_effect=OSError("disk full simulation")
         ):
-            # Must NOT raise — secrets were already shown.
             call_command(
                 "provision_tenant",
                 "--config",
@@ -483,18 +597,12 @@ class AuditFailureTests(ProvisionTenantTestBase):
         stdout_text = out.getvalue()
         stderr_text = err.getvalue()
 
-        # Both banners printed before the audit failure
-        self.assertIn("COPY THIS NOW", stdout_text)
         self.assertIn("briana@marianshipping.example.com", stdout_text)
-
-        # Warning about audit failure landed on stderr
+        self.assertIn("Email/password users", stdout_text)
         self.assertIn("Audit log write failed", stderr_text)
         self.assertIn("disk full simulation", stderr_text)
 
         # DB side effects succeeded
-        self.assertEqual(
-            Application.objects.filter(name="CBRTConnect - TSTE").count(), 1
-        )
         self.assertEqual(
             User.objects.filter(email="briana@marianshipping.example.com").count(), 1
         )
@@ -502,27 +610,24 @@ class AuditFailureTests(ProvisionTenantTestBase):
 
 
 class EmailNormalizationTests(ProvisionTenantTestBase):
-    """Codex finding 2: email lookups must be case-insensitive and stored lowercased."""
+    """Email lookups must be case-insensitive and stored lowercased."""
 
     def test_email_case_normalization_on_create(self):
         yaml_content = _yaml_with_users(
             "  - email: TestUser@Example.COM\n"
             "    first_name: Test\n"
             "    last_name: User\n"
-            "    role: cbrtconnect_tste_client\n"
+            "    role: testapp_tste_client\n"
             "    auth_type: google\n"
         )
         cfg = self._write_yaml(yaml_content)
         out = self._run("--config", cfg, "--actor", "clif@barge2rail.com")
 
-        # Stored lowercase
         self.assertEqual(User.objects.filter(email="testuser@example.com").count(), 1)
         self.assertEqual(User.objects.filter(email="TestUser@Example.COM").count(), 0)
 
-        # Plan output shows normalized form
         self.assertIn("testuser@example.com", out)
 
-        # Audit records the normalized email
         audit = self._audit_lines()
         self.assertEqual(audit[0]["users_created"], ["testuser@example.com"])
 
@@ -531,7 +636,7 @@ class EmailNormalizationTests(ProvisionTenantTestBase):
             "  - email: alice@example.com\n"
             "    first_name: Alice\n"
             "    last_name: Case\n"
-            "    role: cbrtconnect_tste_client\n"
+            "    role: testapp_tste_client\n"
             "    auth_type: google\n"
         )
         yaml1 = _yaml_with_users(base_users)
@@ -543,19 +648,13 @@ class EmailNormalizationTests(ProvisionTenantTestBase):
         cfg2 = self._write_yaml(yaml2, name="yaml2.yaml")
         out = self._run("--config", cfg2, "--actor", "clif@barge2rail.com")
 
-        # Second run should SKIP the existing user
         self.assertIn("SKIP (exists)", out)
         self.assertEqual(
             User.objects.filter(email__iexact="alice@example.com").count(), 1
         )
-        # Exactly one binding — no duplicate
         self.assertEqual(UserAppRole.objects.count(), 1)
 
     def test_multiple_users_same_email_different_case(self):
-        # Simulate legacy data: two rows that differ only by case. User.objects.create()
-        # bypasses the UserManager convenience but still runs save() which auto-
-        # generates username from email (case-preserved), so both rows satisfy
-        # the case-sensitive unique constraint at the DB level.
         u1 = User(
             email="bob@example.com",
             first_name="Bob",
@@ -579,7 +678,7 @@ class EmailNormalizationTests(ProvisionTenantTestBase):
             "  - email: bob@example.com\n"
             "    first_name: Bob\n"
             "    last_name: Builder\n"
-            "    role: cbrtconnect_tste_client\n"
+            "    role: testapp_tste_client\n"
             "    auth_type: google\n"
         )
         cfg = self._write_yaml(yaml_content)
@@ -592,217 +691,6 @@ class EmailNormalizationTests(ProvisionTenantTestBase):
         self.assertIn("bob@example.com", msg)
 
         # Nothing else created
-        self.assertEqual(
-            Application.objects.filter(name="CBRTConnect - TSTE").count(), 0
-        )
         self.assertEqual(Role.objects.count(), 0)
         self.assertEqual(UserAppRole.objects.count(), 0)
         self.assertEqual(Tenant.objects.filter(code="TSTE").count(), 0)
-
-
-class ApplicationSlugMismatchTests(ProvisionTenantTestBase):
-    """Codex finding 3: reusing an Application by name must verify slug match."""
-
-    YAML_MSP = """
-tenant_code: MSP
-display_name: "Marian Shipping"
-
-application:
-  name: "CBRTConnect - MSP"
-  redirect_uris:
-    - https://example.com/oauth/callback/
-
-roles:
-  - code: cbrtconnect_msp_admin
-    name: "CBRTConnect MSP Admin"
-    legacy_role: Admin
-
-users:
-  - email: admin@example.com
-    first_name: Ad
-    last_name: Min
-    role: cbrtconnect_msp_admin
-    auth_type: google
-"""
-
-    def _preexisting_mismatched_app(self) -> Application:
-        return Application.objects.create(
-            name="CBRTConnect - MSP",
-            slug="opt",  # wrong tenant's slug (copy-paste error)
-            client_id="app_existing",
-            client_secret="existing-secret",  # pragma: allowlist secret
-            redirect_uris="https://example.com/oauth/callback/",
-            client_type=Application.CLIENT_CONFIDENTIAL,
-            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
-            user=self.actor,
-        )
-
-    def test_application_slug_mismatch_rejected(self):
-        self._preexisting_mismatched_app()
-        cfg = self._write_yaml(self.YAML_MSP)
-
-        # Real run must reject with both slugs named in the error.
-        with self.assertRaises(CommandError) as ctx:
-            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        msg = str(ctx.exception)
-        self.assertIn("'opt'", msg)
-        self.assertIn("'msp'", msg)
-
-        # Dry-run must reject with the same mismatch (plan-time check, not execute-time).
-        with self.assertRaises(CommandError) as ctx:
-            self._run("--config", cfg, "--dry-run")
-        msg = str(ctx.exception)
-        self.assertIn("'opt'", msg)
-        self.assertIn("'msp'", msg)
-
-        # No DB writes from either attempt.
-        self.assertEqual(Role.objects.count(), 0)
-        self.assertEqual(UserAppRole.objects.count(), 0)
-        self.assertEqual(Tenant.objects.filter(code="MSP").count(), 0)
-        self.assertEqual(User.objects.filter(email="admin@example.com").count(), 0)
-
-
-class ApplicationSlugOverrideTests(ProvisionTenantTestBase):
-    """Optional application.slug field: defaults to tenant_code.lower(),
-    operators may override, schema-level validation rejects invalid values."""
-
-    @staticmethod
-    def _yaml(slug_line: str = "") -> str:
-        """Build a valid YAML with an optional slug line under application:."""
-        return (
-            "tenant_code: TSTS\n"
-            'display_name: "Test Slug"\n'
-            "application:\n"
-            '  name: "CBRTConnect - TSTS"\n'
-            f"{slug_line}"
-            "  redirect_uris:\n"
-            "    - https://example.com/oauth/callback/\n"
-            "roles:\n"
-            "  - code: cbrtconnect_tsts_admin\n"
-            '    name: "CBRTConnect TSTS Admin"\n'
-            "    legacy_role: Admin\n"
-            "users:\n"
-            "  - email: admin@example.com\n"
-            "    first_name: Ad\n"
-            "    last_name: Min\n"
-            "    role: cbrtconnect_tsts_admin\n"
-            "    auth_type: google\n"
-        )
-
-    def test_slug_defaults_to_tenant_code_lowercase(self):
-        cfg = self._write_yaml(self._yaml())
-        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        app = Application.objects.get(name="CBRTConnect - TSTS")
-        self.assertEqual(app.slug, "tsts")
-
-    def test_slug_override_in_yaml(self):
-        cfg = self._write_yaml(self._yaml("  slug: custom-override\n"))
-        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        app = Application.objects.get(name="CBRTConnect - TSTS")
-        self.assertEqual(app.slug, "custom-override")
-
-    def test_slug_override_validation_uppercase_rejected(self):
-        cfg = self._write_yaml(self._yaml("  slug: Custom-Override\n"))
-        with self.assertRaises(CommandError) as ctx:
-            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        msg = str(ctx.exception)
-        self.assertIn("slug", msg)
-        self.assertIn("lowercase", msg)
-        # No DB writes
-        self.assertEqual(
-            Application.objects.filter(name="CBRTConnect - TSTS").count(), 0
-        )
-
-    def test_slug_override_validation_underscore_rejected(self):
-        cfg = self._write_yaml(self._yaml("  slug: custom_override\n"))
-        with self.assertRaises(CommandError) as ctx:
-            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        msg = str(ctx.exception)
-        self.assertIn("slug", msg)
-        self.assertEqual(
-            Application.objects.filter(name="CBRTConnect - TSTS").count(), 0
-        )
-
-    def test_slug_override_validation_trailing_hyphen_rejected(self):
-        cfg = self._write_yaml(self._yaml("  slug: custom-\n"))
-        with self.assertRaises(CommandError) as ctx:
-            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        msg = str(ctx.exception)
-        self.assertIn("slug", msg)
-        self.assertEqual(
-            Application.objects.filter(name="CBRTConnect - TSTS").count(), 0
-        )
-
-    def test_slug_mismatch_error_uses_yaml_slug_when_provided(self):
-        Application.objects.create(
-            name="CBRTConnect - TSTS",
-            slug="old-slug",
-            client_id="app_existing_tsts",
-            client_secret="existing-secret",  # pragma: allowlist secret
-            redirect_uris="https://example.com/oauth/callback/",
-            client_type=Application.CLIENT_CONFIDENTIAL,
-            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
-            user=self.actor,
-        )
-        cfg = self._write_yaml(self._yaml("  slug: new-slug\n"))
-        with self.assertRaises(CommandError) as ctx:
-            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        msg = str(ctx.exception)
-        self.assertIn("'new-slug'", msg)
-        self.assertIn("'old-slug'", msg)
-        # Error distinguishes YAML-provided from derived slug
-        self.assertIn("YAML specifies", msg)
-
-    def test_slug_exactly_50_chars_accepted(self):
-        # Application.slug is SlugField(max_length=50); exactly 50 must pass.
-        slug = "a" + "b" * 48 + "c"  # 50 chars, valid pattern
-        self.assertEqual(len(slug), 50)
-        cfg = self._write_yaml(self._yaml(f"  slug: {slug}\n"))
-        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        app = Application.objects.get(name="CBRTConnect - TSTS")
-        self.assertEqual(app.slug, slug)
-
-    def test_slug_51_chars_rejected(self):
-        # Schema must reject before Application.save() hits the DB limit.
-        slug = "a" + "b" * 49 + "c"  # 51 chars, valid pattern but too long
-        self.assertEqual(len(slug), 51)
-        cfg = self._write_yaml(self._yaml(f"  slug: {slug}\n"))
-        with self.assertRaises(CommandError) as ctx:
-            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        self.assertIn("slug", str(ctx.exception))
-        # No DB writes
-        self.assertEqual(
-            Application.objects.filter(name="CBRTConnect - TSTS").count(), 0
-        )
-
-    def test_slug_conflict_with_different_app_rejected_at_plan_time(self):
-        # Different app name, same slug — must fail at plan time, not at
-        # Application.save() with an IntegrityError.
-        Application.objects.create(
-            name="CBRTConnect - OTHER",
-            slug="shared-slug",
-            client_id="app_other",
-            client_secret="other-secret",  # pragma: allowlist secret
-            redirect_uris="https://example.com/oauth/callback/",
-            client_type=Application.CLIENT_CONFIDENTIAL,
-            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
-            user=self.actor,
-        )
-        cfg = self._write_yaml(self._yaml("  slug: shared-slug\n"))
-
-        # Real run must reject at plan time.
-        with self.assertRaises(CommandError) as ctx:
-            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        msg = str(ctx.exception)
-        self.assertIn("'shared-slug'", msg)
-        self.assertIn("CBRTConnect - OTHER", msg)
-
-        # Dry-run must reject too (plan-time check).
-        with self.assertRaises(CommandError) as ctx:
-            self._run("--config", cfg, "--dry-run")
-        self.assertIn("'shared-slug'", str(ctx.exception))
-
-        # No Application created under the new name from either attempt.
-        self.assertEqual(
-            Application.objects.filter(name="CBRTConnect - TSTS").count(), 0
-        )
