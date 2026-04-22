@@ -173,12 +173,31 @@ class Command(BaseCommand):
 
         tenant = Tenant.objects.filter(code=cfg.tenant_code).first()
 
-        existing_role_codes = set(
-            Role.objects.filter(application=app).values_list("code", flat=True)
-        )
+        # Fetch full Role objects (not just codes) so we can detect metadata
+        # mismatches on existing roles. In bind-to-existing mode all tenants
+        # on a given Application share one role namespace — a copy/paste
+        # collision on `code` would otherwise silently bind new users to an
+        # unrelated role, quietly changing their JWT role/permissions.
+        existing_roles_by_code: Dict[str, Role] = {
+            role.code: role for role in Role.objects.filter(application=app)
+        }
         roles_plan: List[Dict[str, Any]] = []
         for r in cfg.roles:
-            roles_plan.append({"spec": r, "exists": r.code in existing_role_codes})
+            existing = existing_roles_by_code.get(r.code)
+            if existing is not None and (
+                existing.name != r.name or existing.legacy_role != r.legacy_role
+            ):
+                raise CommandError(
+                    f"Role code {r.code!r} already exists on Application "
+                    f"slug={app.slug!r} with different metadata:\n"
+                    f"  existing: name={existing.name!r}, legacy_role={existing.legacy_role!r}\n"
+                    f"  YAML:     name={r.name!r}, legacy_role={r.legacy_role!r}\n"
+                    f"This would silently bind tenant users to an unrelated role. "
+                    f"Pick a different role.code, or reconcile the existing row "
+                    f"via /cbrt-ops/ before re-running."
+                )
+            roles_plan.append({"spec": r, "exists": existing is not None})
+        existing_role_codes = set(existing_roles_by_code.keys())
 
         # Finding 2 (inherited): normalize emails and look up case-insensitively.
         # A legacy DB row with mixed-case email matches a lowercase YAML entry;

@@ -315,6 +315,64 @@ class ApplicationSlugTests(ProvisionTenantTestBase):
                 self.assertIn("application_slug", str(ctx.exception))
 
 
+class RoleMetadataCollisionTests(ProvisionTenantTestBase):
+    """Codex PR #14 P1: a pre-existing Role with the same code but different
+    metadata must fail fast — otherwise a copy-paste mistake would silently
+    bind new users to an unrelated role (e.g. Admin vs Client), changing
+    their JWT legacy_role claim without the operator noticing."""
+
+    def test_role_code_collision_with_different_legacy_role_rejected(self):
+        # Pre-seed a role with the YAML's code but DIFFERENT legacy_role.
+        Role.objects.create(
+            application=self.target_app,
+            code="testapp_tstp_admin",
+            name="Some Unrelated Role",
+            legacy_role="Client",  # YAML says Admin — this must reject
+            is_active=True,
+        )
+        cfg = self._write_yaml(VALID_YAML)
+
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        msg = str(ctx.exception)
+        self.assertIn("testapp_tstp_admin", msg)
+        self.assertIn("Client", msg)  # existing legacy_role
+        self.assertIn("Admin", msg)  # YAML legacy_role
+        self.assertIn("Some Unrelated Role", msg)  # existing name
+
+        # Dry-run must also reject
+        with self.assertRaises(CommandError):
+            self._run("--config", cfg, "--dry-run")
+
+        # Nothing else created — no tenant, no users, no bindings.
+        self.assertEqual(Tenant.objects.filter(code="TSTP").count(), 0)
+        self.assertEqual(User.objects.filter(email="alice@tstp.example.com").count(), 0)
+        self.assertEqual(UserAppRole.objects.count(), 0)
+
+    def test_role_code_collision_with_different_name_rejected(self):
+        Role.objects.create(
+            application=self.target_app,
+            code="testapp_tstp_admin",
+            name="Different Name",  # YAML says "TestApp TSTP Admin"
+            legacy_role="Admin",
+            is_active=True,
+        )
+        cfg = self._write_yaml(VALID_YAML)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertIn("testapp_tstp_admin", str(ctx.exception))
+
+    def test_idempotent_rerun_still_works_when_metadata_matches(self):
+        """Regression guard: an exact-match pre-existing role must NOT trip
+        the collision check. Idempotent re-runs depend on this."""
+        cfg = self._write_yaml(VALID_YAML)
+        # First run creates the roles
+        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        # Second run — same YAML, roles already exist with matching metadata
+        out = self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertIn("SKIP (exists)", out)
+
+
 class NoClientSecretBannerTests(ProvisionTenantTestBase):
     """This command never creates Applications, so client_secret must never
     appear in command output."""
