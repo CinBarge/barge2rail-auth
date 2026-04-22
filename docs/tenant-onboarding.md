@@ -62,7 +62,7 @@ existing prod convention for tenants like `primetrade`, `sacks`, `msp`. Override
 when you need a specific slug (e.g., `cbrtconnect-dev` for a dev-only app).
 
 Must be lowercase alphanumeric with hyphens. No underscores, no uppercase, no
-leading/trailing hyphens. 2-64 characters.
+leading/trailing hyphens. 2-50 characters (matches `Application.slug` DB field).
 
 **Do not commit the filled-in YAML.** `tenants/.gitignore` blocks everything except
 `_template.yaml`. Keep the filled YAML locally or in 1Password — it contains user PII.

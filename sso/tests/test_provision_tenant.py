@@ -752,3 +752,57 @@ class ApplicationSlugOverrideTests(ProvisionTenantTestBase):
         self.assertIn("'old-slug'", msg)
         # Error distinguishes YAML-provided from derived slug
         self.assertIn("YAML specifies", msg)
+
+    def test_slug_exactly_50_chars_accepted(self):
+        # Application.slug is SlugField(max_length=50); exactly 50 must pass.
+        slug = "a" + "b" * 48 + "c"  # 50 chars, valid pattern
+        self.assertEqual(len(slug), 50)
+        cfg = self._write_yaml(self._yaml(f"  slug: {slug}\n"))
+        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        app = Application.objects.get(name="CBRTConnect - TSTS")
+        self.assertEqual(app.slug, slug)
+
+    def test_slug_51_chars_rejected(self):
+        # Schema must reject before Application.save() hits the DB limit.
+        slug = "a" + "b" * 49 + "c"  # 51 chars, valid pattern but too long
+        self.assertEqual(len(slug), 51)
+        cfg = self._write_yaml(self._yaml(f"  slug: {slug}\n"))
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertIn("slug", str(ctx.exception))
+        # No DB writes
+        self.assertEqual(
+            Application.objects.filter(name="CBRTConnect - TSTS").count(), 0
+        )
+
+    def test_slug_conflict_with_different_app_rejected_at_plan_time(self):
+        # Different app name, same slug — must fail at plan time, not at
+        # Application.save() with an IntegrityError.
+        Application.objects.create(
+            name="CBRTConnect - OTHER",
+            slug="shared-slug",
+            client_id="app_other",
+            client_secret="other-secret",  # pragma: allowlist secret
+            redirect_uris="https://example.com/oauth/callback/",
+            client_type=Application.CLIENT_CONFIDENTIAL,
+            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
+            user=self.actor,
+        )
+        cfg = self._write_yaml(self._yaml("  slug: shared-slug\n"))
+
+        # Real run must reject at plan time.
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        msg = str(ctx.exception)
+        self.assertIn("'shared-slug'", msg)
+        self.assertIn("CBRTConnect - OTHER", msg)
+
+        # Dry-run must reject too (plan-time check).
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--dry-run")
+        self.assertIn("'shared-slug'", str(ctx.exception))
+
+        # No Application created under the new name from either attempt.
+        self.assertEqual(
+            Application.objects.filter(name="CBRTConnect - TSTS").count(), 0
+        )

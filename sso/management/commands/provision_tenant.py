@@ -174,6 +174,19 @@ class Command(BaseCommand):
                 f"is wrong. Refusing to reuse the existing application."
             )
 
+        # Slug is unique across Applications. If no app matched by name but
+        # some other Application already owns this slug, fail at plan time
+        # with an actionable error instead of an IntegrityError from _execute.
+        if app is None:
+            slug_conflict = Application.objects.filter(slug=slug).first()
+            if slug_conflict is not None:
+                raise CommandError(
+                    f"Slug '{slug}' is already in use by a different Application "
+                    f"'{slug_conflict.name}'. "
+                    f"Choose a different application.slug or resolve via /cbrt-ops/. "
+                    f"Refusing to create a second Application with the same slug."
+                )
+
         roles_plan: List[Dict[str, Any]] = []
         if app:
             existing_role_codes = set(
