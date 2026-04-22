@@ -52,7 +52,17 @@ Edit `tenants/msp.yaml`:
     for `@barge2rail.com` staff.
   - `anonymous` — not supported by `provision_tenant`. Create via `/cbrt-ops/`.
 
-The Application `slug` is auto-derived as `cbrtconnect-<tenant_code.lower()>`.
+### `application.slug` (optional)
+
+URL-safe identifier for the Application. Used in JWT claims as
+`application_roles.<slug>.tenant_code` / `application_roles.<slug>.role`.
+
+If omitted, defaults to `tenant_code.lower()` (bare slug) — matching the
+existing prod convention for tenants like `primetrade`, `sacks`, `msp`. Override
+when you need a specific slug (e.g., `cbrtconnect-dev` for a dev-only app).
+
+Must be lowercase alphanumeric with hyphens. No underscores, no uppercase, no
+leading/trailing hyphens. 2-50 characters (matches `Application.slug` DB field).
 
 **Do not commit the filled-in YAML.** `tenants/.gitignore` blocks everything except
 `_template.yaml`. Keep the filled YAML locally or in 1Password — it contains user PII.
