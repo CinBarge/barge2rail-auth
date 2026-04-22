@@ -1,4 +1,8 @@
-# Tenant provisioning template.
+# Tenant provisioning template (bind-to-existing-application mode).
+#
+# This command binds tenant-scoped Roles and UserAppRoles to an EXISTING
+# OAuth Application. It does NOT create the OAuth Application itself —
+# register it via /cbrt-ops/ first.
 #
 # Copy this file to tenants/<tenant_code>.yaml (e.g. tenants/msp.yaml), fill in
 # real values, then run:
@@ -12,27 +16,25 @@
 tenant_code: XXX                                  # 1-10 chars, uppercase alphanumeric (MSP, OPT, HLR...)
 display_name: "Full Tenant Name"                  # used for the Tenant reference row
 
-application:
-  name: "CBRTConnect - XXX"                       # unique across all SSO apps
-  # slug: xxx                                     # Optional. Defaults to tenant_code.lower().
-                                                  # Override when you need a specific slug
-                                                  # (lowercase alphanumeric + hyphens, 2-50 chars).
-  redirect_uris:
-    - https://cbrtconnect.com/oauth/callback/
-    - https://dev.cbrtconnect.com/oauth/callback/
+# Slug of the EXISTING OAuth Application the tenant belongs to.
+# Examples:
+#   - CBRTConnect tenants → application_slug: sacks
+#   - PrimeTrade tenants  → application_slug: primetrade
+# Register new client apps via /cbrt-ops/ before adding tenants to them.
+application_slug: sacks
 
-# Roles created on the new Application. legacy_role is what client apps read
-# from the JWT (application_roles.<slug>.role). The code is machine-readable
-# and must be unique within this application.
+# Roles created on the target Application. Convention: <app_slug>_<tenant_code_lower>_<role>.
+# legacy_role is what client apps read from the JWT (application_roles.<slug>.role).
+# The code is machine-readable and must be unique within the target Application.
 roles:
-  - code: cbrtconnect_xxx_admin
-    name: "CBRTConnect XXX Admin"
+  - code: sacks_xxx_admin
+    name: "Sacks XXX Admin"
     legacy_role: Admin
-  - code: cbrtconnect_xxx_operator
-    name: "CBRTConnect XXX Operator"
-    legacy_role: Operator
-  - code: cbrtconnect_xxx_viewer
-    name: "CBRTConnect XXX Viewer"
+  - code: sacks_xxx_office
+    name: "Sacks XXX Office"
+    legacy_role: Office
+  - code: sacks_xxx_client
+    name: "Sacks XXX Client"
     legacy_role: Client
 
 # Users bound to roles under this tenant. One role per user per run;
@@ -50,12 +52,31 @@ users:
   - email: contact@example.com
     first_name: First
     last_name: Last
-    role: cbrtconnect_xxx_admin
+    role: sacks_xxx_admin
     auth_type: email
 
   # Example Google OAuth user (staff on barge2rail.com):
   # - email: staff@barge2rail.com
   #   first_name: Staff
   #   last_name: Member
-  #   role: cbrtconnect_xxx_admin
+  #   role: sacks_xxx_admin
   #   auth_type: google
+
+# ---------------------------------------------------------------------------
+# Alternate example: onboarding a tenant to PrimeTrade instead of CBRTConnect.
+# Copy-paste and adapt.
+# ---------------------------------------------------------------------------
+#
+# tenant_code: YYY
+# display_name: "Full Tenant Name"
+# application_slug: primetrade
+# roles:
+#   - code: primetrade_yyy_admin
+#     name: "PrimeTrade YYY Admin"
+#     legacy_role: Admin
+# users:
+#   - email: contact@example.com
+#     first_name: First
+#     last_name: Last
+#     role: primetrade_yyy_admin
+#     auth_type: email

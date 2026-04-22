@@ -2,6 +2,11 @@
 
 Validation is strict: unknown fields are rejected, role references must resolve,
 and every string that looks like a URL or email is parsed, not just regex-matched.
+
+Schema (v2, bind-to-existing mode):
+- Top-level `application_slug` names an EXISTING OAuth Application to bind to.
+- No `application:` block — this command does not create OAuth Applications.
+  Register apps via /cbrt-ops/ first.
 """
 
 from __future__ import annotations
@@ -13,7 +18,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    HttpUrl,
     field_validator,
     model_validator,
 )
@@ -22,7 +26,7 @@ TENANT_CODE_RE = re.compile(r"^[A-Z0-9]{1,10}$")
 # Django-style slug: lowercase alphanumeric + hyphens, no leading/trailing
 # hyphens, 2-50 chars. Matches the existing prod convention (primetrade,
 # cbrtconnect-dev, etc.) and the Application.slug SlugField(max_length=50)
-# constraint. Fail fast here rather than blowing up at Application.save().
+# constraint.
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$")
 # Pragmatic email regex: good enough to catch typos in hand-written YAML.
 # Deep RFC 5322 conformance would require the email-validator package (not a
@@ -70,39 +74,30 @@ class UserSpec(BaseModel):
         return v
 
 
-class ApplicationSpec(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str = Field(min_length=1, max_length=255)
-    # Optional. When omitted, the command layer defaults to tenant_code.lower()
-    # (bare slug), matching the existing prod convention. When provided,
-    # operators can override for any reason (legacy rename, special casing, etc.)
-    slug: str | None = None
-    redirect_uris: List[HttpUrl] = Field(min_length=1)
-
-    @field_validator("slug")
-    @classmethod
-    def _check_slug(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        if not SLUG_RE.match(v):
-            raise ValueError(
-                "slug must be lowercase alphanumeric with hyphens, "
-                "e.g. 'msp' or 'cbrtconnect-dev' "
-                "(no uppercase, no underscores, no leading/trailing hyphens, "
-                "2-50 chars)"
-            )
-        return v
-
-
 class TenantConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     tenant_code: str
     display_name: str = Field(min_length=1, max_length=100)
-    application: ApplicationSpec
+    # Slug of an EXISTING OAuth Application. Roles created by this run attach
+    # to that Application; UserAppRoles bind users to those Roles scoped by
+    # tenant_code. The Application itself is NOT created here — register it
+    # via /cbrt-ops/ first.
+    application_slug: str = Field(min_length=2, max_length=50)
     roles: List[RoleSpec] = Field(min_length=1)
     users: List[UserSpec] = Field(min_length=1)
+
+    @field_validator("application_slug")
+    @classmethod
+    def _check_application_slug(cls, v: str) -> str:
+        if not SLUG_RE.match(v):
+            raise ValueError(
+                "application_slug must be lowercase alphanumeric with hyphens, "
+                "e.g. 'sacks' or 'cbrtconnect-dev' "
+                "(no uppercase, no underscores, no leading/trailing hyphens, "
+                "2-50 chars)"
+            )
+        return v
 
     @model_validator(mode="after")
     def _check_tenant_code(self) -> "TenantConfig":

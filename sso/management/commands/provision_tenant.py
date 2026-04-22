@@ -1,4 +1,9 @@
-"""Provision a new tenant: Application + Roles + Users + UserAppRole bindings.
+"""Provision a new tenant: bind Roles, Users, and UserAppRoles to an EXISTING
+OAuth Application.
+
+This command does NOT create OAuth Applications. Register the target app via
+/cbrt-ops/ first, then use this command to populate it with tenant-scoped
+roles and users.
 
 Usage:
     python manage.py provision_tenant --config tenants/msp.yaml --dry-run
@@ -29,7 +34,11 @@ from ._tenant_schema import TenantConfig
 
 
 class Command(BaseCommand):
-    help = "Provision a tenant (Application, Roles, Users, UserAppRoles) from a YAML config."
+    help = (
+        "Bind tenant-scoped Roles, Users, and UserAppRoles to an existing "
+        "OAuth Application (identified by application_slug in the YAML). "
+        "Does not create OAuth Applications — register those via /cbrt-ops/ first."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -75,27 +84,16 @@ class Command(BaseCommand):
         with transaction.atomic():
             result = self._execute(cfg, plan, actor)
 
-        # Banners FIRST — secrets must reach the operator even if audit I/O fails.
-        # DB records are already committed; if we hid the banner behind an I/O
-        # failure, the operator would have a provisioned tenant with no
-        # recoverable client_secret or temp passwords.
-        if result["client_secret_plaintext"]:
-            self._print_secret_banner(
-                result["client_id"], result["client_secret_plaintext"]
-            )
-        elif result["application_skipped"]:
-            self.stdout.write(
-                self.style.WARNING(
-                    "\nApplication already existed; client_secret was only shown on original creation. "
-                    "If lost, rotate via /cbrt-ops/."
-                )
-            )
-
+        # Banner FIRST — temp passwords must reach the operator even if audit
+        # I/O fails. If we hid the banner behind an I/O failure, email users
+        # would have no recoverable credentials.
         if result["email_user_credentials"]:
-            self._print_email_credentials_banner(result["email_user_credentials"])
+            self._print_email_credentials_banner(
+                result["application_slug"], result["email_user_credentials"]
+            )
 
         # Audit LAST. Warn-and-continue on I/O failure; provisioning succeeded
-        # and the secrets have been shown, so don't mislead the operator with a
+        # and any secrets have been shown, so don't mislead the operator with a
         # non-zero exit.
         try:
             self._append_audit(cfg, actor, result, dry_run=False)
@@ -103,13 +101,14 @@ class Command(BaseCommand):
             self.stderr.write(
                 self.style.WARNING(
                     f"Audit log write failed: {e}. "
-                    "Provisioning succeeded; any secrets were displayed above."
+                    "Provisioning succeeded; any temp passwords were displayed above."
                 )
             )
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"\nDone. Tenant '{cfg.tenant_code}' provisioned "
+                f"\nDone. Tenant '{cfg.tenant_code}' bound to Application "
+                f"slug='{result['application_slug']}' "
                 f"(bindings_created={result['bindings_created']})."
             )
         )
@@ -149,57 +148,60 @@ class Command(BaseCommand):
                 "Deduplicate in /cbrt-ops/ before re-running."
             )
 
+    def _resolve_application(self, application_slug: str) -> Application:
+        """Look up the target Application by slug. Missing slug is a fatal
+        operator error: list the known slugs so the fix is obvious."""
+        try:
+            return Application.objects.get(slug=application_slug)
+        except Application.DoesNotExist:
+            existing = sorted(
+                Application.objects.values_list("slug", flat=True).exclude(slug="")
+            )
+            existing_display = ", ".join(existing) if existing else "(none)"
+            raise CommandError(
+                f"No OAuth Application exists with slug '{application_slug}'. "
+                f"Existing slugs: {existing_display}. "
+                f"Register the app in /cbrt-ops/ first, or use an existing one."
+            )
+
     # ---- plan --------------------------------------------------------------
 
     def _build_plan(self, cfg: TenantConfig) -> Dict[str, Any]:
-        slug = cfg.application.slug or cfg.tenant_code.lower()
+        # Resolve the target Application first — this is the most common
+        # failure mode (bad slug) and should surface before any other work.
+        app = self._resolve_application(cfg.application_slug)
 
         tenant = Tenant.objects.filter(code=cfg.tenant_code).first()
-        app = Application.objects.filter(name=cfg.application.name).first()
 
-        # Finding 3: reject mismatched slug BEFORE any writes (and before
-        # dry-run returns a misleading SKIP plan). Catches copy-paste errors
-        # where tenant_code was changed but application.name was not.
-        if app is not None and app.slug != slug:
-            if cfg.application.slug is not None:
-                implication = f"YAML specifies slug '{slug}'"
-            else:
-                implication = (
-                    f"this YAML implies slug '{slug}' (derived from tenant_code)"
-                )
-            raise CommandError(
-                f"Application '{cfg.application.name}' already exists with slug "
-                f"'{app.slug}' but {implication}. "
-                f"Either the tenant_code, application.name, or application.slug "
-                f"is wrong. Refusing to reuse the existing application."
-            )
-
-        # Slug is unique across Applications. If no app matched by name but
-        # some other Application already owns this slug, fail at plan time
-        # with an actionable error instead of an IntegrityError from _execute.
-        if app is None:
-            slug_conflict = Application.objects.filter(slug=slug).first()
-            if slug_conflict is not None:
-                raise CommandError(
-                    f"Slug '{slug}' is already in use by a different Application "
-                    f"'{slug_conflict.name}'. "
-                    f"Choose a different application.slug or resolve via /cbrt-ops/. "
-                    f"Refusing to create a second Application with the same slug."
-                )
-
+        # Fetch full Role objects (not just codes) so we can detect metadata
+        # mismatches on existing roles. In bind-to-existing mode all tenants
+        # on a given Application share one role namespace — a copy/paste
+        # collision on `code` would otherwise silently bind new users to an
+        # unrelated role, quietly changing their JWT role/permissions.
+        existing_roles_by_code: Dict[str, Role] = {
+            role.code: role for role in Role.objects.filter(application=app)
+        }
         roles_plan: List[Dict[str, Any]] = []
-        if app:
-            existing_role_codes = set(
-                Role.objects.filter(application=app).values_list("code", flat=True)
-            )
-        else:
-            existing_role_codes = set()
         for r in cfg.roles:
-            roles_plan.append({"spec": r, "exists": r.code in existing_role_codes})
+            existing = existing_roles_by_code.get(r.code)
+            if existing is not None and (
+                existing.name != r.name or existing.legacy_role != r.legacy_role
+            ):
+                raise CommandError(
+                    f"Role code {r.code!r} already exists on Application "
+                    f"slug={app.slug!r} with different metadata:\n"
+                    f"  existing: name={existing.name!r}, legacy_role={existing.legacy_role!r}\n"
+                    f"  YAML:     name={r.name!r}, legacy_role={r.legacy_role!r}\n"
+                    f"This would silently bind tenant users to an unrelated role. "
+                    f"Pick a different role.code, or reconcile the existing row "
+                    f"via /cbrt-ops/ before re-running."
+                )
+            roles_plan.append({"spec": r, "exists": existing is not None})
+        existing_role_codes = set(existing_roles_by_code.keys())
 
-        # Finding 2: normalize emails and look up case-insensitively. A legacy
-        # DB row with mixed-case email matches a lowercase YAML entry; if two
-        # rows differ only by case (historical data), fail fast.
+        # Finding 2 (inherited): normalize emails and look up case-insensitively.
+        # A legacy DB row with mixed-case email matches a lowercase YAML entry;
+        # if two rows differ only by case (historical data), fail fast.
         existing_users: Dict[str, User] = {}
         for u in cfg.users:
             email_str = str(u.email).strip().lower()
@@ -236,7 +238,7 @@ class Command(BaseCommand):
             user_obj = existing_users.get(email_str)
             role_exists = u.role in existing_role_codes
             binding_exists = False
-            if app and user_obj and role_exists:
+            if user_obj and role_exists:
                 role_obj = Role.objects.filter(application=app, code=u.role).first()
                 if role_obj:
                     binding_exists = UserAppRole.objects.filter(
@@ -247,9 +249,8 @@ class Command(BaseCommand):
             )
 
         return {
-            "slug": slug,
+            "application": app,
             "tenant_exists": tenant is not None,
-            "app_exists": app is not None,
             "roles": roles_plan,
             "users": users_plan,
             "bindings": bindings_plan,
@@ -259,8 +260,13 @@ class Command(BaseCommand):
         self, cfg: TenantConfig, plan: Dict[str, Any], dry_run: bool
     ) -> None:
         header = "DRY-RUN PLAN" if dry_run else "PROVISION PLAN"
+        app: Application = plan["application"]
         self.stdout.write(
             self.style.MIGRATE_HEADING(f"\n=== {header}: {cfg.tenant_code} ===")
+        )
+        self.stdout.write(
+            f"  Bound to Application: {app.name!r} "
+            f"(slug={app.slug!r}, client_id={app.client_id!r})"
         )
 
         def line(label: str, exists: bool, detail: str = "") -> None:
@@ -272,13 +278,10 @@ class Command(BaseCommand):
         line(
             f"Tenant {cfg.tenant_code!r} ({cfg.display_name!r})", plan["tenant_exists"]
         )
-        line(
-            f"Application {cfg.application.name!r} slug={plan['slug']!r}",
-            plan["app_exists"],
-        )
         for rp in plan["roles"]:
             line(
-                f"Role {rp['spec'].code!r} (legacy={rp['spec'].legacy_role!r})",
+                f"Role {rp['spec'].code!r} (legacy={rp['spec'].legacy_role!r}) "
+                f"on Application slug={app.slug!r}",
                 rp["exists"],
             )
         for up in plan["users"]:
@@ -297,7 +300,7 @@ class Command(BaseCommand):
     def _execute(
         self, cfg: TenantConfig, plan: Dict[str, Any], actor: User
     ) -> Dict[str, Any]:
-        slug = plan["slug"]
+        app: Application = plan["application"]
 
         # Tenant
         Tenant.objects.get_or_create(
@@ -305,28 +308,7 @@ class Command(BaseCommand):
             defaults={"name": cfg.display_name, "is_active": True},
         )
 
-        # Application
-        app = Application.objects.filter(name=cfg.application.name).first()
-        client_secret_plaintext: str | None = None
-        application_skipped = True
-        if app is None:
-            application_skipped = False
-            client_id = self._gen_unique_client_id()
-            client_secret_plaintext = secrets.token_urlsafe(48)
-            redirect_uris = "\n".join(str(u) for u in cfg.application.redirect_uris)
-            app = Application(
-                name=cfg.application.name,
-                slug=slug,
-                client_id=client_id,
-                client_secret=client_secret_plaintext,
-                redirect_uris=redirect_uris,
-                client_type=Application.CLIENT_CONFIDENTIAL,
-                authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
-                user=actor,
-            )
-            app.save()
-
-        # Roles
+        # Roles attach to the resolved (pre-existing) Application.
         roles_created: List[str] = []
         role_objs: Dict[str, Role] = {}
         for r in cfg.roles:
@@ -400,20 +382,12 @@ class Command(BaseCommand):
         return {
             "application_id": str(app.id),
             "application_name": app.name,
-            "application_skipped": application_skipped,
-            "client_id": app.client_id if not application_skipped else None,
-            "client_secret_plaintext": client_secret_plaintext,
+            "application_slug": app.slug,
             "roles_created": roles_created,
             "users_created": users_created,
             "bindings_created": bindings_created,
             "email_user_credentials": email_user_credentials,
         }
-
-    def _gen_unique_client_id(self) -> str:
-        while True:
-            candidate = f"app_{secrets.token_hex(8)}"
-            if not Application.objects.filter(client_id=candidate).exists():
-                return candidate
 
     # ---- audit / output ----------------------------------------------------
 
@@ -428,7 +402,7 @@ class Command(BaseCommand):
             "tenant_code": cfg.tenant_code,
             "application_id": result["application_id"],
             "application_name": result["application_name"],
-            "application_skipped": result["application_skipped"],
+            "application_slug": result["application_slug"],
             "roles_created": result["roles_created"],
             "users_created": result["users_created"],
             "bindings_created": result["bindings_created"],
@@ -445,23 +419,15 @@ class Command(BaseCommand):
             except OSError:
                 pass
 
-    def _print_secret_banner(self, client_id: str, client_secret: str) -> None:
-        bar = "=" * 64
-        self.stdout.write("\n" + bar)
-        self.stdout.write("COPY THIS NOW - IT WILL NOT BE SHOWN AGAIN")
-        self.stdout.write(bar)
-        self.stdout.write(f"client_id:     {client_id}")
-        self.stdout.write(f"client_secret: {client_secret}")
-        self.stdout.write(bar)
-
     def _print_email_credentials_banner(
-        self, credentials: List[tuple[str, str]]
+        self, application_slug: str, credentials: List[tuple[str, str]]
     ) -> None:
         bar = "=" * 64
         self.stdout.write("\n" + bar)
         self.stdout.write("COPY THIS NOW - IT WILL NOT BE SHOWN AGAIN")
         self.stdout.write(
-            "Email/password users (temp passwords - distribute privately):"
+            f"Email/password users bound to Application slug='{application_slug}' "
+            f"(temp passwords - distribute privately):"
         )
         self.stdout.write(bar)
         email_width = max(len(e) for e, _ in credentials)
