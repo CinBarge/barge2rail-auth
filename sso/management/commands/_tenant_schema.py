@@ -19,6 +19,10 @@ from pydantic import (
 )
 
 TENANT_CODE_RE = re.compile(r"^[A-Z0-9]{1,10}$")
+# Django-style slug: lowercase alphanumeric + hyphens, no leading/trailing
+# hyphens, 2-64 chars. Matches the existing prod convention (primetrade,
+# cbrtconnect-dev, etc.).
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$")
 # Pragmatic email regex: good enough to catch typos in hand-written YAML.
 # Deep RFC 5322 conformance would require the email-validator package (not a
 # current dep) and is overkill for a human-reviewed config file.
@@ -69,7 +73,25 @@ class ApplicationSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=255)
+    # Optional. When omitted, the command layer defaults to tenant_code.lower()
+    # (bare slug), matching the existing prod convention. When provided,
+    # operators can override for any reason (legacy rename, special casing, etc.)
+    slug: str | None = None
     redirect_uris: List[HttpUrl] = Field(min_length=1)
+
+    @field_validator("slug")
+    @classmethod
+    def _check_slug(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not SLUG_RE.match(v):
+            raise ValueError(
+                "slug must be lowercase alphanumeric with hyphens, "
+                "e.g. 'msp' or 'cbrtconnect-dev' "
+                "(no uppercase, no underscores, no leading/trailing hyphens, "
+                "2-64 chars)"
+            )
+        return v
 
 
 class TenantConfig(BaseModel):

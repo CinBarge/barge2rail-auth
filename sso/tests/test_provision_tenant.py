@@ -136,7 +136,7 @@ class HappyPathTests(ProvisionTenantTestBase):
             Application.objects.filter(name="CBRTConnect - TSTP").count(), 1
         )
         app = Application.objects.get(name="CBRTConnect - TSTP")
-        self.assertEqual(app.slug, "cbrtconnect-tstp")
+        self.assertEqual(app.slug, "tstp")
         self.assertEqual(app.user, self.actor)
 
         self.assertEqual(Role.objects.filter(application=app).count(), 2)
@@ -628,7 +628,7 @@ users:
     def _preexisting_mismatched_app(self) -> Application:
         return Application.objects.create(
             name="CBRTConnect - MSP",
-            slug="cbrtconnect-opt",  # wrong tenant's slug (copy-paste error)
+            slug="opt",  # wrong tenant's slug (copy-paste error)
             client_id="app_existing",
             client_secret="existing-secret",  # pragma: allowlist secret
             redirect_uris="https://example.com/oauth/callback/",
@@ -645,18 +645,110 @@ users:
         with self.assertRaises(CommandError) as ctx:
             self._run("--config", cfg, "--actor", "clif@barge2rail.com")
         msg = str(ctx.exception)
-        self.assertIn("cbrtconnect-opt", msg)
-        self.assertIn("cbrtconnect-msp", msg)
+        self.assertIn("'opt'", msg)
+        self.assertIn("'msp'", msg)
 
         # Dry-run must reject with the same mismatch (plan-time check, not execute-time).
         with self.assertRaises(CommandError) as ctx:
             self._run("--config", cfg, "--dry-run")
         msg = str(ctx.exception)
-        self.assertIn("cbrtconnect-opt", msg)
-        self.assertIn("cbrtconnect-msp", msg)
+        self.assertIn("'opt'", msg)
+        self.assertIn("'msp'", msg)
 
         # No DB writes from either attempt.
         self.assertEqual(Role.objects.count(), 0)
         self.assertEqual(UserAppRole.objects.count(), 0)
         self.assertEqual(Tenant.objects.filter(code="MSP").count(), 0)
         self.assertEqual(User.objects.filter(email="admin@example.com").count(), 0)
+
+
+class ApplicationSlugOverrideTests(ProvisionTenantTestBase):
+    """Optional application.slug field: defaults to tenant_code.lower(),
+    operators may override, schema-level validation rejects invalid values."""
+
+    @staticmethod
+    def _yaml(slug_line: str = "") -> str:
+        """Build a valid YAML with an optional slug line under application:."""
+        return (
+            "tenant_code: TSTS\n"
+            'display_name: "Test Slug"\n'
+            "application:\n"
+            '  name: "CBRTConnect - TSTS"\n'
+            f"{slug_line}"
+            "  redirect_uris:\n"
+            "    - https://example.com/oauth/callback/\n"
+            "roles:\n"
+            "  - code: cbrtconnect_tsts_admin\n"
+            '    name: "CBRTConnect TSTS Admin"\n'
+            "    legacy_role: Admin\n"
+            "users:\n"
+            "  - email: admin@example.com\n"
+            "    first_name: Ad\n"
+            "    last_name: Min\n"
+            "    role: cbrtconnect_tsts_admin\n"
+            "    auth_type: google\n"
+        )
+
+    def test_slug_defaults_to_tenant_code_lowercase(self):
+        cfg = self._write_yaml(self._yaml())
+        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        app = Application.objects.get(name="CBRTConnect - TSTS")
+        self.assertEqual(app.slug, "tsts")
+
+    def test_slug_override_in_yaml(self):
+        cfg = self._write_yaml(self._yaml("  slug: custom-override\n"))
+        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        app = Application.objects.get(name="CBRTConnect - TSTS")
+        self.assertEqual(app.slug, "custom-override")
+
+    def test_slug_override_validation_uppercase_rejected(self):
+        cfg = self._write_yaml(self._yaml("  slug: Custom-Override\n"))
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        msg = str(ctx.exception)
+        self.assertIn("slug", msg)
+        self.assertIn("lowercase", msg)
+        # No DB writes
+        self.assertEqual(
+            Application.objects.filter(name="CBRTConnect - TSTS").count(), 0
+        )
+
+    def test_slug_override_validation_underscore_rejected(self):
+        cfg = self._write_yaml(self._yaml("  slug: custom_override\n"))
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        msg = str(ctx.exception)
+        self.assertIn("slug", msg)
+        self.assertEqual(
+            Application.objects.filter(name="CBRTConnect - TSTS").count(), 0
+        )
+
+    def test_slug_override_validation_trailing_hyphen_rejected(self):
+        cfg = self._write_yaml(self._yaml("  slug: custom-\n"))
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        msg = str(ctx.exception)
+        self.assertIn("slug", msg)
+        self.assertEqual(
+            Application.objects.filter(name="CBRTConnect - TSTS").count(), 0
+        )
+
+    def test_slug_mismatch_error_uses_yaml_slug_when_provided(self):
+        Application.objects.create(
+            name="CBRTConnect - TSTS",
+            slug="old-slug",
+            client_id="app_existing_tsts",
+            client_secret="existing-secret",  # pragma: allowlist secret
+            redirect_uris="https://example.com/oauth/callback/",
+            client_type=Application.CLIENT_CONFIDENTIAL,
+            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
+            user=self.actor,
+        )
+        cfg = self._write_yaml(self._yaml("  slug: new-slug\n"))
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        msg = str(ctx.exception)
+        self.assertIn("'new-slug'", msg)
+        self.assertIn("'old-slug'", msg)
+        # Error distinguishes YAML-provided from derived slug
+        self.assertIn("YAML specifies", msg)

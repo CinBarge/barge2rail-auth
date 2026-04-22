@@ -14,6 +14,9 @@ display_name: "Full Tenant Name"                  # used for the Tenant referenc
 
 application:
   name: "CBRTConnect - XXX"                       # unique across all SSO apps
+  # slug: xxx                                     # Optional. Defaults to tenant_code.lower().
+                                                  # Override when you need a specific slug
+                                                  # (lowercase alphanumeric + hyphens, 2-64 chars).
   redirect_uris:
     - https://cbrtconnect.com/oauth/callback/
     - https://dev.cbrtconnect.com/oauth/callback/

@@ -152,7 +152,7 @@ class Command(BaseCommand):
     # ---- plan --------------------------------------------------------------
 
     def _build_plan(self, cfg: TenantConfig) -> Dict[str, Any]:
-        slug = self._derive_slug(cfg.tenant_code)
+        slug = cfg.application.slug or cfg.tenant_code.lower()
 
         tenant = Tenant.objects.filter(code=cfg.tenant_code).first()
         app = Application.objects.filter(name=cfg.application.name).first()
@@ -161,11 +161,17 @@ class Command(BaseCommand):
         # dry-run returns a misleading SKIP plan). Catches copy-paste errors
         # where tenant_code was changed but application.name was not.
         if app is not None and app.slug != slug:
+            if cfg.application.slug is not None:
+                implication = f"YAML specifies slug '{slug}'"
+            else:
+                implication = (
+                    f"this YAML implies slug '{slug}' (derived from tenant_code)"
+                )
             raise CommandError(
                 f"Application '{cfg.application.name}' already exists with slug "
-                f"'{app.slug}' but this YAML implies slug '{slug}'. "
-                f"Either the tenant_code or the application.name is wrong. "
-                f"Refusing to reuse the existing application."
+                f"'{app.slug}' but {implication}. "
+                f"Either the tenant_code, application.name, or application.slug "
+                f"is wrong. Refusing to reuse the existing application."
             )
 
         roles_plan: List[Dict[str, Any]] = []
@@ -235,9 +241,6 @@ class Command(BaseCommand):
             "users": users_plan,
             "bindings": bindings_plan,
         }
-
-    def _derive_slug(self, tenant_code: str) -> str:
-        return f"cbrtconnect-{tenant_code.lower()}"
 
     def _print_plan(
         self, cfg: TenantConfig, plan: Dict[str, Any], dry_run: bool
