@@ -1,9 +1,9 @@
-"""Provision a new tenant: bind Roles, Users, and UserAppRoles to an EXISTING
-OAuth Application.
+"""Provision a new tenant: bind Users and UserAppRoles to EXISTING Roles on
+an EXISTING OAuth Application.
 
-This command does NOT create OAuth Applications. Register the target app via
-/cbrt-ops/ first, then use this command to populate it with tenant-scoped
-roles and users.
+This command does NOT create OAuth Applications, Roles, Features, or
+RoleFeaturePermissions. Register the target app via /cbrt-ops/ first.
+Create Roles via admin or the `setup_rbac` command.
 
 Usage:
     python manage.py provision_tenant --config tenants/msp.yaml --dry-run
@@ -30,14 +30,15 @@ from pydantic import ValidationError
 
 from sso.models import Application, Role, Tenant, User, UserAppRole
 
-from ._tenant_schema import TenantConfig
+from ._tenant_schema import LEGACY_ROLES_KEY_MESSAGE, TenantConfig
 
 
 class Command(BaseCommand):
     help = (
-        "Bind tenant-scoped Roles, Users, and UserAppRoles to an existing "
-        "OAuth Application (identified by application_slug in the YAML). "
-        "Does not create OAuth Applications — register those via /cbrt-ops/ first."
+        "Bind Users and UserAppRoles to EXISTING Roles on an EXISTING OAuth "
+        "Application (identified by application_slug in the YAML). Does not "
+        "create OAuth Applications or Roles — register apps via /cbrt-ops/ "
+        "and create roles via admin or setup_rbac first."
     )
 
     def add_arguments(self, parser):
@@ -126,6 +127,11 @@ class Command(BaseCommand):
             raise CommandError(
                 f"{config_path}: top-level YAML must be a mapping, got {type(raw).__name__}"
             )
+        # Surface the v3-specific message before pydantic, which would
+        # otherwise emit a generic "extra fields not permitted" error and
+        # leave the operator wondering what to do about it.
+        if "roles" in raw:
+            raise CommandError(LEGACY_ROLES_KEY_MESSAGE)
         try:
             return TenantConfig(**raw)
         except ValidationError as e:
@@ -167,37 +173,39 @@ class Command(BaseCommand):
     # ---- plan --------------------------------------------------------------
 
     def _build_plan(self, cfg: TenantConfig) -> Dict[str, Any]:
-        # Resolve the target Application first — this is the most common
-        # failure mode (bad slug) and should surface before any other work.
+        # Resolve the target Application first — most common failure mode.
         app = self._resolve_application(cfg.application_slug)
 
-        tenant = Tenant.objects.filter(code=cfg.tenant_code).first()
-
-        # Fetch full Role objects (not just codes) so we can detect metadata
-        # mismatches on existing roles. In bind-to-existing mode all tenants
-        # on a given Application share one role namespace — a copy/paste
-        # collision on `code` would otherwise silently bind new users to an
-        # unrelated role, quietly changing their JWT role/permissions.
+        # Resolve every user's Role by code on the target Application. Accumulate
+        # all missing-role failures across all users so the operator gets a full
+        # list in one error instead of fixing them one at a time.
         existing_roles_by_code: Dict[str, Role] = {
             role.code: role for role in Role.objects.filter(application=app)
         }
-        roles_plan: List[Dict[str, Any]] = []
-        for r in cfg.roles:
-            existing = existing_roles_by_code.get(r.code)
-            if existing is not None and (
-                existing.name != r.name or existing.legacy_role != r.legacy_role
-            ):
-                raise CommandError(
-                    f"Role code {r.code!r} already exists on Application "
-                    f"slug={app.slug!r} with different metadata:\n"
-                    f"  existing: name={existing.name!r}, legacy_role={existing.legacy_role!r}\n"
-                    f"  YAML:     name={r.name!r}, legacy_role={r.legacy_role!r}\n"
-                    f"This would silently bind tenant users to an unrelated role. "
-                    f"Pick a different role.code, or reconcile the existing row "
-                    f"via /cbrt-ops/ before re-running."
-                )
-            roles_plan.append({"spec": r, "exists": existing is not None})
-        existing_role_codes = set(existing_roles_by_code.keys())
+        missing: List[str] = []
+        for u in cfg.users:
+            if u.role_code not in existing_roles_by_code:
+                email_str = str(u.email).strip().lower()
+                missing.append(f"  user '{email_str}' references role '{u.role_code}'")
+        if missing:
+            existing_codes_display = (
+                ", ".join(sorted(existing_roles_by_code.keys()))
+                if existing_roles_by_code
+                else "(none)"
+            )
+            raise CommandError(
+                f"One or more role_code values do not match any Role on "
+                f"Application slug='{app.slug}':\n"
+                + "\n".join(missing)
+                + f"\nExisting role codes on '{app.slug}': {existing_codes_display}.\n"
+                "Create missing Roles via admin or the setup_rbac command "
+                "before re-running."
+            )
+
+        tenant = Tenant.objects.filter(code=cfg.tenant_code).first()
+        tenant_name_mismatch: str | None = None
+        if tenant is not None and tenant.name != cfg.display_name:
+            tenant_name_mismatch = f"yaml='{cfg.display_name}', db='{tenant.name}'"
 
         # Finding 2 (inherited): normalize emails and look up case-insensitively.
         # A legacy DB row with mixed-case email matches a lowercase YAML entry;
@@ -236,22 +244,21 @@ class Command(BaseCommand):
         for u in cfg.users:
             email_str = str(u.email).strip().lower()
             user_obj = existing_users.get(email_str)
-            role_exists = u.role in existing_role_codes
+            role_obj = existing_roles_by_code[u.role_code]
             binding_exists = False
-            if user_obj and role_exists:
-                role_obj = Role.objects.filter(application=app, code=u.role).first()
-                if role_obj:
-                    binding_exists = UserAppRole.objects.filter(
-                        user=user_obj, role=role_obj, tenant_code=cfg.tenant_code
-                    ).exists()
+            if user_obj is not None:
+                binding_exists = UserAppRole.objects.filter(
+                    user=user_obj, role=role_obj, tenant_code=cfg.tenant_code
+                ).exists()
             bindings_plan.append(
-                {"email": email_str, "role": u.role, "exists": binding_exists}
+                {"email": email_str, "role_code": u.role_code, "exists": binding_exists}
             )
 
         return {
             "application": app,
+            "resolved_roles": existing_roles_by_code,
             "tenant_exists": tenant is not None,
-            "roles": roles_plan,
+            "tenant_name_mismatch": tenant_name_mismatch,
             "users": users_plan,
             "bindings": bindings_plan,
         }
@@ -268,6 +275,13 @@ class Command(BaseCommand):
             f"  Bound to Application: {app.name!r} "
             f"(slug={app.slug!r}, client_id={app.client_id!r})"
         )
+        if plan["tenant_name_mismatch"]:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"  Tenant display_name mismatch: {plan['tenant_name_mismatch']} "
+                    "(existing row NOT modified)"
+                )
+            )
 
         def line(label: str, exists: bool, detail: str = "") -> None:
             tag = "SKIP (exists)" if exists else "CREATE"
@@ -278,12 +292,6 @@ class Command(BaseCommand):
         line(
             f"Tenant {cfg.tenant_code!r} ({cfg.display_name!r})", plan["tenant_exists"]
         )
-        for rp in plan["roles"]:
-            line(
-                f"Role {rp['spec'].code!r} (legacy={rp['spec'].legacy_role!r}) "
-                f"on Application slug={app.slug!r}",
-                rp["exists"],
-            )
         for up in plan["users"]:
             detail = f"auth_type={up['spec'].auth_type}"
             if up["auth_type_mismatch"]:
@@ -291,7 +299,8 @@ class Command(BaseCommand):
             line(f"User {up['email']!r}", up["exists"], detail)
         for bp in plan["bindings"]:
             line(
-                f"UserAppRole user={bp['email']!r} role={bp['role']!r} tenant={cfg.tenant_code!r}",
+                f"UserAppRole user={bp['email']!r} role={bp['role_code']!r} "
+                f"tenant={cfg.tenant_code!r}",
                 bp["exists"],
             )
 
@@ -301,32 +310,18 @@ class Command(BaseCommand):
         self, cfg: TenantConfig, plan: Dict[str, Any], actor: User
     ) -> Dict[str, Any]:
         app: Application = plan["application"]
+        resolved_roles: Dict[str, Role] = plan["resolved_roles"]
 
-        # Tenant
+        # Tenant — get_or_create so a pre-existing row with a different
+        # display_name is preserved (the plan-printer warns about mismatches).
         Tenant.objects.get_or_create(
             code=cfg.tenant_code,
             defaults={"name": cfg.display_name, "is_active": True},
         )
 
-        # Roles attach to the resolved (pre-existing) Application.
-        roles_created: List[str] = []
-        role_objs: Dict[str, Role] = {}
-        for r in cfg.roles:
-            role_obj = Role.objects.filter(application=app, code=r.code).first()
-            if role_obj is None:
-                role_obj = Role.objects.create(
-                    application=app,
-                    code=r.code,
-                    name=r.name,
-                    legacy_role=r.legacy_role,
-                    is_active=True,
-                )
-                roles_created.append(r.code)
-            role_objs[r.code] = role_obj
-
-        # Users — emails are normalized to lowercase on creation, and
-        # existence checks are case-insensitive so a legacy mixed-case DB row
-        # still matches a lowercase YAML entry.
+        # Users — emails normalized to lowercase on creation, existence checks
+        # case-insensitive, so a legacy mixed-case DB row matches a lowercase
+        # YAML entry.
         users_created: List[str] = []
         user_objs: Dict[str, User] = {}
         email_user_credentials: List[tuple[str, str]] = []
@@ -360,12 +355,12 @@ class Command(BaseCommand):
                 user_obj = existing
             user_objs[email_str] = user_obj
 
-        # Bindings
+        # Bindings — bind to the EXISTING resolved Role; never create a Role.
         bindings_created = 0
         for u in cfg.users:
             email_str = str(u.email).strip().lower()
             user_obj = user_objs[email_str]
-            role_obj = role_objs[u.role]
+            role_obj = resolved_roles[u.role_code]
             existing_binding = UserAppRole.objects.filter(
                 user=user_obj, role=role_obj, tenant_code=cfg.tenant_code
             ).first()
@@ -383,7 +378,6 @@ class Command(BaseCommand):
             "application_id": str(app.id),
             "application_name": app.name,
             "application_slug": app.slug,
-            "roles_created": roles_created,
             "users_created": users_created,
             "bindings_created": bindings_created,
             "email_user_credentials": email_user_credentials,
@@ -403,7 +397,6 @@ class Command(BaseCommand):
             "application_id": result["application_id"],
             "application_name": result["application_name"],
             "application_slug": result["application_slug"],
-            "roles_created": result["roles_created"],
             "users_created": result["users_created"],
             "bindings_created": result["bindings_created"],
             "dry_run": dry_run,

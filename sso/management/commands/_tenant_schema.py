@@ -1,18 +1,21 @@
 """YAML schema for `provision_tenant`. Not a public API — leading underscore.
 
-Validation is strict: unknown fields are rejected, role references must resolve,
-and every string that looks like a URL or email is parsed, not just regex-matched.
+Schema (v3, bind-to-existing-roles mode):
+- Top-level `application_slug` names an EXISTING OAuth Application.
+- Each user's `role_code` names an EXISTING Role on that Application.
+- This command does not create OAuth Applications, Roles, Features, or
+  RoleFeaturePermissions. Register apps via /cbrt-ops/ first; create Roles
+  via admin or the `setup_rbac` command.
 
-Schema (v2, bind-to-existing mode):
-- Top-level `application_slug` names an EXISTING OAuth Application to bind to.
-- No `application:` block — this command does not create OAuth Applications.
-  Register apps via /cbrt-ops/ first.
+v3 BREAKING CHANGE from v2 (PR #14):
+- Removed top-level `roles:` block (the tool no longer creates Roles).
+- Per-user field renamed `role:` → `role_code:` to make the bind-to-existing
+  semantics explicit at the call site.
 """
 
 from __future__ import annotations
 
 import re
-from typing import List
 
 from pydantic import (
     BaseModel,
@@ -34,12 +37,14 @@ SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$")
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
 
 
-class RoleSpec(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    code: str = Field(min_length=1, max_length=50)
-    name: str = Field(min_length=1, max_length=100)
-    legacy_role: str = Field(min_length=1, max_length=50)
+# Surfaced before pydantic validation so operators get a v3-specific message
+# instead of a generic "extra fields not permitted" pydantic error.
+LEGACY_ROLES_KEY_MESSAGE = (
+    "'roles:' is no longer supported in provision_tenant YAML as of v3. "
+    "Roles must exist on the target Application before provisioning. "
+    "Reference them via each user's role_code. If you need a new Role, "
+    "create it via admin or the setup_rbac command first."
+)
 
 
 class UserSpec(BaseModel):
@@ -48,7 +53,10 @@ class UserSpec(BaseModel):
     email: str = Field(min_length=3, max_length=254)
     first_name: str = Field(min_length=1, max_length=150)
     last_name: str = Field(min_length=1, max_length=150)
-    role: str = Field(min_length=1, max_length=50)
+    # Code of an EXISTING Role on the target Application. The command resolves
+    # this against Role.objects.filter(application=app, code=role_code) and
+    # errors out (listing valid codes) if missing.
+    role_code: str = Field(min_length=1, max_length=50)
     # Defaults to 'email' because client users (the common case) are not Google
     # Workspace accounts. Staff using Google SSO must set this explicitly.
     auth_type: str = Field(default="email")
@@ -79,13 +87,11 @@ class TenantConfig(BaseModel):
 
     tenant_code: str
     display_name: str = Field(min_length=1, max_length=100)
-    # Slug of an EXISTING OAuth Application. Roles created by this run attach
-    # to that Application; UserAppRoles bind users to those Roles scoped by
-    # tenant_code. The Application itself is NOT created here — register it
-    # via /cbrt-ops/ first.
+    # Slug of an EXISTING OAuth Application. UserAppRoles bind users to Roles
+    # on that Application, scoped by tenant_code. The Application itself is
+    # NOT created here — register it via /cbrt-ops/ first.
     application_slug: str = Field(min_length=2, max_length=50)
-    roles: List[RoleSpec] = Field(min_length=1)
-    users: List[UserSpec] = Field(min_length=1)
+    users: list[UserSpec] = Field(min_length=1)
 
     @field_validator("application_slug")
     @classmethod
@@ -109,30 +115,9 @@ class TenantConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def _check_role_codes_unique(self) -> "TenantConfig":
-        seen: set[str] = set()
-        for i, role in enumerate(self.roles):
-            if role.code in seen:
-                raise ValueError(f"roles.{i}.code: duplicate role code '{role.code}'")
-            seen.add(role.code)
-        return self
-
-    @model_validator(mode="after")
-    def _check_user_role_refs(self) -> "TenantConfig":
-        valid_codes = {r.code for r in self.roles}
-        for i, user in enumerate(self.users):
-            if user.role not in valid_codes:
-                raise ValueError(
-                    f"users.{i}.role: unknown role '{user.role}' "
-                    f"(not in roles[].code: {sorted(valid_codes)})"
-                )
-        return self
-
-    @model_validator(mode="after")
     def _check_user_emails_unique(self) -> "TenantConfig":
         seen: set[str] = set()
         for i, user in enumerate(self.users):
-            # EmailStr comparison is case-sensitive; normalize for the dup check only.
             normalized = str(user.email).lower()
             if normalized in seen:
                 raise ValueError(f"users.{i}.email: duplicate email '{user.email}'")

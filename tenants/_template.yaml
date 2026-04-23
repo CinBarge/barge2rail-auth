@@ -1,8 +1,15 @@
-# Tenant provisioning template (bind-to-existing-application mode).
+# Tenant provisioning template (v3, bind-to-existing-roles mode).
 #
-# This command binds tenant-scoped Roles and UserAppRoles to an EXISTING
-# OAuth Application. It does NOT create the OAuth Application itself —
-# register it via /cbrt-ops/ first.
+# v3 BREAKING CHANGE from v2:
+#   - The `roles:` block has been removed. Roles must already exist on the
+#     target Application — this command no longer creates them.
+#   - Per-user `role:` was renamed to `role_code:` to make the bind-to-existing
+#     semantics explicit.
+#
+# This command binds Users and UserAppRoles to EXISTING Roles on an EXISTING
+# OAuth Application. It does NOT create OAuth Applications or Roles.
+#   - Register OAuth Applications via /cbrt-ops/.
+#   - Create Roles via admin or the `setup_rbac` management command.
 #
 # Copy this file to tenants/<tenant_code>.yaml (e.g. tenants/msp.yaml), fill in
 # real values, then run:
@@ -23,22 +30,17 @@ display_name: "Full Tenant Name"                  # used for the Tenant referenc
 # Register new client apps via /cbrt-ops/ before adding tenants to them.
 application_slug: sacks
 
-# Roles created on the target Application. Convention: <app_slug>_<tenant_code_lower>_<role>.
-# legacy_role is what client apps read from the JWT (application_roles.<slug>.role).
-# The code is machine-readable and must be unique within the target Application.
-roles:
-  - code: sacks_xxx_admin
-    name: "Sacks XXX Admin"
-    legacy_role: Admin
-  - code: sacks_xxx_office
-    name: "Sacks XXX Office"
-    legacy_role: Office
-  - code: sacks_xxx_client
-    name: "Sacks XXX Client"
-    legacy_role: Client
-
-# Users bound to roles under this tenant. One role per user per run;
-# add another YAML entry to give a user multiple roles.
+# Users bound to existing Roles on the target Application, scoped by tenant_code.
+# One role per user per entry; add another YAML entry to give a user multiple roles.
+#
+# role_code must match an EXISTING Role.code on the target Application.
+# Inspect available role codes with:
+#   python manage.py shell -c "from sso.models import Role; print(sorted(Role.objects.filter(application__slug='sacks').values_list('code', flat=True)))"
+#
+# CBRTConnect (`sacks`) shared roles, as of April 2026:
+#   - sacks_client  (tenant client users)
+#   - sacks_office  (cross-tenant office staff, no tenant_code)
+#   - sacks_admin   (admins, bypass)
 #
 # auth_type: "email" (default) or "google".
 #   - email   → user gets a temp password (printed once at end of real run)
@@ -52,31 +54,28 @@ users:
   - email: contact@example.com
     first_name: First
     last_name: Last
-    role: sacks_xxx_admin
+    role_code: sacks_client
     auth_type: email
 
   # Example Google OAuth user (staff on barge2rail.com):
   # - email: staff@barge2rail.com
   #   first_name: Staff
   #   last_name: Member
-  #   role: sacks_xxx_admin
+  #   role_code: sacks_office
   #   auth_type: google
 
 # ---------------------------------------------------------------------------
 # Alternate example: onboarding a tenant to PrimeTrade instead of CBRTConnect.
-# Copy-paste and adapt.
+# Copy-paste and adapt. Confirm the actual role codes on the primetrade
+# Application before using these literally.
 # ---------------------------------------------------------------------------
 #
 # tenant_code: YYY
 # display_name: "Full Tenant Name"
 # application_slug: primetrade
-# roles:
-#   - code: primetrade_yyy_admin
-#     name: "PrimeTrade YYY Admin"
-#     legacy_role: Admin
 # users:
 #   - email: contact@example.com
 #     first_name: First
 #     last_name: Last
-#     role: primetrade_yyy_admin
+#     role_code: primetrade_client
 #     auth_type: email
