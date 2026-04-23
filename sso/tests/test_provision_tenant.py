@@ -274,7 +274,7 @@ class RoleResolutionTests(ProvisionTenantTestBase):
         with self.assertRaises(CommandError) as ctx:
             self._run("--config", cfg, "--dry-run")
         msg = str(ctx.exception)
-        self.assertIn("Existing role codes", msg)
+        self.assertIn("Existing ACTIVE role codes", msg)
         self.assertIn("testapp_admin", msg)
         self.assertIn("testapp_client", msg)
 
@@ -316,6 +316,78 @@ class RoleResolutionTests(ProvisionTenantTestBase):
         with self.assertRaises(CommandError) as ctx:
             self._run("--config", cfg, "--dry-run")
         self.assertIn("testapp_ghost", str(ctx.exception))
+
+    def test_inactive_role_rejected_with_specific_message(self):
+        """Codex P2 (PR #15): a Role that exists but has is_active=False must
+        be rejected with a message distinct from 'not found' — pointing the
+        operator at reactivating in admin rather than creating a new Role."""
+        Role.objects.create(
+            application=self.target_app,
+            code="testapp_deprecated",
+            name="TestApp Deprecated",
+            legacy_role="Client",
+            is_active=False,
+        )
+        bad = VALID_YAML.replace(
+            "role_code: testapp_admin", "role_code: testapp_deprecated"
+        )
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        msg = str(ctx.exception)
+        self.assertIn("testapp_deprecated", msg)
+        self.assertIn("INACTIVE", msg)
+        self.assertIn("reactivate", msg.lower())
+        self.assertIn("alice@tstp.example.com", msg)
+
+    def test_existing_role_codes_hint_lists_active_only(self):
+        """The hint ('Existing ACTIVE role codes on X: ...') must not suggest
+        inactive codes as valid fixes — that would send the operator down a
+        dead end (pointing `role_code` at another disabled Role)."""
+        Role.objects.create(
+            application=self.target_app,
+            code="testapp_deprecated",
+            name="TestApp Deprecated",
+            legacy_role="Client",
+            is_active=False,
+        )
+        bad = VALID_YAML.replace("role_code: testapp_admin", "role_code: testapp_ghost")
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--dry-run")
+        msg = str(ctx.exception)
+        self.assertIn("testapp_admin", msg)
+        self.assertIn("testapp_client", msg)
+        # Split the message at the hint line so we only assert against the
+        # hint, not the "missing-role" lines (which legitimately quote the
+        # bad role_code the operator asked for).
+        hint_section = msg.split("Existing ACTIVE role codes", 1)[1]
+        self.assertNotIn("testapp_deprecated", hint_section)
+
+    def test_absent_role_code_still_distinguished_from_inactive(self):
+        """Regression guard for the split error path: a purely-nonexistent
+        role_code must still produce a 'Not found' message (not an 'inactive'
+        one) even when unrelated inactive roles exist on the same Application."""
+        Role.objects.create(
+            application=self.target_app,
+            code="testapp_deprecated",
+            name="TestApp Deprecated",
+            legacy_role="Client",
+            is_active=False,
+        )
+        bad = VALID_YAML.replace("role_code: testapp_admin", "role_code: testapp_ghost")
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        msg = str(ctx.exception)
+        self.assertIn("Not found:", msg)
+        self.assertIn("testapp_ghost", msg)
+        # The deprecated role wasn't referenced by any user, so the message
+        # must not falsely claim a user referenced it.
+        self.assertNotIn(
+            "references role 'testapp_deprecated' which exists but is INACTIVE",
+            msg,
+        )
 
     def test_role_must_belong_to_target_application_not_another(self):
         """A Role with the right code on a DIFFERENT Application must not

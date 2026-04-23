@@ -176,31 +176,59 @@ class Command(BaseCommand):
         # Resolve the target Application first — most common failure mode.
         app = self._resolve_application(cfg.application_slug)
 
-        # Resolve every user's Role by code on the target Application. Accumulate
-        # all missing-role failures across all users so the operator gets a full
-        # list in one error instead of fixing them one at a time.
-        existing_roles_by_code: Dict[str, Role] = {
-            role.code: role for role in Role.objects.filter(application=app)
+        # Resolve every user's Role by code on the target Application. Only
+        # ACTIVE Roles count — Role.is_active=False means "do not assign"
+        # (model help_text). Distinguish "not found" from "exists but inactive"
+        # so the operator gets a specific recovery path (create vs reactivate)
+        # instead of a misleading "not found" for a row that's just disabled.
+        # Accumulate every offender so a multi-user YAML produces one error
+        # listing all problems instead of fixing them one at a time.
+        all_roles_on_app = list(Role.objects.filter(application=app))
+        active_roles_by_code: Dict[str, Role] = {
+            r.code: r for r in all_roles_on_app if r.is_active
         }
-        missing: List[str] = []
+        inactive_codes_on_app: set[str] = {
+            r.code for r in all_roles_on_app if not r.is_active
+        }
+        missing_absent: List[str] = []
+        missing_inactive: List[str] = []
         for u in cfg.users:
-            if u.role_code not in existing_roles_by_code:
-                email_str = str(u.email).strip().lower()
-                missing.append(f"  user '{email_str}' references role '{u.role_code}'")
-        if missing:
+            if u.role_code in active_roles_by_code:
+                continue
+            email_str = str(u.email).strip().lower()
+            if u.role_code in inactive_codes_on_app:
+                missing_inactive.append(
+                    f"  user '{email_str}' references role '{u.role_code}' "
+                    "which exists but is INACTIVE"
+                )
+            else:
+                missing_absent.append(
+                    f"  user '{email_str}' references role '{u.role_code}'"
+                )
+        if missing_absent or missing_inactive:
             existing_codes_display = (
-                ", ".join(sorted(existing_roles_by_code.keys()))
-                if existing_roles_by_code
+                ", ".join(sorted(active_roles_by_code.keys()))
+                if active_roles_by_code
                 else "(none)"
             )
-            raise CommandError(
-                f"One or more role_code values do not match any Role on "
-                f"Application slug='{app.slug}':\n"
-                + "\n".join(missing)
-                + f"\nExisting role codes on '{app.slug}': {existing_codes_display}.\n"
-                "Create missing Roles via admin or the setup_rbac command "
-                "before re-running."
+            lines = [
+                f"Cannot resolve one or more role_code values on Application "
+                f"slug='{app.slug}':"
+            ]
+            if missing_absent:
+                lines.append("Not found:")
+                lines.extend(missing_absent)
+            if missing_inactive:
+                lines.append(
+                    "Exists but inactive (reactivate in admin, or use a "
+                    "different role_code):"
+                )
+                lines.extend(missing_inactive)
+            lines.append(
+                f"Existing ACTIVE role codes on '{app.slug}': "
+                f"{existing_codes_display}."
             )
+            raise CommandError("\n".join(lines))
 
         tenant = Tenant.objects.filter(code=cfg.tenant_code).first()
         tenant_name_mismatch: str | None = None
@@ -244,7 +272,7 @@ class Command(BaseCommand):
         for u in cfg.users:
             email_str = str(u.email).strip().lower()
             user_obj = existing_users.get(email_str)
-            role_obj = existing_roles_by_code[u.role_code]
+            role_obj = active_roles_by_code[u.role_code]
             binding_exists = False
             if user_obj is not None:
                 binding_exists = UserAppRole.objects.filter(
@@ -256,7 +284,7 @@ class Command(BaseCommand):
 
         return {
             "application": app,
-            "resolved_roles": existing_roles_by_code,
+            "resolved_roles": active_roles_by_code,
             "tenant_exists": tenant is not None,
             "tenant_name_mismatch": tenant_name_mismatch,
             "users": users_plan,
