@@ -1,4 +1,13 @@
-"""Tests for the provision_tenant management command (bind-to-existing mode)."""
+"""Tests for the provision_tenant management command (v3 bind-to-existing-roles).
+
+v3 contract under test:
+- Command does NOT create OAuth Applications (inherited from v2).
+- Command does NOT create Roles (NEW in v3 — was the v2 behavior).
+- Command resolves each user's `role_code` against existing Roles on the
+  target Application; missing role_code errors out with all offending users
+  listed in one message.
+- Top-level `roles:` key from v2 is rejected with a v3-specific message.
+"""
 
 from __future__ import annotations
 
@@ -20,48 +29,41 @@ display_name: "Test Provision"
 
 application_slug: testapp
 
-roles:
-  - code: testapp_tstp_admin
-    name: "TestApp TSTP Admin"
-    legacy_role: Admin
-  - code: testapp_tstp_viewer
-    name: "TestApp TSTP Viewer"
-    legacy_role: Client
-
 users:
   - email: alice@tstp.example.com
     first_name: Alice
     last_name: Anderson
-    role: testapp_tstp_admin
+    role_code: testapp_admin
     auth_type: google
   - email: bob@tstp.example.com
     first_name: Bob
     last_name: Brown
-    role: testapp_tstp_viewer
+    role_code: testapp_client
     auth_type: google
 """
 
 
 def _yaml_with_users(users_block: str) -> str:
-    """Build a YAML with a single role and a custom users block (indented correctly)."""
+    """Build a YAML with a single tenant and a custom users block (indented correctly)."""
     return (
         "tenant_code: TSTE\n"
         'display_name: "Test Email"\n'
         "application_slug: testapp\n"
-        "roles:\n"
-        "  - code: testapp_tste_client\n"
-        '    name: "TestApp TSTE Client"\n'
-        "    legacy_role: Client\n"
         "users:\n" + users_block
     )
 
 
 class ProvisionTenantTestBase(TestCase):
-    """Shared setup: temp dir for YAML + audit file, actor user, target Application.
+    """Shared setup: temp dir for YAML + audit file, actor user, target
+    Application, and two pre-existing Roles on that Application.
 
-    Every test gets a pre-existing OAuth Application with slug='testapp' to
-    bind to. Tests that need a different pre-existing app can create one
-    explicitly.
+    Every test gets:
+      - `self.target_app` — Application(slug='testapp')
+      - `self.role_admin` — Role(application=target_app, code='testapp_admin')
+      - `self.role_client` — Role(application=target_app, code='testapp_client')
+
+    These are the role_codes referenced by VALID_YAML. v3 will not create
+    Roles itself, so they must exist before any happy-path test runs.
     """
 
     def setUp(self) -> None:
@@ -90,6 +92,24 @@ class ProvisionTenantTestBase(TestCase):
             authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
             user=self.actor,
         )
+
+        self.role_admin = Role.objects.create(
+            application=self.target_app,
+            code="testapp_admin",
+            name="TestApp Admin",
+            legacy_role="Admin",
+            is_active=True,
+        )
+        self.role_client = Role.objects.create(
+            application=self.target_app,
+            code="testapp_client",
+            name="TestApp Client",
+            legacy_role="Client",
+            is_active=True,
+        )
+        # Snapshot of pre-existing Role count so tests can assert "no new
+        # Roles created" without hardcoding the number.
+        self._initial_role_count = Role.objects.count()
 
     def _write_yaml(self, content: str, name: str = "tenant.yaml") -> str:
         p = self.tmp_path / name
@@ -120,9 +140,8 @@ class DryRunTests(ProvisionTenantTestBase):
         cfg = self._write_yaml(VALID_YAML)
         out = self._run("--config", cfg, "--dry-run")
 
-        # Target Application exists from setUp — no new Application created.
         self.assertEqual(Application.objects.count(), 1)
-        self.assertEqual(Role.objects.count(), 0)
+        self.assertEqual(Role.objects.count(), self._initial_role_count)
         self.assertEqual(
             User.objects.filter(
                 email__in=["alice@tstp.example.com", "bob@tstp.example.com"]
@@ -139,20 +158,15 @@ class DryRunTests(ProvisionTenantTestBase):
 
 
 class HappyPathTests(ProvisionTenantTestBase):
-    def test_happy_path_creates_everything(self):
+    def test_happy_path_creates_users_and_bindings_no_roles(self):
         cfg = self._write_yaml(VALID_YAML)
         out = self._run("--config", cfg, "--actor", "clif@barge2rail.com")
 
-        # No new Application created — the target one is reused.
+        # No new Application, no new Roles.
         self.assertEqual(Application.objects.count(), 1)
-        app = Application.objects.get(slug="testapp")
-        self.assertEqual(app.id, self.target_app.id)
+        self.assertEqual(Role.objects.count(), self._initial_role_count)
 
-        # Roles attach to the pre-existing target Application.
-        self.assertEqual(Role.objects.filter(application=app).count(), 2)
-        for role in Role.objects.filter(application=app):
-            self.assertEqual(role.application.slug, "testapp")
-
+        # Users + bindings + tenant created.
         self.assertEqual(
             User.objects.filter(
                 email__in=["alice@tstp.example.com", "bob@tstp.example.com"]
@@ -169,6 +183,10 @@ class HappyPathTests(ProvisionTenantTestBase):
         # No client_secret banner — we don't create Applications.
         self.assertNotIn("client_secret", out.lower())
 
+    def test_happy_path_audit_record(self):
+        cfg = self._write_yaml(VALID_YAML)
+        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+
         audit = self._audit_lines()
         self.assertEqual(len(audit), 1)
         rec = audit[0]
@@ -181,6 +199,8 @@ class HappyPathTests(ProvisionTenantTestBase):
         )
         self.assertEqual(rec["bindings_created"], 2)
         self.assertNotIn("client_secret", rec)
+        # v3: no roles_created field — the command doesn't create Roles.
+        self.assertNotIn("roles_created", rec)
 
     def test_uar_role_application_matches_resolved(self):
         """Critical integration check: every UserAppRole.role.application must
@@ -193,9 +213,20 @@ class HappyPathTests(ProvisionTenantTestBase):
             self.assertEqual(uar.role.application.slug, "testapp")
             self.assertEqual(uar.role.application.id, self.target_app.id)
 
+    def test_uar_binds_to_pre_existing_role_objects(self):
+        """The bindings must reference the EXACT pre-existing Role rows, not
+        new ones — confirms 'bind to existing' semantics."""
+        cfg = self._write_yaml(VALID_YAML)
+        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+
+        alice_uar = UserAppRole.objects.get(user__email="alice@tstp.example.com")
+        bob_uar = UserAppRole.objects.get(user__email="bob@tstp.example.com")
+        self.assertEqual(alice_uar.role_id, self.role_admin.id)
+        self.assertEqual(bob_uar.role_id, self.role_client.id)
+
 
 class IdempotencyTests(ProvisionTenantTestBase):
-    def test_idempotent_rerun(self):
+    def test_idempotent_rerun_no_new_writes(self):
         cfg = self._write_yaml(VALID_YAML)
         self._run("--config", cfg, "--actor", "clif@barge2rail.com")
 
@@ -212,38 +243,232 @@ class IdempotencyTests(ProvisionTenantTestBase):
         self.assertEqual(UserAppRole.objects.count(), binding_count)
         self.assertIn("SKIP (exists)", out)
 
+    def test_idempotent_audit_records_zero_bindings(self):
+        cfg = self._write_yaml(VALID_YAML)
+        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+
         audit = self._audit_lines()
         self.assertEqual(len(audit), 2)
         self.assertEqual(audit[1]["bindings_created"], 0)
+        self.assertEqual(audit[1]["users_created"], [])
 
 
-class ValidationTests(ProvisionTenantTestBase):
-    def test_invalid_yaml_missing_field(self):
-        bad = VALID_YAML.replace("tenant_code: TSTP\n", "")
-        cfg = self._write_yaml(bad)
-        with self.assertRaises(CommandError) as ctx:
-            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        self.assertIn("tenant_code", str(ctx.exception))
+class RoleResolutionTests(ProvisionTenantTestBase):
+    """v3-specific: the command must look up each user's role_code against
+    existing Roles on the target Application, accumulate ALL missing-role
+    failures, and write nothing if any are missing."""
 
-    def test_invalid_role_reference(self):
-        bad = VALID_YAML.replace("role: testapp_tstp_admin", "role: testapp_tstp_ghost")
+    def test_unknown_role_code_errors(self):
+        bad = VALID_YAML.replace("role_code: testapp_admin", "role_code: testapp_ghost")
         cfg = self._write_yaml(bad)
         with self.assertRaises(CommandError) as ctx:
             self._run("--config", cfg, "--actor", "clif@barge2rail.com")
         msg = str(ctx.exception)
-        self.assertIn("testapp_tstp_ghost", msg)
+        self.assertIn("testapp_ghost", msg)
+        self.assertIn("alice@tstp.example.com", msg)
 
-    def test_invalid_tenant_code(self):
-        bad = VALID_YAML.replace("tenant_code: TSTP", "tenant_code: tstp-bad")
+    def test_unknown_role_code_error_lists_existing_codes(self):
+        bad = VALID_YAML.replace("role_code: testapp_admin", "role_code: testapp_ghost")
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--dry-run")
+        msg = str(ctx.exception)
+        self.assertIn("Existing ACTIVE role codes", msg)
+        self.assertIn("testapp_admin", msg)
+        self.assertIn("testapp_client", msg)
+
+    def test_multiple_missing_role_codes_all_reported(self):
+        """If two users reference missing Roles, the error must name BOTH
+        users in one message — not stop at the first."""
+        bad = VALID_YAML.replace(
+            "role_code: testapp_admin", "role_code: testapp_ghost1"
+        ).replace("role_code: testapp_client", "role_code: testapp_ghost2")
         cfg = self._write_yaml(bad)
         with self.assertRaises(CommandError) as ctx:
             self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        self.assertIn("tenant_code", str(ctx.exception))
+        msg = str(ctx.exception)
+        self.assertIn("testapp_ghost1", msg)
+        self.assertIn("testapp_ghost2", msg)
+        self.assertIn("alice@tstp.example.com", msg)
+        self.assertIn("bob@tstp.example.com", msg)
+
+    def test_no_db_writes_on_unknown_role_code(self):
+        bad = VALID_YAML.replace("role_code: testapp_admin", "role_code: testapp_ghost")
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError):
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertEqual(Role.objects.count(), self._initial_role_count)
+        self.assertEqual(Tenant.objects.filter(code="TSTP").count(), 0)
+        self.assertEqual(
+            User.objects.filter(
+                email__in=["alice@tstp.example.com", "bob@tstp.example.com"]
+            ).count(),
+            0,
+        )
+        self.assertEqual(UserAppRole.objects.count(), 0)
+        self.assertEqual(self._audit_lines(), [])
+
+    def test_unknown_role_code_dry_run_also_errors(self):
+        """Operators must discover bad role_codes at dry-run time, not real-run time."""
+        bad = VALID_YAML.replace("role_code: testapp_admin", "role_code: testapp_ghost")
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--dry-run")
+        self.assertIn("testapp_ghost", str(ctx.exception))
+
+    def test_inactive_role_rejected_with_specific_message(self):
+        """Codex P2 (PR #15): a Role that exists but has is_active=False must
+        be rejected with a message distinct from 'not found' — pointing the
+        operator at reactivating in admin rather than creating a new Role."""
+        Role.objects.create(
+            application=self.target_app,
+            code="testapp_deprecated",
+            name="TestApp Deprecated",
+            legacy_role="Client",
+            is_active=False,
+        )
+        bad = VALID_YAML.replace(
+            "role_code: testapp_admin", "role_code: testapp_deprecated"
+        )
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        msg = str(ctx.exception)
+        self.assertIn("testapp_deprecated", msg)
+        self.assertIn("INACTIVE", msg)
+        self.assertIn("reactivate", msg.lower())
+        self.assertIn("alice@tstp.example.com", msg)
+
+    def test_existing_role_codes_hint_lists_active_only(self):
+        """The hint ('Existing ACTIVE role codes on X: ...') must not suggest
+        inactive codes as valid fixes — that would send the operator down a
+        dead end (pointing `role_code` at another disabled Role)."""
+        Role.objects.create(
+            application=self.target_app,
+            code="testapp_deprecated",
+            name="TestApp Deprecated",
+            legacy_role="Client",
+            is_active=False,
+        )
+        bad = VALID_YAML.replace("role_code: testapp_admin", "role_code: testapp_ghost")
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--dry-run")
+        msg = str(ctx.exception)
+        self.assertIn("testapp_admin", msg)
+        self.assertIn("testapp_client", msg)
+        # Split the message at the hint line so we only assert against the
+        # hint, not the "missing-role" lines (which legitimately quote the
+        # bad role_code the operator asked for).
+        hint_section = msg.split("Existing ACTIVE role codes", 1)[1]
+        self.assertNotIn("testapp_deprecated", hint_section)
+
+    def test_absent_role_code_still_distinguished_from_inactive(self):
+        """Regression guard for the split error path: a purely-nonexistent
+        role_code must still produce a 'Not found' message (not an 'inactive'
+        one) even when unrelated inactive roles exist on the same Application."""
+        Role.objects.create(
+            application=self.target_app,
+            code="testapp_deprecated",
+            name="TestApp Deprecated",
+            legacy_role="Client",
+            is_active=False,
+        )
+        bad = VALID_YAML.replace("role_code: testapp_admin", "role_code: testapp_ghost")
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        msg = str(ctx.exception)
+        self.assertIn("Not found:", msg)
+        self.assertIn("testapp_ghost", msg)
+        # The deprecated role wasn't referenced by any user, so the message
+        # must not falsely claim a user referenced it.
+        self.assertNotIn(
+            "references role 'testapp_deprecated' which exists but is INACTIVE",
+            msg,
+        )
+
+    def test_role_must_belong_to_target_application_not_another(self):
+        """A Role with the right code on a DIFFERENT Application must not
+        satisfy a binding on the resolved Application."""
+        other_app = Application.objects.create(
+            name="OtherApp",
+            slug="otherapp",
+            client_id="app_other_0002",
+            client_secret="other-secret-not-real",  # pragma: allowlist secret
+            redirect_uris="https://example.com/oauth/callback/",
+            client_type=Application.CLIENT_CONFIDENTIAL,
+            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
+            user=self.actor,
+        )
+        # Create a Role on otherapp with the code the YAML wants — but the
+        # YAML targets testapp, so this should NOT satisfy.
+        Role.objects.create(
+            application=other_app,
+            code="testapp_only_on_other",
+            name="On Other Only",
+            legacy_role="Admin",
+            is_active=True,
+        )
+        bad = VALID_YAML.replace(
+            "role_code: testapp_admin", "role_code: testapp_only_on_other"
+        )
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertIn("testapp_only_on_other", str(ctx.exception))
+
+
+class LegacyRolesKeyTests(ProvisionTenantTestBase):
+    """v2 YAMLs include a top-level `roles:` block. v3 must reject these with
+    a specific, actionable error message — not a generic pydantic 'extra
+    fields' error."""
+
+    LEGACY_V2_YAML = """
+tenant_code: TSTP
+display_name: "Legacy v2"
+
+application_slug: testapp
+
+roles:
+  - code: testapp_admin
+    name: "TestApp Admin"
+    legacy_role: Admin
+
+users:
+  - email: alice@tstp.example.com
+    first_name: Alice
+    last_name: Anderson
+    role: testapp_admin
+    auth_type: google
+"""
+
+    def test_legacy_roles_key_rejected_with_v3_message(self):
+        cfg = self._write_yaml(self.LEGACY_V2_YAML)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        msg = str(ctx.exception)
+        self.assertIn("'roles:'", msg)
+        self.assertIn("v3", msg)
+        self.assertIn("role_code", msg)
+
+    def test_legacy_roles_key_rejected_dry_run(self):
+        cfg = self._write_yaml(self.LEGACY_V2_YAML)
+        with self.assertRaises(CommandError):
+            self._run("--config", cfg, "--dry-run")
+
+    def test_legacy_roles_key_no_writes(self):
+        cfg = self._write_yaml(self.LEGACY_V2_YAML)
+        with self.assertRaises(CommandError):
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertEqual(Tenant.objects.filter(code="TSTP").count(), 0)
+        self.assertEqual(User.objects.filter(email="alice@tstp.example.com").count(), 0)
+        self.assertEqual(UserAppRole.objects.count(), 0)
 
 
 class ApplicationSlugTests(ProvisionTenantTestBase):
-    """New-schema tests for application_slug: required, must resolve to an
-    existing Application, and Roles attach to that resolved Application."""
+    """application_slug: required, must resolve to an existing Application."""
 
     def test_application_slug_required(self):
         bad = VALID_YAML.replace("application_slug: testapp\n", "")
@@ -251,8 +476,6 @@ class ApplicationSlugTests(ProvisionTenantTestBase):
         with self.assertRaises(CommandError) as ctx:
             self._run("--config", cfg, "--actor", "clif@barge2rail.com")
         self.assertIn("application_slug", str(ctx.exception))
-        # Nothing written
-        self.assertEqual(Role.objects.count(), 0)
         self.assertEqual(Tenant.objects.filter(code="TSTP").count(), 0)
 
     def test_application_slug_not_found(self):
@@ -265,15 +488,10 @@ class ApplicationSlugTests(ProvisionTenantTestBase):
         msg = str(ctx.exception)
         self.assertIn("nonexistent", msg)
         self.assertIn("Existing slugs", msg)
-        # The existing target_app slug appears in the list
         self.assertIn("testapp", msg)
-        # Nothing written
-        self.assertEqual(Role.objects.count(), 0)
         self.assertEqual(Tenant.objects.filter(code="TSTP").count(), 0)
 
     def test_application_slug_not_found_on_dry_run(self):
-        """Dry-run must also surface the missing-slug error; operators should
-        never discover bad slugs only at real-run time."""
         bad = VALID_YAML.replace(
             "application_slug: testapp", "application_slug: nonexistent"
         )
@@ -284,7 +502,7 @@ class ApplicationSlugTests(ProvisionTenantTestBase):
 
     def test_application_slug_resolves_existing(self):
         """With multiple candidate Applications present, the slug must pick
-        the right one — Roles attach to the chosen App, not the other one."""
+        the right one — bindings attach to the chosen App's Roles, not the other."""
         other_app = Application.objects.create(
             name="OtherApp",
             slug="otherapp",
@@ -295,15 +513,22 @@ class ApplicationSlugTests(ProvisionTenantTestBase):
             authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
             user=self.actor,
         )
+        # Same role code on the wrong app — must not satisfy bindings for testapp.
+        Role.objects.create(
+            application=other_app,
+            code="testapp_admin",
+            name="Wrong App Admin",
+            legacy_role="Admin",
+            is_active=True,
+        )
         cfg = self._write_yaml(VALID_YAML)
         self._run("--config", cfg, "--actor", "clif@barge2rail.com")
 
-        # Roles attach to testapp, not otherapp
-        self.assertEqual(Role.objects.filter(application=self.target_app).count(), 2)
-        self.assertEqual(Role.objects.filter(application=other_app).count(), 0)
+        for uar in UserAppRole.objects.all():
+            self.assertEqual(uar.role.application_id, self.target_app.id)
+            self.assertNotEqual(uar.role.application_id, other_app.id)
 
     def test_application_slug_invalid_format_rejected(self):
-        """Schema-level rejection: uppercase slug, underscore, trailing hyphen."""
         for bad_slug in ("TestApp", "test_app", "testapp-"):
             with self.subTest(slug=bad_slug):
                 bad = VALID_YAML.replace(
@@ -315,62 +540,81 @@ class ApplicationSlugTests(ProvisionTenantTestBase):
                 self.assertIn("application_slug", str(ctx.exception))
 
 
-class RoleMetadataCollisionTests(ProvisionTenantTestBase):
-    """Codex PR #14 P1: a pre-existing Role with the same code but different
-    metadata must fail fast — otherwise a copy-paste mistake would silently
-    bind new users to an unrelated role (e.g. Admin vs Client), changing
-    their JWT legacy_role claim without the operator noticing."""
+class ValidationTests(ProvisionTenantTestBase):
+    def test_invalid_yaml_missing_tenant_code(self):
+        bad = VALID_YAML.replace("tenant_code: TSTP\n", "")
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertIn("tenant_code", str(ctx.exception))
 
-    def test_role_code_collision_with_different_legacy_role_rejected(self):
-        # Pre-seed a role with the YAML's code but DIFFERENT legacy_role.
-        Role.objects.create(
-            application=self.target_app,
-            code="testapp_tstp_admin",
-            name="Some Unrelated Role",
-            legacy_role="Client",  # YAML says Admin — this must reject
-            is_active=True,
+    def test_invalid_tenant_code_format(self):
+        bad = VALID_YAML.replace("tenant_code: TSTP", "tenant_code: tstp-bad")
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertIn("tenant_code", str(ctx.exception))
+
+    def test_unknown_top_level_key_rejected(self):
+        bad = VALID_YAML + "\nschema_version: 3\n"
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertIn("schema_version", str(ctx.exception))
+
+    def test_unknown_user_field_rejected(self):
+        bad = VALID_YAML.replace(
+            "    role_code: testapp_admin",
+            "    role_code: testapp_admin\n    surprise: true",
+            1,
         )
-        cfg = self._write_yaml(VALID_YAML)
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertIn("surprise", str(ctx.exception))
 
+    def test_old_role_field_name_rejected(self):
+        """A v2 YAML inside a v3 schema (no top-level roles:, but per-user
+        `role:` instead of `role_code:`) must be rejected."""
+        bad = VALID_YAML.replace("role_code:", "role:")
+        cfg = self._write_yaml(bad)
         with self.assertRaises(CommandError) as ctx:
             self._run("--config", cfg, "--actor", "clif@barge2rail.com")
         msg = str(ctx.exception)
-        self.assertIn("testapp_tstp_admin", msg)
-        self.assertIn("Client", msg)  # existing legacy_role
-        self.assertIn("Admin", msg)  # YAML legacy_role
-        self.assertIn("Some Unrelated Role", msg)  # existing name
+        # Pydantic flags `role` as extra (forbidden) AND `role_code` as missing.
+        self.assertTrue("role" in msg)
 
-        # Dry-run must also reject
-        with self.assertRaises(CommandError):
-            self._run("--config", cfg, "--dry-run")
-
-        # Nothing else created — no tenant, no users, no bindings.
-        self.assertEqual(Tenant.objects.filter(code="TSTP").count(), 0)
-        self.assertEqual(User.objects.filter(email="alice@tstp.example.com").count(), 0)
-        self.assertEqual(UserAppRole.objects.count(), 0)
-
-    def test_role_code_collision_with_different_name_rejected(self):
-        Role.objects.create(
-            application=self.target_app,
-            code="testapp_tstp_admin",
-            name="Different Name",  # YAML says "TestApp TSTP Admin"
-            legacy_role="Admin",
-            is_active=True,
-        )
-        cfg = self._write_yaml(VALID_YAML)
+    def test_duplicate_emails_rejected(self):
+        bad = VALID_YAML.replace("bob@tstp.example.com", "alice@tstp.example.com")
+        cfg = self._write_yaml(bad)
         with self.assertRaises(CommandError) as ctx:
             self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        self.assertIn("testapp_tstp_admin", str(ctx.exception))
+        self.assertIn("duplicate email", str(ctx.exception))
 
-    def test_idempotent_rerun_still_works_when_metadata_matches(self):
-        """Regression guard: an exact-match pre-existing role must NOT trip
-        the collision check. Idempotent re-runs depend on this."""
+    def test_role_code_field_required(self):
+        bad = VALID_YAML.replace("    role_code: testapp_admin\n", "")
+        cfg = self._write_yaml(bad)
+        with self.assertRaises(CommandError) as ctx:
+            self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        self.assertIn("role_code", str(ctx.exception))
+
+
+class TenantTests(ProvisionTenantTestBase):
+    def test_tenant_get_or_create_when_missing(self):
         cfg = self._write_yaml(VALID_YAML)
-        # First run creates the roles
         self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        # Second run — same YAML, roles already exist with matching metadata
+        tenant = Tenant.objects.get(code="TSTP")
+        self.assertEqual(tenant.name, "Test Provision")
+        self.assertTrue(tenant.is_active)
+
+    def test_existing_tenant_with_different_display_name_not_overwritten(self):
+        Tenant.objects.create(code="TSTP", name="Pre-existing Name", is_active=True)
+        cfg = self._write_yaml(VALID_YAML)
         out = self._run("--config", cfg, "--actor", "clif@barge2rail.com")
-        self.assertIn("SKIP (exists)", out)
+
+        tenant = Tenant.objects.get(code="TSTP")
+        self.assertEqual(tenant.name, "Pre-existing Name")
+        self.assertIn("display_name mismatch", out)
 
 
 class NoClientSecretBannerTests(ProvisionTenantTestBase):
@@ -381,7 +625,7 @@ class NoClientSecretBannerTests(ProvisionTenantTestBase):
         cfg = self._write_yaml(VALID_YAML)
         out = self._run("--config", cfg, "--actor", "clif@barge2rail.com")
         self.assertNotIn("client_secret", out.lower())
-        self.assertNotIn("COPY THIS NOW", out.split("Email/password users", 1)[0])
+        self.assertNotIn("COPY THIS NOW", out)  # no email users in VALID_YAML
 
     def test_no_client_secret_banner_dry_run(self):
         cfg = self._write_yaml(VALID_YAML)
@@ -399,6 +643,13 @@ class AuditFieldsTests(ProvisionTenantTestBase):
         self.assertEqual(audit[0]["application_slug"], "testapp")
         self.assertEqual(audit[0]["application_id"], str(self.target_app.id))
         self.assertEqual(audit[0]["application_name"], "TestApp")
+
+    def test_audit_has_no_roles_created_field(self):
+        """v3 doesn't create Roles, so the audit record must not pretend it might."""
+        cfg = self._write_yaml(VALID_YAML)
+        self._run("--config", cfg, "--actor", "clif@barge2rail.com")
+        audit = self._audit_lines()
+        self.assertNotIn("roles_created", audit[0])
 
 
 class ActorTests(ProvisionTenantTestBase):
@@ -423,7 +674,6 @@ class ActorTests(ProvisionTenantTestBase):
     def test_actor_case_insensitive(self):
         cfg = self._write_yaml(VALID_YAML)
         self._run("--config", cfg, "--actor", "CLIF@BARGE2RAIL.COM")
-        # UserAppRole was assigned by the case-insensitive-resolved actor
         uar = UserAppRole.objects.first()
         self.assertEqual(uar.assigned_by, self.actor)
 
@@ -444,9 +694,9 @@ class RollbackTests(ProvisionTenantTestBase):
             with self.assertRaises(RuntimeError):
                 self._run("--config", cfg, "--actor", "clif@barge2rail.com")
 
-        # All writes rolled back: Roles, Users, Bindings, Tenant.
-        # The target Application is unaffected (not created by this run).
-        self.assertEqual(Role.objects.count(), 0)
+        # All writes rolled back. The pre-existing target Application and
+        # Roles are unaffected (this run never created them).
+        self.assertEqual(Role.objects.count(), self._initial_role_count)
         self.assertEqual(
             User.objects.filter(
                 email__in=["alice@tstp.example.com", "bob@tstp.example.com"]
@@ -456,21 +706,19 @@ class RollbackTests(ProvisionTenantTestBase):
         self.assertEqual(UserAppRole.objects.count(), 0)
         self.assertEqual(Tenant.objects.filter(code="TSTP").count(), 0)
 
-        # Target Application still there
         self.assertEqual(Application.objects.filter(slug="testapp").count(), 1)
-
-        # No audit line written (audit happens after successful commit)
         self.assertEqual(self._audit_lines(), [])
 
 
 class EmailAuthTests(ProvisionTenantTestBase):
-    """Tests for the auth_type: email user creation path."""
+    """auth_type: email user creation. The role_code 'testapp_client' is
+    pre-seeded by the base setUp."""
 
     EMAIL_USER_YAML = _yaml_with_users(
         "  - email: briana@marianshipping.example.com\n"
         "    first_name: Briana\n"
         "    last_name: Jackson\n"
-        "    role: testapp_tste_client\n"
+        "    role_code: testapp_client\n"
         "    auth_type: email\n"
     )
 
@@ -478,7 +726,7 @@ class EmailAuthTests(ProvisionTenantTestBase):
         "  - email: staff@barge2rail.com\n"
         "    first_name: Staff\n"
         "    last_name: Person\n"
-        "    role: testapp_tste_client\n"
+        "    role_code: testapp_client\n"
         "    auth_type: google\n"
     )
 
@@ -486,7 +734,7 @@ class EmailAuthTests(ProvisionTenantTestBase):
         "  - email: noauth@example.com\n"
         "    first_name: Default\n"
         "    last_name: Auth\n"
-        "    role: testapp_tste_client\n"
+        "    role_code: testapp_client\n"
         # auth_type omitted on purpose
     )
 
@@ -494,12 +742,12 @@ class EmailAuthTests(ProvisionTenantTestBase):
         "  - email: briana@marianshipping.example.com\n"
         "    first_name: Briana\n"
         "    last_name: Jackson\n"
-        "    role: testapp_tste_client\n"
+        "    role_code: testapp_client\n"
         "    auth_type: email\n"
         "  - email: staff@barge2rail.com\n"
         "    first_name: Staff\n"
         "    last_name: Person\n"
-        "    role: testapp_tste_client\n"
+        "    role_code: testapp_client\n"
         "    auth_type: google\n"
     )
 
@@ -507,13 +755,12 @@ class EmailAuthTests(ProvisionTenantTestBase):
         "  - email: anon@example.com\n"
         "    first_name: Anon\n"
         "    last_name: User\n"
-        "    role: testapp_tste_client\n"
+        "    role_code: testapp_client\n"
         "    auth_type: anonymous\n"
     )
 
     @staticmethod
     def _extract_password_for(stdout: str, email: str) -> str:
-        """Find the password printed next to an email in the credentials banner."""
         for raw in stdout.splitlines():
             stripped = raw.strip()
             if stripped.startswith(email):
@@ -595,7 +842,6 @@ class EmailAuthTests(ProvisionTenantTestBase):
         self.assertIn("auth_type", msg)
         self.assertIn("anonymous", msg)
         self.assertIn("users.0.auth_type", msg)
-        self.assertEqual(Role.objects.count(), 0)
 
     def test_existing_google_user_skipped_with_mismatch_warning(self):
         User.objects.create_user(
@@ -616,7 +862,7 @@ class EmailAuthTests(ProvisionTenantTestBase):
         if len(banner_split) > 1:
             self.assertNotIn("briana@marianshipping.example.com", banner_split[1])
 
-    def test_idempotent_rerun_email_user(self):
+    def test_idempotent_rerun_email_user_password_unchanged(self):
         cfg = self._write_yaml(self.EMAIL_USER_YAML)
         out1 = self._run("--config", cfg, "--actor", "clif@barge2rail.com")
         original_password = self._extract_password_for(
@@ -660,7 +906,6 @@ class AuditFailureTests(ProvisionTenantTestBase):
         self.assertIn("Audit log write failed", stderr_text)
         self.assertIn("disk full simulation", stderr_text)
 
-        # DB side effects succeeded
         self.assertEqual(
             User.objects.filter(email="briana@marianshipping.example.com").count(), 1
         )
@@ -675,7 +920,7 @@ class EmailNormalizationTests(ProvisionTenantTestBase):
             "  - email: TestUser@Example.COM\n"
             "    first_name: Test\n"
             "    last_name: User\n"
-            "    role: testapp_tste_client\n"
+            "    role_code: testapp_client\n"
             "    auth_type: google\n"
         )
         cfg = self._write_yaml(yaml_content)
@@ -683,7 +928,6 @@ class EmailNormalizationTests(ProvisionTenantTestBase):
 
         self.assertEqual(User.objects.filter(email="testuser@example.com").count(), 1)
         self.assertEqual(User.objects.filter(email="TestUser@Example.COM").count(), 0)
-
         self.assertIn("testuser@example.com", out)
 
         audit = self._audit_lines()
@@ -694,7 +938,7 @@ class EmailNormalizationTests(ProvisionTenantTestBase):
             "  - email: alice@example.com\n"
             "    first_name: Alice\n"
             "    last_name: Case\n"
-            "    role: testapp_tste_client\n"
+            "    role_code: testapp_client\n"
             "    auth_type: google\n"
         )
         yaml1 = _yaml_with_users(base_users)
@@ -736,7 +980,7 @@ class EmailNormalizationTests(ProvisionTenantTestBase):
             "  - email: bob@example.com\n"
             "    first_name: Bob\n"
             "    last_name: Builder\n"
-            "    role: testapp_tste_client\n"
+            "    role_code: testapp_client\n"
             "    auth_type: google\n"
         )
         cfg = self._write_yaml(yaml_content)
@@ -748,7 +992,5 @@ class EmailNormalizationTests(ProvisionTenantTestBase):
         self.assertIn("Multiple users", msg)
         self.assertIn("bob@example.com", msg)
 
-        # Nothing else created
-        self.assertEqual(Role.objects.count(), 0)
         self.assertEqual(UserAppRole.objects.count(), 0)
         self.assertEqual(Tenant.objects.filter(code="TSTE").count(), 0)
